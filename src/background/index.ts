@@ -1,11 +1,14 @@
 import { FULL_ENGINE_STATUS, FULL_ENGINE_STATUS_KEY } from '../engine/fullEngine';
 import { ENSURE_ENGINE } from '../engine/protocol';
-import { SHOW_HINT, loadSettings, saveSettings } from '../shared/settings';
+import { SHOW_HINT, applySettingsPatch, becomeSettingsWriter, handleSettingsMessage } from '../shared/settings';
 
 /**
  * Background service worker. Starts the offscreen document that hosts the
  * Stockfish workers, and handles the keyboard shortcuts.
  */
+
+// All settings changes are written here, one at a time (see settings.ts).
+becomeSettingsWriter();
 
 const OFFSCREEN_URL = 'src/engine/offscreen.html';
 let creating: Promise<void> | null = null;
@@ -29,6 +32,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     void chrome.storage.local.set({ [FULL_ENGINE_STATUS_KEY]: msg.status });
     return;
   }
+  if (handleSettingsMessage(msg, sendResponse)) return true;
   if (msg?.type !== ENSURE_ENGINE) return;
   ensureOffscreen().then(
     () => sendResponse({ ok: true }),
@@ -39,8 +43,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'toggle-hints') {
-    const { enabled } = await loadSettings();
-    await saveSettings({ enabled: !enabled });
+    await applySettingsPatch(({ enabled }) => ({ enabled: !enabled }));
   } else if (command === 'show-hint') {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id !== undefined) chrome.tabs.sendMessage(tab.id, { type: SHOW_HINT }).catch(() => {});
