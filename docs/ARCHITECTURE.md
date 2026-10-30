@@ -51,7 +51,10 @@ needed yet.
   extension into `dist/`.
 - `npm test` runs the unit and integration suite; `npm run typecheck` checks
   TypeScript without emitting files.
-- `npm run e2e` runs browser tests against captured Chess.com markup.
+- `npm run e2e` runs browser tests against captured Chess.com markup. It
+  first checks that `dist/vektra-build.json` matches a fingerprint of the
+  current sources (`scripts/build-fingerprint.mjs`) and stops if `dist` is
+  stale.
 - `npm run openings` regenerates the opening lookup from `data/openings/`.
 
 See the root [README](../README.md) for installation, settings, supported

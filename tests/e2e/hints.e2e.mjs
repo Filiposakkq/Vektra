@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 import { readFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { assertFreshBuild } from './assertFreshBuild.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const dist = join(root, 'dist');
@@ -36,6 +37,8 @@ const PAGES = {
   'https://www.chess.com/game/live/42': page(fixture('computer-03-board').replace('board-play-computer', 'board-single') +
     fixture('computer-03-movelist').replace('board-play-computer', 'board-single')),
 };
+
+assertFreshBuild();
 
 const userDataDir = mkdtempSync(join(tmpdir(), 'vektra-e2e-'));
 const ctx = await chromium.launchPersistentContext(userDataDir, {
