@@ -44,8 +44,10 @@ export class EngineErrorNotice {
     document.body.append(this.root);
   }
 
-  show(detail: string, onRetry: () => void): void {
-    this.message.textContent = 'Vektra could not run the chess engine. Retry the current position.';
+  /** Show the notice; `text` and `action` replace the engine-error wording and the Retry label. */
+  show(detail: string, onRetry: () => void, { text, action }: { text?: string; action?: string } = {}): void {
+    this.message.textContent = text ?? 'Vektra could not run the chess engine. Retry the current position.';
+    this.retry.textContent = action ?? 'Retry';
     this.root.title = detail;
     this.retry.onclick = onRetry;
     this.root.style.display = 'flex';
