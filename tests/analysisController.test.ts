@@ -5,6 +5,7 @@ import type { BoardState } from '../src/content/boardReader';
 import { replay } from '../src/content/fen';
 import type { AnalyzeRequest, SearchResult } from '../src/engine/protocol';
 import { DEFAULT_SETTINGS, type Settings } from '../src/shared/settings';
+import { installFakeChrome } from './fixtures/chrome';
 
 const SANS = ['e4', 'e5', 'Nf3'];
 
@@ -49,16 +50,7 @@ class FakeEngine implements AnalysisEngine {
 let stored: Record<string, unknown>;
 
 beforeEach(() => {
-  stored = {};
-  vi.stubGlobal('chrome', {
-    runtime: { getURL: (path: string) => path },
-    storage: {
-      local: {
-        get: vi.fn(async (key: string) => ({ [key]: stored[key] })),
-        set: vi.fn(async (items: Record<string, unknown>) => Object.assign(stored, items)),
-      },
-    },
-  });
+  stored = installFakeChrome().local.data;
   Object.defineProperty(navigator, 'hardwareConcurrency', { value: 8, configurable: true });
 });
 

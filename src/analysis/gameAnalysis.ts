@@ -1,5 +1,5 @@
 import type { AnalyzeRequest, SearchResult } from '../engine/protocol';
-import { whitePov, type PvLine } from '../engine/uci';
+import { whitePov } from '../engine/uci';
 import { ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
 import { openingName } from './openings';
 import { isBookLineWith } from './openingBook';

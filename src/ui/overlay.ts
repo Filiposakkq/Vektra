@@ -100,7 +100,8 @@ export class BoardOverlay {
   /** Colour per rank (best first). */
   colors: readonly string[] = DEFAULT_ARROW_COLORS;
 
-  constructor(private board: HTMLElement) {
+  // The board is passed again on every draw, which attaches the layer to it.
+  constructor(_board: HTMLElement) {
     this.svg = document.createElementNS(SVG_NS, 'svg');
     this.svg.classList.add(OVERLAY_CLASS);
     this.svg.setAttribute('viewBox', '0 0 8 8');
@@ -117,7 +118,6 @@ export class BoardOverlay {
 
   /** Re-attach if chess.com replaced the board or removed the layer. */
   private attach(board: HTMLElement) {
-    this.board = board;
     if (this.svg.parentElement !== board) {
       if (getComputedStyle(board).position === 'static') board.style.position = 'relative';
       board.appendChild(this.svg);
