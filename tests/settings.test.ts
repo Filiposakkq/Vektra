@@ -5,9 +5,7 @@ import {
   ELO_PRESETS,
   ELO_MAX,
   ELO_MIN,
-  loadSettings,
   PRESETS,
-  saveSettings,
   sanitizeSettings,
   type Settings,
 } from '../src/shared/settings';
@@ -94,6 +92,14 @@ describe('autoPlayDelayMs', () => {
   });
 });
 
+/** A fresh copy of the settings module acting as the background worker (the single writer). */
+async function writerSettings() {
+  vi.resetModules();
+  const settings = await import('../src/shared/settings');
+  settings.becomeSettingsWriter();
+  return settings;
+}
+
 describe('settings migration', () => {
   it('serializes concurrent updates so each patch preserves the others', async () => {
     const syncData: Record<string, unknown> = {
@@ -117,6 +123,7 @@ describe('settings migration', () => {
     vi.stubGlobal('chrome', { storage: { sync, local } });
 
     try {
+      const { saveSettings } = await writerSettings();
       await Promise.all([saveSettings({ elo: 2400 }), saveSettings({ skillLevel: 9 })]);
       expect(syncData.settings).toMatchObject({ elo: 2400, skillLevel: 9 });
     } finally {
@@ -143,6 +150,7 @@ describe('settings migration', () => {
     vi.stubGlobal('chrome', { storage: { sync, local } });
 
     try {
+      const { loadSettings } = await writerSettings();
       const settings = await loadSettings();
       expect(settings).toMatchObject({
         analysisDepth: 12,
@@ -176,6 +184,7 @@ describe('settings migration', () => {
     vi.stubGlobal('chrome', { storage: { sync, local: storageArea(localData) } });
 
     try {
+      const { loadSettings } = await writerSettings();
       expect((await loadSettings()).weakerMoveChancePercent).toBe(20);
       expect((await loadSettings()).analysisDepth).toBe(20);
       expect(sync.set).not.toHaveBeenCalled();
@@ -200,6 +209,7 @@ describe('settings migration', () => {
     vi.stubGlobal('chrome', { storage: { sync, local } });
 
     try {
+      const { loadSettings } = await writerSettings();
       expect((await loadSettings()).analysisDepth).toBe(12);
       expect(sync.set).toHaveBeenCalledOnce();
       expect(localData.settingsMigrations).toEqual({
