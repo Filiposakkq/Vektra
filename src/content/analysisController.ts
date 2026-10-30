@@ -17,6 +17,7 @@ import {
   type EngineKind,
 } from '../analysis/analysisCache';
 import { replay } from './fen';
+import { handleStaleExtension } from './extensionUpdate';
 import { downloadJson } from '../analysis/export';
 import { downloadPdf } from '../analysis/pdfExport';
 import { EngineClient } from '../engine/client';
@@ -82,7 +83,9 @@ export class AnalysisController {
       onCancel: () => this.cancel(),
       onExport: () => this.analysis && downloadJson(this.analysis),
       onExportPdf: () => {
-        if (this.analysis) downloadPdf(this.analysis).catch((e) => console.warn('[Vektra] PDF export failed:', e));
+        if (this.analysis) downloadPdf(this.analysis).catch((e) => {
+          if (!handleStaleExtension(e)) console.warn('[Vektra] PDF export failed:', e);
+        });
       },
       onSelectPly: (ply) => this.goToPly(ply),
     });
