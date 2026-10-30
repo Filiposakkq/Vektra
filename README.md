@@ -54,6 +54,10 @@ Chromium against captured Chess.com markup. `npm run calibrate:strength` checks
 the Elo settings on fixed tactical positions; it is not a real-world rating
 test. The browser checks can also be run individually with `npm run e2e:board`,
 `npm run e2e:games`, `npm run e2e:analysis`, and `npm run e2e:settings`.
+Each production build records a fingerprint of its sources in
+`dist/vektra-build.json`; the browser checks stop with a list of changed files
+if `dist` is missing that file or was built from different sources (including
+`npm run dev` output), so run `npm run build` again first.
 
 ## Important notices
 
@@ -254,7 +258,8 @@ after the user requests it and grants optional host permissions. Vektra checks
 the SHA-256 before caching the file in extension Cache Storage and using it in
 a worker. `npm run e2e:full-engine` tests the download (first build with
 `VEKTRA_E2E_FULL_ENGINE=1 npm run build` so the test extension has the download
-hosts granted without a prompt).
+hosts granted without a prompt; the test stops if `dist` was not built that
+way).
 
 Full-game analysis requests a 64 MiB transposition table per worker to help
 reuse search results across nearby positions. The full engine can use multiple

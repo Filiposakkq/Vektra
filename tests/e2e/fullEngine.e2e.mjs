@@ -6,11 +6,14 @@ import { chromium } from 'playwright';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { assertFreshBuild } from './assertFreshBuild.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const dist = join(root, 'dist');
 const fixture = (n) => readFileSync(join(root, 'tests/fixtures/chesscom', `${n}.html`), 'utf8');
 const proxy = process.env.HTTPS_PROXY;
+
+assertFreshBuild({ fullEngine: true });
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'vektra-full-')), {
   headless: true,
