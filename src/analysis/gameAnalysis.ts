@@ -3,7 +3,7 @@ import { whitePov } from '../engine/uci';
 import { ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
 import { openingName } from './openings';
 import { isBookLineWith } from './openingBook';
-import { replay } from '../content/fen';
+import { replay } from '../chess/replay';
 import { CATEGORIES, type Category } from './classify';
 import { analyzeMove, terminalScore, type MoveAnalysis, type PositionEval } from './moveAnalysis';
 

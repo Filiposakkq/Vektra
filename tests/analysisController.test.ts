@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CacheEntry } from '../src/analysis/analysisCache';
 import { AnalysisController, type AnalysisEngine } from '../src/content/analysisController';
 import type { BoardState } from '../src/content/boardReader';
-import { replay } from '../src/content/fen';
+import { replay } from '../src/chess/replay';
 import type { AnalyzeRequest, SearchResult } from '../src/engine/protocol';
 import { DEFAULT_SETTINGS, type Settings } from '../src/shared/settings';
 import { installFakeChrome } from './fixtures/chrome';
