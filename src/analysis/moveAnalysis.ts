@@ -8,7 +8,7 @@ import {
   winLoss,
   type Category,
 } from './classify';
-import { winPercent } from './winProbability';
+import { ratingCp, ratingWinPercent } from './scoreScale';
 import { uciToSan } from './chessNotation';
 
 export interface PositionEval {
@@ -55,24 +55,6 @@ export function terminalScore(fen: string): Score | null {
   return null;
 }
 
-/** Centipawns for a color from a White-POV score; slower mates score as worse. */
-function cpFor(score: Score, color: 'w' | 'b'): number {
-  const cp =
-    score.type === 'cp' ? score.value : Math.sign(score.value || -1) * (10000 - 100 * Math.abs(score.value));
-  return color === 'w' ? cp : -cp;
-}
-
-function winFor(score: Score, color: 'w' | 'b'): number {
-  if (score.type === 'mate') {
-    // Only the side that has the mate cares how far away it is.
-    const mine = color === 'w' ? score.value : -score.value;
-    if (mine <= 0) return 0;
-    return Math.max(CLASSIFICATION.MATE_FLOOR, 100 - CLASSIFICATION.MATE_STEP * (mine - 1));
-  }
-  const w = winPercent(score, CLASSIFICATION.WIN_PROB_K);
-  return color === 'w' ? w : 100 - w;
-}
-
 /** Classify one move from evaluations of the positions before and after it. */
 export function analyzeMove(
   before: PositionEval,
@@ -81,10 +63,10 @@ export function analyzeMove(
   context: { book: boolean; previous?: Category },
 ): MoveAnalysis {
   const color = before.fen.split(' ')[1] as 'w' | 'b';
-  const winBefore = winFor(before.score, color);
-  const winAfter = winFor(after.score, color);
+  const winBefore = ratingWinPercent(before.score, color);
+  const winAfter = ratingWinPercent(after.score, color);
   const second = before.lines[1];
-  const winSecondBest = second ? winFor(whitePov(second.score, color), color) : undefined;
+  const winSecondBest = second ? ratingWinPercent(whitePov(second.score, color), color) : undefined;
   const bestMove = before.lines[0]?.pv[0] ?? null;
   const facts = {
     winBefore,
@@ -94,7 +76,7 @@ export function analyzeMove(
     equalAlternative: before.lines.slice(1).some(
       (line) =>
         line.pv[0] === move.uci &&
-        cpFor(whitePov(before.lines[0].score, color), color) - cpFor(whitePov(line.score, color), color) <=
+        ratingCp(whitePov(before.lines[0].score, color), color) - ratingCp(whitePov(line.score, color), color) <=
           CLASSIFICATION.BEST_MAX_CP_LOSS,
     ),
     isTopMove: bestMove === move.uci,

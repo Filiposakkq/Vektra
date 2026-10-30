@@ -8,10 +8,10 @@
 
 export const CLASSIFICATION = {
   /**
-   * Steepness of the centipawn -> win % curve used for ratings and accuracy.
-   * Lichess uses 0.00368; chess.com's review is gentler (a lead counts for
-   * less), so losses in clearly won or lost positions still show up.
-   * Calibrated on real games against chess.com's Game Review.
+   * Steepness of the centipawn -> win % curve (winProbability.ts) used for
+   * ratings, accuracy, the eval graph and the eval bar. This is Lichess's
+   * constant (0.00368208), unchanged; the calibration against chess.com's
+   * Game Review is in ACCURACY below, not in this curve.
    */
   WIN_PROB_K: 0.00368208,
   /**

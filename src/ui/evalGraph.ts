@@ -1,4 +1,4 @@
-import { winPercent } from '../analysis/winProbability';
+import { displayWinPercent } from '../analysis/scoreScale';
 import type { GameAnalysis } from '../analysis/gameAnalysis';
 import { CATEGORY_STYLE } from './categoryStyle';
 import { THEME } from './theme';
@@ -9,7 +9,7 @@ const H = 80;
 
 /** White's win % after each ply (index 0 = start position). */
 export function graphPoints(a: GameAnalysis): number[] {
-  return a.positions.map((p) => winPercent(p.score));
+  return a.positions.map((p) => displayWinPercent(p.score));
 }
 
 /**
