@@ -15,6 +15,7 @@ import {
 } from '../analysis/moveAnalysis';
 import { uciToSan } from '../analysis/chessNotation';
 import { replay } from './fen';
+import { handleStaleExtension } from './extensionUpdate';
 
 /** Don't draw full-strength lines shallower than this; early depths flicker. */
 const MIN_DRAW_DEPTH = 8;
@@ -265,7 +266,7 @@ export class HintController {
           if (this.rateMove(state, false)) this.redraw();
         })
         .catch((error: unknown) => {
-          console.error('[Vektra] Could not check opening-book status for live move rating:', error);
+          if (!handleStaleExtension(error)) console.error('[Vektra] Could not check opening-book status for live move rating:', error);
         });
     }
 

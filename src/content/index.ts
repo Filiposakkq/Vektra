@@ -16,6 +16,7 @@ import { HintController } from './hints';
 import { isGameOver, resolveScope, type Scope } from './pageScope';
 import { uciToSan } from '../analysis/chessNotation';
 import type { AnalysisController } from './analysisController';
+import { reportAnalysisLoadFailure, setReloadNotice } from './extensionUpdate';
 
 /**
  * Content script entry: decide whether Vektra may run on this page and, where
@@ -34,6 +35,7 @@ let settings: Settings = DEFAULT_SETTINGS;
 let analysisLoad: Promise<void> | null = null;
 let analysisGeneration = 0;
 const engineErrorNotice = new EngineErrorNotice();
+setReloadNotice(engineErrorNotice);
 const autoPlay = new AutoPlayScheduler(
   () => settings,
   () => currentScope,
@@ -60,7 +62,8 @@ function loadAnalysisController(): void {
       if (state) analysis.update(state, currentScope.kind);
     })
     .catch((error: unknown) => {
-      console.error('[Vektra] Could not load game analysis tools:', error);
+      // Not remembered: the next position change tries again.
+      reportAnalysisLoadFailure(error);
     })
     .finally(() => {
       analysisLoad = null;
