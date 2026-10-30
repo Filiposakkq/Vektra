@@ -53,8 +53,15 @@ function poolSize(full: boolean): number {
   return Math.max(1, Math.min(full ? 2 : 4, cores - 1));
 }
 
+/** What the controller needs from an engine; EngineClient in the extension. */
+export type AnalysisEngine = Pick<EngineClient, 'analyze' | 'engine' | 'setFullEngine' | 'disconnect' | 'onError'>;
+
 export class AnalysisController {
-  private pool: EngineClient[] = [];
+  /**
+   * Engines of the analysis running now; empty otherwise, so their workers
+   * (and the memory each one's hash table holds) are freed between runs.
+   */
+  private pool: AnalysisEngine[] = [];
   /** Moves rated so far while an analysis is running. */
   private partial: (MoveAnalysis | undefined)[] | null = null;
   private kind: PageKind = 'none';
@@ -66,7 +73,10 @@ export class AnalysisController {
   private listObserver: MutationObserver | null = null;
   private observedList: Element | null = null;
 
-  constructor(private getSettings: () => Settings) {
+  constructor(
+    private getSettings: () => Settings,
+    private createEngine: () => AnalysisEngine = () => new EngineClient(),
+  ) {
     this.panel = new AnalysisPanel({
       onAnalyze: () => void this.run(),
       onCancel: () => this.cancel(),
@@ -173,14 +183,25 @@ export class AnalysisController {
     this.onAnalysed?.();
   }
 
-  /** Engines for a run: reuse the pool, growing or rebuilding it as needed. */
-  private engines(): EngineClient[] {
+  /** Fresh engines for a run; released again when it ends. */
+  private engines(): AnalysisEngine[] {
     const full = this.getSettings().engine === 'full';
-    const size = poolSize(full);
-    while (this.pool.length < size) this.pool.push(new EngineClient());
-    for (const e of this.pool.splice(size)) e.disconnect();
-    for (const e of this.pool) e.setFullEngine(full);
+    this.releaseEngines(this.pool);
+    this.pool = Array.from({ length: poolSize(full) }, () => {
+      const engine = this.createEngine();
+      engine.setFullEngine(full);
+      return engine;
+    });
     return this.pool;
+  }
+
+  /**
+   * Close a run's engines: the engine host then stops their workers and frees
+   * their memory. A later run never gets these engines back.
+   */
+  private releaseEngines(engines: AnalysisEngine[]): void {
+    for (const e of engines) e.disconnect();
+    if (this.pool === engines) this.pool = [];
   }
 
   private async run(): Promise<void> {
@@ -197,6 +218,7 @@ export class AnalysisController {
     const engines = this.engines();
     for (const engine of engines) engine.onError = (message) => { engineError = message; };
     let result: GameAnalysis | null;
+    let reported: AnalysisEngine['engine'][] = [];
     try {
       result = await analyzeGame(sans, engines, {
         depth: this.getSettings().analysisDepth,
@@ -208,6 +230,8 @@ export class AnalysisController {
           this.applyBadges();
         },
       });
+      // Which engine ran is only known while the engines are connected.
+      reported = engines.map((e) => e.engine);
     } catch (error) {
       if (this.abort !== abort) return;
       this.abort = null;
@@ -217,6 +241,8 @@ export class AnalysisController {
       console.error('[Vektra] Full-game analysis failed:', error);
       this.panel.showIdle(this.state?.sans.length ?? 0, false, `Analysis failed: ${detail}. Try again.`);
       return;
+    } finally {
+      this.releaseEngines(engines);
     }
     if (this.abort !== abort) return;
     this.abort = null;
@@ -229,7 +255,7 @@ export class AnalysisController {
       this.panel.showIdle(this.state?.sans.length ?? 0, false, message);
       return;
     }
-    const engine = usedEngine(engines.map((e) => e.engine), selected);
+    const engine = usedEngine(reported, selected);
     result.engine = engineLabel(engine);
     this.show(result);
     void this.saveCached(sans, result, engine);
@@ -241,7 +267,7 @@ export class AnalysisController {
   private cancel(): void {
     this.abort?.abort();
     this.abort = null;
-    for (const e of this.pool) e.stop();
+    this.releaseEngines(this.pool);
     this.partial = null;
     clearMoveBadges();
     this.panel.showIdle(this.state?.sans.length ?? 0, false, 'Analysis cancelled.');
@@ -274,7 +300,7 @@ export class AnalysisController {
 
   dispose(): void {
     this.abort?.abort();
-    for (const e of this.pool) e.disconnect();
+    this.releaseEngines(this.pool);
     this.listObserver?.disconnect();
     clearMoveBadges();
     this.panel.destroy();
