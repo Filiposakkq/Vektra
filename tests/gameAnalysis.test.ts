@@ -26,6 +26,8 @@ describe('analyzeGame with Stockfish', { timeout: 120000 }, () => {
     expect(result).not.toBeNull();
     expect(requests).toHaveLength(2);
     expect(requests.every(({ hashMb }) => hashMb === 64)).toBe(true);
+    // The analysis cache records these settings (see analysisCache.ts).
+    expect(requests.every(({ multipv, limit }) => multipv === 2 && limit.movetimeMs === 15000)).toBe(true);
   });
 
   it("classifies Scholar's mate", async () => {

@@ -1,6 +1,6 @@
 import type { AnalyzeRequest, SearchResult } from '../engine/protocol';
 import { whitePov, type PvLine } from '../engine/uci';
-import { ANALYSIS_MAX_MOVETIME_MS } from './config';
+import { ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
 import { openingName } from './openings';
 import { isBookLineWith } from './openingBook';
 import { replay } from '../content/fen';
@@ -44,10 +44,10 @@ async function evaluatePosition(
   if (terminal) return { fen, score: terminal, lines: [] };
   const result = await engine.analyze({
     fen,
-    multipv: 2,
+    multipv: ANALYSIS_MULTIPV,
     limit: { depth, movetimeMs: ANALYSIS_MAX_MOVETIME_MS },
     strength: { skillLevel: 20, limitStrength: false, elo: 3190 },
-    hashMb: 64,
+    hashMb: ANALYSIS_HASH_MB,
   });
   if (!result) return null;
   if (!result.lines.length) return { fen, score: { type: 'cp', value: 0 }, lines: [] };

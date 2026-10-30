@@ -7,6 +7,15 @@ import {
   type MoveAnalysis,
   type PositionEval,
 } from '../analysis/gameAnalysis';
+import {
+  cacheKey,
+  engineLabel,
+  findCached,
+  profileFor,
+  usedEngine,
+  withEntry,
+  type EngineKind,
+} from '../analysis/analysisCache';
 import { replay } from './fen';
 import { downloadJson } from '../analysis/export';
 import { downloadPdf } from '../analysis/pdfExport';
@@ -29,11 +38,11 @@ function isPrefix(prefix: readonly string[], sans: readonly string[]): boolean {
  * badges on the move list, the summary panel, and the engine line for the
  * position on the board.
  */
-/** Finished analyses kept in storage.local, so reopening a game is instant. */
+/**
+ * Finished analyses kept in storage.local, so reopening a game is instant
+ * (see analysisCache.ts for when a saved one is reused).
+ */
 const CACHE_KEY = 'analysisCache';
-const CACHE_SIZE = 12;
-type Cache = { key: string; analysis: GameAnalysis }[];
-const cacheKey = (sans: readonly string[]) => sans.join(' ');
 
 /**
  * How many engines analyse a game side by side. Lite workers are small, so
@@ -116,20 +125,22 @@ export class AnalysisController {
   }
 
   /**
-   * Show a saved analysis of this exact game, if there is one at least as
-   * deep as the current analysis depth (a shallower one is analysed again).
+   * Show a saved analysis of this exact game, if one made with the selected
+   * engine (or the full one) and search settings at least as deep as the
+   * current ones exists; otherwise the game is analysed again on request.
    */
   private async loadCached(sans: readonly string[]): Promise<void> {
     const key = cacheKey(sans);
     if (!sans.length || key === this.cacheChecked) return;
     this.cacheChecked = key;
-    let cache: Cache = [];
+    let cache: unknown;
     try {
-      cache = ((await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY] as Cache | undefined) ?? [];
+      cache = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
     } catch {
       return;
     }
-    const hit = cache.find((c) => c.key === key && c.analysis.depth >= this.getSettings().analysisDepth);
+    const { engine, analysisDepth } = this.getSettings();
+    const hit = findCached(cache, sans, engine, analysisDepth);
     if (!hit || this.analysis || this.abort || cacheKey(this.state?.sans ?? []) !== key) return;
     // Re-rate from the saved evaluations, so changes to the rating rules
     // apply to games analysed before them.
@@ -138,12 +149,15 @@ export class AnalysisController {
     this.show({ ...a, moves, opening: gameOpening(a.positions, moves), summary: summarize(moves) });
   }
 
-  private async saveCached(analysis: GameAnalysis): Promise<void> {
-    const key = cacheKey(analysis.sans);
+  /**
+   * Saved under the moves on the page (what loadCached looks up), which can
+   * be more than were analysed if a move could not be replayed.
+   */
+  private async saveCached(sans: readonly string[], analysis: GameAnalysis, engine: EngineKind): Promise<void> {
+    const entry = { key: cacheKey(sans), profile: profileFor(engine, analysis.depth, analysis.positions), analysis };
     try {
-      const cache = ((await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY] as Cache | undefined) ?? [];
-      const next = [{ key, analysis }, ...cache.filter((c) => c.key !== key)].slice(0, CACHE_SIZE);
-      await chrome.storage.local.set({ [CACHE_KEY]: next });
+      const cache = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
+      await chrome.storage.local.set({ [CACHE_KEY]: withEntry(cache, entry) });
     } catch {
       // Only a convenience; the analysis is still shown.
     }
@@ -179,6 +193,7 @@ export class AnalysisController {
     clearMoveBadges();
     this.panel.showProgress(0, sans.length + 1);
     let engineError: string | null = null;
+    const selected = this.getSettings().engine;
     const engines = this.engines();
     for (const engine of engines) engine.onError = (message) => { engineError = message; };
     let result: GameAnalysis | null;
@@ -214,9 +229,10 @@ export class AnalysisController {
       this.panel.showIdle(this.state?.sans.length ?? 0, false, message);
       return;
     }
-    result.engine = this.getSettings().engine === 'full' ? 'Stockfish 19' : 'Stockfish 19 lite';
+    const engine = usedEngine(engines.map((e) => e.engine), selected);
+    result.engine = engineLabel(engine);
     this.show(result);
-    void this.saveCached(result);
+    void this.saveCached(sans, result, engine);
   }
 
   /** Called when an analysis finishes, so the board can redraw with it. */
