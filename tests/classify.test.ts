@@ -85,6 +85,26 @@ describe('isSacrifice', () => {
     const { fens: f2 } = replay(['d4', 'e5']);
     expect(isSacrifice(f2[2], 'c1f4')).toBe(true); // exf4 wins the bishop
   });
+
+  it('ignores attackers that are pinned', () => {
+    // The d7 pawn is pinned to the king by Bb5, so it can't take on e6.
+    expect(isSacrifice('4k3/3p4/8/1B4N1/8/8/8/6K1 w - - 0 1', 'g5e6')).toBe(false);
+  });
+
+  it('counts recaptures, so a piece that is won back is not sacrificed', () => {
+    // Nxd5: Rxd5 Rxd5 would lose Black the exchange, so the knight is safe.
+    expect(isSacrifice('3rk3/8/8/3p4/8/2N5/8/3RK3 w - - 0 1', 'c3d5')).toBe(false);
+  });
+
+  it('a piece left where it can be taken (ignoring a threat)', () => {
+    // exd5 wins the knight after the quiet king move.
+    expect(isSacrifice('4k3/8/4p3/3N4/8/8/8/6K1 w - - 0 1', 'g1g2')).toBe(true);
+  });
+
+  it('an exchange sacrifice', () => {
+    // Rxc6 bxc6: a rook for a knight.
+    expect(isSacrifice('4k3/1p6/2n5/8/8/8/8/2R1K3 w - - 0 1', 'c1c6')).toBe(true);
+  });
 });
 
 describe('accuracy', () => {

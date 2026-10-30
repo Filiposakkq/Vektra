@@ -45,6 +45,12 @@ export const CLASSIFICATION = {
   BRILLIANT_MIN_WIN_AFTER: 50,
   /** Smallest piece value (pawns = 1) that counts as sacrificed. */
   BRILLIANT_MIN_PIECE_VALUE: 3,
+  /**
+   * Net material (pawns) the opponent must be able to win, after all
+   * recaptures and minus anything the move captured, for it to count as a
+   * sacrifice. 2 includes exchange sacrifices (rook for minor piece).
+   */
+  BRILLIANT_MIN_MATERIAL_LOSS: 2,
 
   /**
    * Great: the best move when the second-best move is clearly worse (the only
@@ -74,3 +80,10 @@ export const BOOK_MAX_PLY = 30;
 
 /** Default engine depth for full-game analysis (configurable in the popup). */
 export const DEFAULT_ANALYSIS_DEPTH = 12;
+
+/**
+ * Longest full-game analysis searches one position, in ms. The search
+ * normally reaches the analysis depth first; this keeps one sharp position
+ * from stalling the whole game at high depths.
+ */
+export const ANALYSIS_MAX_MOVETIME_MS = 15000;

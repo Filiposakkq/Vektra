@@ -297,8 +297,9 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
   (`#board-layout-sidebar`); if chess.com changes it, the panel floats instead.
 - The full engine uses about 100 MB of memory per engine worker; full-game
   analysis can use more than one worker.
-- The sacrifice test for Brilliant is a simple heuristic (a piece left
-  attacked by something cheaper, or attacked and undefended).
+- The sacrifice test for Brilliant checks material only (a static exchange
+  on each piece, counting legal captures and recaptures); it does not look
+  for compensation such as mating attacks, which the engine score covers.
 - In Elo or reduced-skill mode a provisional best line appears during search;
   the final weakened move replaces it when the search finishes.
 - With autoplay off, an eligible weaker alternative appears as the second,

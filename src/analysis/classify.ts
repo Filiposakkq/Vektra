@@ -1,4 +1,4 @@
-import { Chess, type PieceSymbol, type Square } from 'chess.js';
+import { Chess, type Move, type PieceSymbol, type Square } from 'chess.js';
 import { ACCURACY, CLASSIFICATION as C } from './config';
 
 export const CATEGORIES = [
@@ -105,10 +105,35 @@ export function moveAccuracy(loss: number): number {
 }
 
 /**
- * True if the move leaves a piece worth at least BRILLIANT_MIN_PIECE_VALUE
- * where the opponent can win it: the moved piece (or, for a capture, the
- * capturing piece) is attacked by something cheaper, or attacked and not
- * defended. Trades (capturing something at least as valuable) don't count.
+ * Material the side to move wins by capturing on `square`, with both sides
+ * recapturing with their cheapest piece and either side free to stop
+ * (static exchange evaluation). Only legal captures count, so pinned
+ * pieces don't attack and pieces lined up behind each other join in.
+ */
+function exchangeGain(chess: Chess, square: Square): number {
+  const target = chess.get(square);
+  if (!target) return 0;
+  let cheapest: { move: Move; value: number } | null = null;
+  for (const m of chess.moves({ verbose: true })) {
+    if (m.to !== square || m.flags.includes('e')) continue;
+    if (m.promotion && m.promotion !== 'q') continue;
+    const value = PIECE_VALUE[m.promotion ?? m.piece];
+    if (!cheapest || value < cheapest.value) cheapest = { move: m, value };
+  }
+  if (!cheapest) return 0;
+  const promotionGain = cheapest.move.promotion ? PIECE_VALUE[cheapest.move.promotion] - 1 : 0;
+  chess.move(cheapest.move);
+  const gain = PIECE_VALUE[target.type] + promotionGain - exchangeGain(chess, square);
+  chess.undo();
+  return Math.max(0, gain);
+}
+
+/**
+ * True if the move gives up material: after it, the opponent can win at
+ * least BRILLIANT_MIN_MATERIAL_LOSS more than the move itself captured,
+ * by taking a piece worth at least BRILLIANT_MIN_PIECE_VALUE. That covers
+ * the moved piece and pieces left en prise elsewhere (ignoring a threat).
+ * Trades, and captures the mover can win back, don't count.
  */
 export function isSacrifice(fenBefore: string, uci: string): boolean {
   const chess = new Chess(fenBefore);
@@ -118,18 +143,17 @@ export function isSacrifice(fenBefore: string, uci: string): boolean {
   } catch {
     return false;
   }
-  const to = move.to as Square;
-  const piece = chess.get(to);
-  if (!piece) return false;
-  const value = PIECE_VALUE[piece.type];
-  if (value < C.BRILLIANT_MIN_PIECE_VALUE || piece.type === 'k') return false;
-  if (move.captured && PIECE_VALUE[move.captured] >= value) return false;
+  const gained =
+    (move.captured ? PIECE_VALUE[move.captured] : 0) +
+    (move.promotion ? PIECE_VALUE[move.promotion] - 1 : 0);
 
-  const opponent = piece.color === 'w' ? 'b' : 'w';
-  const attackers = chess.attackers(to, opponent);
-  if (!attackers.length) return false;
-  const cheapest = Math.min(...attackers.map((sq) => PIECE_VALUE[chess.get(sq)!.type]));
-  if (cheapest < value) return true;
-  const defended = chess.attackers(to, piece.color).length > 0;
-  return !defended;
+  let worst = 0;
+  for (const row of chess.board()) {
+    for (const piece of row) {
+      if (!piece || piece.color !== move.color || piece.type === 'k') continue;
+      if (PIECE_VALUE[piece.type] < C.BRILLIANT_MIN_PIECE_VALUE) continue;
+      worst = Math.max(worst, exchangeGain(chess, piece.square));
+    }
+  }
+  return worst - gained >= C.BRILLIANT_MIN_MATERIAL_LOSS;
 }
