@@ -24,7 +24,16 @@ export class EngineClient {
   private nextId = 1;
   private pending = new Map<number, Pending>();
   private full = false;
+  private readyEngine: 'lite' | 'full' | null = null;
   onError?: (message: string) => void;
+
+  /**
+   * Engine the host actually started for this connection (asking for the full
+   * one falls back to lite if it isn't downloaded); null until it is ready.
+   */
+  get engine(): 'lite' | 'full' | null {
+    return this.readyEngine;
+  }
 
   private reportError(message: string): void {
     console.warn('[Vektra] engine error:', message);
@@ -50,6 +59,7 @@ export class EngineClient {
           if (this.pending.size) this.reportError(`Engine connection closed: ${error.message}`);
         }
         this.port = null;
+        this.readyEngine = null;
         this.cancelAll();
       });
       this.port = port;
@@ -63,6 +73,7 @@ export class EngineClient {
   private onMessage(msg: HostMessage) {
     if (msg.type === 'ready') {
       console.debug(`[Vektra] engine: ${msg.engine}`);
+      this.readyEngine = msg.engine;
       return;
     }
     if (msg.type === 'error') {
@@ -111,5 +122,6 @@ export class EngineClient {
     this.cancelAll();
     this.port?.disconnect();
     this.port = null;
+    this.readyEngine = null;
   }
 }

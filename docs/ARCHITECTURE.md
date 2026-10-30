@@ -20,7 +20,9 @@ a live game, archived game, review, or analysis board before attaching features.
    using `src/analysis/moveAnalysis.ts` without loading full-game analysis.
    `src/content/autoPlay.ts` validates and schedules optional move submission.
    `src/content/analysisController.ts` runs full-game review on demand and
-   caches completed analyses locally.
+   caches completed analyses locally. Each saved analysis records the engine
+   that actually ran and its search settings (`src/analysis/analysisCache.ts`),
+   and is reused only when those cover the current engine and depth.
 5. `src/ui/` contains the board overlays and controls; `src/popup/` contains
    the settings interface, which is also embedded as a floating window.
    Shared settings and message names are in `src/shared/`.

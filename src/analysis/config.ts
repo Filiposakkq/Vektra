@@ -87,3 +87,12 @@ export const DEFAULT_ANALYSIS_DEPTH = 12;
  * from stalling the whole game at high depths.
  */
 export const ANALYSIS_MAX_MOVETIME_MS = 15000;
+
+/** Engine lines per position in full-game analysis (Great needs the second best). */
+export const ANALYSIS_MULTIPV = 2;
+
+/** Transposition-table size for full-game analysis searches, in MiB. */
+export const ANALYSIS_HASH_MB = 64;
+
+/** Version of the lite Stockfish build shipped with the extension (the stockfish package in package-lock.json). */
+export const LITE_ENGINE_VERSION = '19.0.1';
