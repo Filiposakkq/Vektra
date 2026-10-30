@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vektra</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">V</span>
+        <div class="brand-copy">
+          <h1>Vektra</h1>
+          <span class="subtitle">Chess analysis tools</span>
+        </div>
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+      </div>
+      <label class="switch" title="Turn Vektra on or off">
+        <input type="checkbox" name="enabled" aria-label="Turn Vektra off" />
+        <span></span>
+      </label>
+    </header>
+    <div class="board-edge" aria-hidden="true"></div>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-hints" aria-controls="panel-hints" data-tab="hints">Hints</button>
+      <button type="button" role="tab" id="tab-engine" aria-controls="panel-engine" data-tab="engine">Engine</button>
+      <button type="button" role="tab" id="tab-analysis" aria-controls="panel-analysis" data-tab="analysis">Analysis</button>
+    </nav>
+
+    <form id="settings">
+      <div data-panel="hints" id="panel-hints" role="tabpanel" aria-labelledby="tab-hints">
+        <details class="inline-advanced presets-disclosure">
+          <summary>Quick setups</summary>
+          <div class="presets" id="presets"></div>
+        </details>
+
+        <section>
+          <h2>Live games</h2>
+          <div class="segmented">
+            <label><input type="radio" name="hintMode" value="instant" /><span>Instant</span></label>
+            <label><input type="radio" name="hintMode" value="hotkey" /><span>On demand</span></label>
+          </div>
+          <p class="note" data-show="hintMode=hotkey">Press <kbd data-command="show-hint"></kbd> to show the arrows.</p>
+          <div class="move-suggestions">
+            <h3>Move suggestions</h3>
+            <label class="row inline check">
+              <span>Enable weaker-move suggestions</span>
+              <input type="checkbox" name="occasionalWeakerMoves" />
+            </label>
+            <p class="note">With autoplay off, the best move stays first and an eligible weaker move is always shown second in purple. Autoplay may play a weaker move instead.</p>
+            <div class="row" data-show="occasionalWeakerMoves=true">
+              <label for="weakerMoveChancePercent">
+                <span>Autoplay chance per eligible turn</span>
+                <output data-for="weakerMoveChancePercent"></output>
+              </label>
+              <input type="range" id="weakerMoveChancePercent" name="weakerMoveChancePercent" min="0" max="100" step="5" />
+            </div>
+            <div class="row" data-show="occasionalWeakerMoves=true">
+              <label for="weakerMoveMaxLossCp">
+                <span>Maximum move loss</span>
+                <output data-for="weakerMoveMaxLossCp" data-format="centipawns"></output>
+              </label>
+              <input type="range" id="weakerMoveMaxLossCp" name="weakerMoveMaxLossCp" min="10" max="300" step="10" />
+            </div>
+            <p class="note" data-show="occasionalWeakerMoves=true">
+              Only legal alternatives within this evaluation-loss limit are eligible. The chance setting applies to autoplay; without autoplay, an eligible weaker move is always shown.
+            </p>
+            <label class="row inline check">
+              <span>Show additional candidate moves</span>
+              <input type="checkbox" name="weakenedShowsTopMoves" />
+            </label>
+            <p class="note">
+              Shows up to five engine lines, including alongside a weaker selection.
+            </p>
+            <p class="note">The board also has a quick toggle for weaker moves.</p>
+          </div>
+          <label class="row inline check">
+            <span>Rate my moves as I play</span>
+            <input type="checkbox" name="liveRatings" />
+          </label>
+          <label class="row inline check">
+            <span>Play moves automatically</span>
+            <input type="checkbox" name="autoPlay" />
+          </label>
+          <details class="inline-advanced" data-show="autoPlay=true">
+            <summary>Autoplay delay range</summary>
+            <div class="row" data-show="autoPlay=true">
+              <label for="autoPlayMinDelaySec">
+                <span>Minimum move delay</span>
+                <output data-for="autoPlayMinDelaySec" data-format="decimal-seconds"></output>
+              </label>
+              <input type="range" id="autoPlayMinDelaySec" name="autoPlayMinDelaySec" min="0" max="30" step="0.5" />
+            </div>
+            <div class="row" data-show="autoPlay=true">
+              <label for="autoPlayMaxDelaySec">
+                <span>Maximum move delay</span>
+                <output data-for="autoPlayMaxDelaySec" data-format="decimal-seconds"></output>
+              </label>
+              <input type="range" id="autoPlayMaxDelaySec" name="autoPlayMaxDelaySec" min="0" max="30" step="0.5" />
+            </div>
+            <p class="note" data-show="autoPlay=true">
+              The delay is selected from this range after the engine chooses a move. Engine strength above controls how strong its choice is.
+            </p>
+          </details>
+          <p class="note">
+            Autoplay is off by default and works in live games against people or bots. Promotions must be handled manually.
+          </p>
+        </section>
+      </div>
+
+      <div data-panel="engine" id="panel-engine" role="tabpanel" aria-labelledby="tab-engine" hidden>
+        <section>
+          <h2>Engine</h2>
+          <div class="segmented">
+            <label><input type="radio" name="engine" value="lite" /><span>Lite (built in)</span></label>
+            <label><input type="radio" name="engine" value="full" id="engine-full" /><span>Full strength</span></label>
+          </div>
+          <p class="note" id="engine-status" role="status" aria-live="polite"></p>
+          <div class="engine-actions">
+            <button type="button" id="engine-download" class="action">Download full engine · 99 MB</button>
+            <button type="button" id="engine-remove" class="link" hidden>Remove download</button>
+          </div>
+          <div class="progress" id="engine-progress" role="progressbar" aria-label="Full engine download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i></i></div>
+        </section>
+        <details class="advanced-settings">
+          <summary>
+            <span>Engine strength<small>Choose Skill level or an approximate Elo target</small></span>
+          </summary>
+          <p class="advanced-intro">Adjust the engine's playing strength without changing search depth or time.</p>
+          <section>
+            <h2>Strength</h2>
+            <div class="segmented">
+              <label><input type="radio" name="limitStrength" value="false" /><span>Skill level</span></label>
+              <label><input type="radio" name="limitStrength" value="true" /><span>Elo</span></label>
+            </div>
+            <div class="row" data-show="limitStrength=false">
+              <label for="skillLevel">Skill level <output data-for="skillLevel"></output></label>
+              <input type="range" id="skillLevel" name="skillLevel" min="0" max="20" step="1" />
+            </div>
+            <div class="row" data-show="limitStrength=true">
+              <label for="elo">Approximate Elo <output data-for="elo"></output></label>
+              <input type="range" id="elo" name="elo" min="1320" max="3190" step="10" />
+              <div class="strength-presets" id="strength-presets" aria-label="Approximate strength presets"></div>
+              <p class="note">An approximate target, not a rating guarantee.</p>
+            </div>
+          </section>
+        </details>
+        <details class="inline-advanced">
+          <summary>
+            <span>Search depth or time<small>Choose between a deeper search and a time limit</small></span>
+          </summary>
+          <section>
+            <div class="segmented">
+              <label><input type="radio" name="searchMode" value="depth" /><span>Depth</span></label>
+              <label><input type="radio" name="searchMode" value="movetime" /><span>Time</span></label>
+            </div>
+            <div class="row" data-show="searchMode=depth">
+              <label for="depth">Depth <output data-for="depth"></output></label>
+              <input type="range" id="depth" name="depth" min="1" max="30" step="1" />
+            </div>
+            <div class="row" data-show="searchMode=movetime">
+              <label for="movetimeMs">Time per move <output data-for="movetimeMs" data-format="seconds"></output></label>
+              <input type="range" id="movetimeMs" name="movetimeMs" min="100" max="10000" step="100" />
+            </div>
+          </section>
+        </details>
+      </div>
+
+      <div data-panel="analysis" id="panel-analysis" role="tabpanel" aria-labelledby="tab-analysis" hidden>
+        <section>
+          <h2>Full-game analysis</h2>
+          <div class="row">
+            <label for="analysisDepth">Depth <output data-for="analysisDepth"></output></label>
+            <input type="range" id="analysisDepth" name="analysisDepth" min="8" max="24" step="1" />
+          </div>
+          <p class="note">Higher depth can give more detailed evaluations, but takes longer. 12 is a faster starting point; increase it for deeper analysis.</p>
+        </section>
+        <section>
+          <h2>How to use</h2>
+          <p class="note">
+            Open a finished game, Game Review, or the analysis board, then click <b>Analyze game</b> in the Vektra panel
+            beside the board. You get move ratings, accuracy, an eval graph and PDF/JSON export.
+          </p>
+        </section>
+      </div>
+
+    </form>
+
+    <footer>
+      <div class="shortcuts" id="shortcuts"></div>
+      <button type="button" id="edit-shortcuts" class="link">Change shortcuts</button>
+      <button type="button" id="reset-settings" class="link reset-link">Reset settings</button>
+      <p>Move suggestions and ratings are engine estimates. Autoplay is optional.</p>
+    </footer>
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

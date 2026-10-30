@@ -1,0 +1,46 @@
+{
+  "name": "vektra",
+  "version": "0.1.0",
+  "description": "Stockfish hints and game analysis for chess.com games and finished-game review",
+  "scripts": {
+    "predev": "node scripts/copy-engine.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-engine.mjs",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "calibrate:strength": "vitest run --config vitest.calibration.config.ts",
+    "e2e": "node tests/e2e/hints.e2e.mjs",
+    "e2e:board": "node tests/e2e/hints.e2e.mjs board",
+    "e2e:games": "node tests/e2e/hints.e2e.mjs games",
+    "e2e:analysis": "node tests/e2e/hints.e2e.mjs analysis",
+    "e2e:settings": "node tests/e2e/hints.e2e.mjs settings",
+    "openings": "node scripts/build-openings.mjs",
+    "e2e:full-engine": "node tests/e2e/fullEngine.e2e.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Filiposakkq/Vektra.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Filiposakkq/Vektra/issues"
+  },
+  "homepage": "https://github.com/Filiposakkq/Vektra#readme",
+  "dependencies": {
+    "chess.js": "^1.4.0",
+    "jspdf": "^4.2.1",
+    "stockfish": "^19.0.1"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^3.0.0",
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^26.6.6",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "private": true,
+  "type": "module"
+}
