@@ -1,7 +1,7 @@
 import type { jsPDF as JsPdf } from 'jspdf';
 import { CATEGORIES, CATEGORY_LABELS, type Category } from './classify';
 import type { GameAnalysis, MoveAnalysis } from './gameAnalysis';
-import { winPercent } from './winProbability';
+import { displayWinPercent } from './scoreScale';
 import { CATEGORY_STYLE } from '../ui/categoryStyle';
 
 const PAGE = { w: 595.28, h: 841.89, margin: 40 };
@@ -20,7 +20,7 @@ function dot(doc: JsPdf, x: number, y: number, r: number, category: Category) {
 }
 
 function drawGraph(doc: JsPdf, a: GameAnalysis, x: number, y: number, w: number, h: number) {
-  const pts = a.positions.map((p) => winPercent(p.score));
+  const pts = a.positions.map((p) => displayWinPercent(p.score));
   const n = Math.max(1, pts.length - 1);
   const px = (i: number) => x + (i / n) * w;
   const py = (win: number) => y + h - (win / 100) * h;
