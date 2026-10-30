@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FloatingSettings } from '../src/ui/floatingSettings';
+import { installFakeChrome } from './fixtures/chrome';
 
 afterEach(() => {
   document.getElementById('vektra-floating-settings')?.remove();
@@ -7,10 +8,7 @@ afterEach(() => {
 });
 
 function stubExtension() {
-  vi.stubGlobal('chrome', {
-    runtime: { getURL: (path: string) => `chrome-extension://test/${path}` },
-    storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
-  });
+  installFakeChrome();
 }
 
 describe('floating settings window', () => {

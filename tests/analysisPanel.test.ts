@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisPanel } from '../src/ui/analysisPanel';
+import { installFakeChrome } from './fixtures/chrome';
 
 afterEach(() => {
   document.getElementById('vektra-analysis-panel')?.remove();
@@ -8,10 +9,7 @@ afterEach(() => {
 
 describe('analysis panel status', () => {
   it('lets keyboard users expand and collapse the panel', async () => {
-    vi.stubGlobal('chrome', {
-      runtime: { getURL: (path: string) => path },
-      storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
-    });
+    installFakeChrome({ baseUrl: '' });
     const panel = new AnalysisPanel({
       onAnalyze: vi.fn(),
       onCancel: vi.fn(),
@@ -31,10 +29,7 @@ describe('analysis panel status', () => {
   });
 
   it('exposes accessible progress and a clear cancellation message', async () => {
-    vi.stubGlobal('chrome', {
-      runtime: { getURL: (path: string) => path },
-      storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
-    });
+    installFakeChrome({ baseUrl: '' });
     const panel = new AnalysisPanel({
       onAnalyze: vi.fn(),
       onCancel: vi.fn(),
