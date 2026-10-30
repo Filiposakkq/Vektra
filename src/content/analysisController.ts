@@ -115,7 +115,10 @@ export class AnalysisController {
     this.panel.setVisible(!!this.abort || !!this.analysis || (hasMoves && gameDone));
   }
 
-  /** Show a saved analysis of this exact game, if there is one. */
+  /**
+   * Show a saved analysis of this exact game, if there is one at least as
+   * deep as the current analysis depth (a shallower one is analysed again).
+   */
   private async loadCached(sans: readonly string[]): Promise<void> {
     const key = cacheKey(sans);
     if (!sans.length || key === this.cacheChecked) return;
@@ -126,7 +129,7 @@ export class AnalysisController {
     } catch {
       return;
     }
-    const hit = cache.find((c) => c.key === key);
+    const hit = cache.find((c) => c.key === key && c.analysis.depth >= this.getSettings().analysisDepth);
     if (!hit || this.analysis || this.abort || cacheKey(this.state?.sans ?? []) !== key) return;
     // Re-rate from the saved evaluations, so changes to the rating rules
     // apply to games analysed before them.

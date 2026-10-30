@@ -1,7 +1,8 @@
 import type { AnalyzeRequest, SearchResult } from '../engine/protocol';
 import { whitePov, type PvLine } from '../engine/uci';
-import { BOOK_MAX_PLY } from './config';
+import { ANALYSIS_MAX_MOVETIME_MS } from './config';
 import { openingName } from './openings';
+import { isBookLineWith } from './openingBook';
 import { replay } from '../content/fen';
 import { CATEGORIES, type Category } from './classify';
 import { analyzeMove, terminalScore, type MoveAnalysis, type PositionEval } from './moveAnalysis';
@@ -44,7 +45,7 @@ async function evaluatePosition(
   const result = await engine.analyze({
     fen,
     multipv: 2,
-    limit: { depth },
+    limit: { depth, movetimeMs: ANALYSIS_MAX_MOVETIME_MS },
     strength: { skillLevel: 20, limitStrength: false, elo: 3190 },
     hashMb: 64,
   });
@@ -73,20 +74,17 @@ export function summarize(moves: MoveAnalysis[]): { w: SideSummary; b: SideSumma
 
 /** True if every move up to and including this ply stayed in the opening book. */
 export function isBookLine(fens: string[], ply: number): boolean {
-  if (ply > BOOK_MAX_PLY) return false;
-  for (let i = 1; i <= ply; i++) if (openingName(fens[i]) === undefined) return false;
-  return true;
+  return isBookLineWith(openingName, fens, ply);
 }
 
 /** Classify every move given evaluations of every position. */
 export function classifyGame(sans: string[], uci: string[], positions: PositionEval[]): MoveAnalysis[] {
   const moves: MoveAnalysis[] = [];
-  let inBook = true;
+  const fens = positions.map((p) => p.fen);
   for (let i = 0; i < uci.length; i++) {
-    inBook = inBook && i < BOOK_MAX_PLY && openingName(positions[i + 1].fen) !== undefined;
     moves.push(
       analyzeMove(positions[i], positions[i + 1], { ply: i + 1, san: sans[i], uci: uci[i] }, {
-        book: inBook,
+        book: isBookLine(fens, i + 1),
         previous: moves[i - 1]?.category,
       }),
     );
