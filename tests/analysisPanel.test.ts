@@ -48,4 +48,24 @@ describe('analysis panel status', () => {
     expect(document.getElementById('vektra-analysis-panel')?.textContent).toContain('Analysis cancelled.');
     panel.destroy();
   });
+
+  it("docks at the top of the page's sidebar when there is one, else floats", () => {
+    installFakeChrome({ baseUrl: '' });
+    const callbacks = { onAnalyze: vi.fn(), onCancel: vi.fn(), onExport: vi.fn(), onExportPdf: vi.fn(), onSelectPly: vi.fn() };
+    let sidebar: HTMLElement | null = null;
+    const panel = new AnalysisPanel(callbacks, () => sidebar);
+    const root = () => document.getElementById('vektra-analysis-panel')!;
+    expect(root().parentElement).toBe(document.body);
+    expect(root().style.position).toBe('fixed');
+
+    sidebar = document.createElement('div');
+    sidebar.append(document.createElement('section'));
+    document.body.append(sidebar);
+    panel.ensureMounted();
+    expect(root().parentElement).toBe(sidebar);
+    expect(sidebar.firstElementChild).toBe(root());
+    expect(root().style.position).toBe('relative');
+    panel.destroy();
+    sidebar.remove();
+  });
 });

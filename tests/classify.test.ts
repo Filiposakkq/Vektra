@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { classifyMove, isSacrifice, moveAccuracy, type MoveFacts } from '../src/analysis/classify';
 import { CLASSIFICATION as C } from '../src/analysis/config';
 import { classifyGame, gameOpening, summarize, type PositionEval } from '../src/analysis/gameAnalysis';
-import { replay } from '../src/content/fen';
+import { replay } from '../src/chess/replay';
 
 const facts = (f: Partial<MoveFacts>): MoveFacts => ({
   winBefore: 50,

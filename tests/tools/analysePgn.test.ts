@@ -13,7 +13,7 @@ import {
   summarize,
   type GameAnalysis,
 } from '../../src/analysis/gameAnalysis';
-import { replay } from '../../src/content/fen';
+import { replay } from '../../src/chess/replay';
 import { UciEngine } from '../../src/engine/uciEngine';
 
 const pgnPath = process.env.PGN;

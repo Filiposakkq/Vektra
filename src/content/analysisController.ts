@@ -26,7 +26,7 @@ import { applyMoveBadges, clearMoveBadges } from '../ui/moveBadges';
 import type { BoardState } from './boardReader';
 import { findMoveList } from './moveList';
 import { isGameOver, isLiveGamePath, type PageKind } from './pageScope';
-import { SELECTORS } from './selectors';
+import { SELECTORS, queryAllFirst } from './selectors';
 
 /** True if `prefix` is the start of `sans`. */
 function isPrefix(prefix: readonly string[], sans: readonly string[]): boolean {
@@ -85,7 +85,7 @@ export class AnalysisController {
         if (this.analysis) downloadPdf(this.analysis).catch((e) => console.warn('[Vektra] PDF export failed:', e));
       },
       onSelectPly: (ply) => this.goToPly(ply),
-    });
+    }, () => document.querySelector<HTMLElement>(SELECTORS.sidebar));
   }
 
   /** The analysed move that led to the position on the board, if any. */
@@ -278,13 +278,13 @@ export class AnalysisController {
     const list = findMoveList(document, this.state?.board);
     const moves = this.analysis?.moves ?? this.partial;
     if (!list || !moves) return;
-    applyMoveBadges(list, moves);
+    applyMoveBadges(queryAllFirst(list, SELECTORS.mainLinePly), moves);
     if (list !== this.observedList) {
       this.listObserver?.disconnect();
       this.observedList = list;
       this.listObserver = new MutationObserver(() => {
         const current = this.analysis?.moves ?? this.partial;
-        if (current) applyMoveBadges(list, current);
+        if (current) applyMoveBadges(queryAllFirst(list, SELECTORS.mainLinePly), current);
       });
       this.listObserver.observe(list, { childList: true, subtree: true });
     }

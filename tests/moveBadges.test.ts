@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { MoveAnalysis } from '../src/analysis/gameAnalysis';
+import { SELECTORS, queryAllFirst } from '../src/content/selectors';
 import { applyMoveBadges, clearMoveBadges } from '../src/ui/moveBadges';
+
+const plies = (list: Element) => queryAllFirst(list, SELECTORS.mainLinePly);
 
 const move = (patch: Partial<MoveAnalysis> = {}): MoveAnalysis => ({
   ply: 1,
@@ -25,8 +28,8 @@ describe('move-list badges', () => {
       '<wc-move-list><div class="node main-line-ply" data-node="0-0"><span class="node-highlight-content">e4</span></div></wc-move-list>';
     const list = document.body.firstElementChild!;
 
-    applyMoveBadges(list, [move()]);
-    applyMoveBadges(list, [move({ category: 'mistake' })]);
+    applyMoveBadges(plies(list), [move()]);
+    applyMoveBadges(plies(list), [move({ category: 'mistake' })]);
 
     const badges = list.querySelectorAll('.vektra-move-badge');
     expect(badges).toHaveLength(1);
@@ -42,8 +45,8 @@ describe('move-list badges', () => {
       '<wc-move-list><div class="node main-line-ply"><span class="node-highlight-content">e4</span></div></wc-move-list>';
     const list = document.body.firstElementChild!;
 
-    applyMoveBadges(list, [move()]);
-    applyMoveBadges(list, []);
+    applyMoveBadges(plies(list), [move()]);
+    applyMoveBadges(plies(list), []);
 
     expect(list.querySelector('.vektra-move-badge')).toBeNull();
     clearMoveBadges(list);

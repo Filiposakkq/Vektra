@@ -2,7 +2,7 @@ import type { jsPDF as JsPdf } from 'jspdf';
 import { CATEGORIES, CATEGORY_LABELS, type Category } from './classify';
 import type { GameAnalysis, MoveAnalysis } from './gameAnalysis';
 import { displayWinPercent } from './scoreScale';
-import { CATEGORY_STYLE } from '../ui/categoryStyle';
+import { CATEGORY_STYLE } from '../shared/categoryStyle';
 
 const PAGE = { w: 595.28, h: 841.89, margin: 40 };
 const TEXT = '#262421';

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_POSITION } from 'chess.js';
 import { parsePieceClasses, placementToFenBoard, readPlacement, type Placement } from '../src/content/boardDom';
-import { fenFromPlacement, replay, resolvePosition, settlePromotions } from '../src/content/fen';
+import { replay } from '../src/chess/replay';
+import { fenFromPlacement, resolvePosition, settlePromotions } from '../src/content/fen';
 import { boardHtml, fenAfter } from './fixtures/dom';
 
 function placementOf(fen: string): Placement {
