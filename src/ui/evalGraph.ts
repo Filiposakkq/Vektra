@@ -1,6 +1,6 @@
 import { displayWinPercent } from '../analysis/scoreScale';
 import type { GameAnalysis } from '../analysis/gameAnalysis';
-import { CATEGORY_STYLE } from './categoryStyle';
+import { CATEGORY_STYLE } from '../shared/categoryStyle';
 import { THEME } from './theme';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
