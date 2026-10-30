@@ -2,7 +2,6 @@ import { CATEGORIES, CATEGORY_LABELS } from '../analysis/classify';
 import { describeMoveAnalysis, type GameAnalysis } from '../analysis/gameAnalysis';
 import { categoryBadge } from './categoryStyle';
 import { renderEvalGraph } from './evalGraph';
-import { SELECTORS } from '../content/selectors';
 import { BODY_FONT, DISPLAY_FONT, THEME, boardEdge, ensureDisplayFont } from './theme';
 
 export interface PanelCallbacks {
@@ -54,7 +53,14 @@ export class AnalysisPanel {
   private analysis: GameAnalysis | null = null;
   private currentPly: number | null = null;
 
-  constructor(private cb: PanelCallbacks) {
+  /**
+   * findSidebar: chess.com's right-hand sidebar to dock in, if the page has
+   * one (the content script knows the page's markup).
+   */
+  constructor(
+    private cb: PanelCallbacks,
+    private findSidebar: () => HTMLElement | null = () => null,
+  ) {
     document.getElementById(PANEL_ID)?.remove();
     ensureDisplayFont();
     this.root = el('div', {
@@ -120,7 +126,7 @@ export class AnalysisPanel {
    * re-render its sidebar.
    */
   ensureMounted(): void {
-    const sidebar = document.querySelector<HTMLElement>(SELECTORS.sidebar);
+    const sidebar = this.findSidebar();
     if (sidebar) {
       if (this.root.parentElement === sidebar) return;
       Object.assign(this.root.style, {
