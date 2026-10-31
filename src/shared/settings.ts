@@ -106,6 +106,8 @@ export const DEPTH_MAX = 30;
 export const MOVETIME_MIN = 100;
 export const MOVETIME_MAX = 10000;
 export const WEAKER_MOVE_MULTIPV = 5;
+/** Engine lines searched when weaker moves are on, to reach clearly worse moves. */
+export const WEAKER_CANDIDATE_MULTIPV = 10;
 export const AUTOPLAY_DELAY_MAX_SEC = 30;
 export const ANALYSIS_DEPTH_MIN = 8;
 export const ANALYSIS_DEPTH_MAX = 24;

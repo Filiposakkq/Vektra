@@ -11,80 +11,106 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   return e;
 }
 
-/** White glyph for a category, drawn on a 20 × 20 grid centred on (10, 10). */
+/** Categories light enough that a dark glyph reads better than a white one. */
+const DARK_GLYPH: Partial<Record<Category, string>> = { inaccuracy: '#4a3500' };
+
+/** A colour darkened by a fraction (0-1), for the tile's lower lip. */
+function darken(hex: string, amount: number): string {
+  const channel = (i: number) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - amount));
+  return `#${[1, 3, 5].map((i) => channel(i).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/*
+ * Glyphs are drawn as shapes rather than text, so they stay crisp and evenly
+ * weighted down to the 15 px move-list size. All sit on a 20 × 20 grid,
+ * centred on the tile's face (slightly above the middle, over the lip).
+ */
+
+function stroked(d: string, color: string, width = 2.7): SVGPathElement {
+  return svgEl('path', { d, fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+}
+
+/** "!" with its bar centred on x. */
+function exclamation(x: number, color: string, width = 2.8): SVGGElement {
+  const g = svgEl('g', {});
+  g.append(stroked(`M${x} 4.7V10.1`, color, width), svgEl('circle', { cx: x, cy: 13.7, r: width * 0.56, fill: color }));
+  return g;
+}
+
+/** "?" centred on x, scaled about its centre. */
+function question(x: number, color: string, scale = 1): SVGGElement {
+  const g = svgEl('g', { transform: `translate(${x} 9.2) scale(${scale}) translate(-10 -9.2)` });
+  g.append(
+    stroked('M7 7.1C7 5.3 8.3 4.3 10 4.3S13 5.3 13 6.9C13 8.9 10.1 9 10.1 10.6', color, 2.6),
+    svgEl('circle', { cx: 10.1, cy: 13.7, r: 1.5, fill: color }),
+  );
+  return g;
+}
+
 function glyph(category: Category): SVGElement {
-  const white = '#fff';
-  const stroke = (d: string) =>
-    svgEl('path', { d, fill: 'none', stroke: white, 'stroke-width': 2.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
-  const text = (t: string, size: number) => {
-    const e = svgEl('text', {
-      x: 10,
-      y: 10.6,
-      'text-anchor': 'middle',
-      'dominant-baseline': 'central',
-      'font-family': 'system-ui, -apple-system, "Segoe UI", sans-serif',
-      'font-weight': 800,
-      'font-size': size,
-      'letter-spacing': -0.6,
-      fill: white,
-    });
-    e.textContent = t;
-    return e;
-  };
+  const color = DARK_GLYPH[category] ?? '#fff';
   switch (category) {
+    case 'brilliant': {
+      const g = svgEl('g', {});
+      g.append(exclamation(7.4, color, 2.6), exclamation(12.6, color, 2.6));
+      return g;
+    }
+    case 'great':
+      return exclamation(10, color, 3);
     case 'best':
       return svgEl('path', {
-        d: 'M10 3.6l1.9 4.1 4.4.5-3.3 3 .9 4.4-3.9-2.2-3.9 2.2.9-4.4-3.3-3 4.4-.5z',
-        fill: white,
-        stroke: white,
-        'stroke-width': 0.6,
+        d: 'M10 3.5l1.95 4.05 4.45.6-3.25 3.1.8 4.4L10 13.5l-3.95 2.15.8-4.4-3.25-3.1 4.45-.6z',
+        fill: color,
+        stroke: color,
+        'stroke-width': 0.7,
         'stroke-linejoin': 'round',
       });
     case 'excellent':
       // Thumbs up: cuff on the left, hand with the thumb raised.
       return svgEl('path', {
-        d: 'M4.6 9h2.4v6.4H4.6z M8 15.4V9.2l2.7-4.1c.5-.8 1.9-.5 1.8.6l-.4 2.7h2.7c1 0 1.6.9 1.4 1.8l-1.1 4.2c-.2.6-.8 1-1.4 1z',
-        fill: white,
+        d: 'M4.4 8.6h2.5v6.6H4.4z M7.9 15.2V8.8l2.8-4.3c.55-.85 2-.5 1.9.6l-.4 2.8h2.8c1 0 1.7.95 1.45 1.9l-1.15 4.35c-.2.65-.8 1.05-1.45 1.05z',
+        fill: color,
       });
     case 'good':
-      return stroke('M5.8 10.4l2.9 2.9 5.6-6');
-    case 'miss':
-      return stroke('M6.8 6.8l6.4 6.4M13.2 6.8l-6.4 6.4');
+      return stroked('M5.6 9.7l2.9 2.9 5.9-6.2', color, 2.9);
     case 'book':
       // An open book: two pages meeting at the spine.
       return svgEl('path', {
-        d: 'M4.4 6.4c2-.6 3.8-.3 5.1.9v7.4c-1.4-1-3.2-1.3-5.1-.8z M15.6 6.4c-2-.6-3.8-.3-5.1.9v7.4c1.4-1 3.2-1.3 5.1-.8z',
-        fill: white,
+        d: 'M4.2 5.9c2.1-.65 3.95-.3 5.25.95v7.75c-1.45-1.05-3.3-1.35-5.25-.85z M15.8 5.9c-2.1-.65-3.95-.3-5.25.95v7.75c1.45-1.05 3.3-1.35 5.25-.85z',
+        fill: color,
       });
-    case 'brilliant':
-      return text('!!', 10.5);
-    case 'great':
-      return text('!', 12);
-    case 'inaccuracy':
-      return text('?!', 10.5);
+    case 'inaccuracy': {
+      const g = svgEl('g', {});
+      g.append(question(7.6, color, 0.86), exclamation(13.9, color, 2.4));
+      return g;
+    }
     case 'mistake':
-      return text('?', 12);
-    case 'blunder':
-      return text('??', 10.5);
+      return question(10, color);
+    case 'miss':
+      return stroked('M6.5 5.6l7 7M13.5 5.6l-7 7', color, 2.9);
+    case 'blunder': {
+      const g = svgEl('g', {});
+      g.append(question(6.6, color, 0.82), question(13.4, color, 0.82));
+      return g;
+    }
   }
 }
 
 /**
- * The category icon: a rounded-square tile in the category's colour with a
- * darker lower edge, a faint top sheen and a white glyph. The colours keep
- * the meanings players know from Game Review; the tile shape is Vektra's.
- * Returned as a 20 × 20 group for placing inside any SVG; `outline` adds the
- * white rim used on the board.
+ * The category icon: a rounded tile in the category's colour with a darker
+ * lower lip, like a key cap, and a drawn glyph. The colours keep the meanings
+ * players know from Game Review; the tile is Vektra's own. Returned as a
+ * 20 × 20 group for placing inside any SVG; `outline` adds the white rim used
+ * on the board.
  */
 export function categoryIconGroup(category: Category, outline = false): SVGGElement {
   const { color } = CATEGORY_STYLE[category];
   const g = svgEl('g', {});
   g.dataset.category = category;
-  const tile = { x: 1, y: 1, width: 18, height: 18, rx: 5.2 };
+  const rim: Record<string, string | number> = outline ? { stroke: '#fff', 'stroke-width': 1.5 } : {};
   g.append(
-    svgEl('rect', { ...tile, y: 2.2, fill: '#000', 'fill-opacity': 0.32 }),
-    svgEl('rect', { ...tile, fill: color, ...(outline ? { stroke: '#fff', 'stroke-width': 1.4 } : {}) }),
-    svgEl('rect', { x: 3, y: 2.4, width: 14, height: 6, rx: 3, fill: '#fff', 'fill-opacity': 0.14 }),
+    svgEl('rect', { x: 1, y: 1, width: 18, height: 18, rx: 5, fill: darken(color, 0.28), ...rim }),
+    svgEl('rect', { x: 1, y: 1, width: 18, height: 16.4, rx: 5, fill: color }),
     glyph(category),
   );
   return g;

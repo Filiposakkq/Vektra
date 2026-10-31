@@ -3,7 +3,7 @@ import { EngineClient } from '../engine/client';
 import type { AnalyzeRequest } from '../engine/protocol';
 import { scoreToCp, whitePov, type PvLine, type Score } from '../engine/uci';
 import { winPercent } from '../analysis/winProbability';
-import { DEFAULT_SETTINGS, WEAKER_MOVE_MULTIPV, type Settings } from '../shared/settings';
+import { DEFAULT_SETTINGS, WEAKER_CANDIDATE_MULTIPV, WEAKER_MOVE_MULTIPV, type Settings } from '../shared/settings';
 import { EvalBar } from '../ui/evalBar';
 import { BoardOverlay, type Arrow } from '../ui/overlay';
 import type { BoardState } from './boardReader';
@@ -96,7 +96,9 @@ export function buildRequest(fen: string, s: Settings): AnalyzeRequest {
     fen,
     multipv: Math.max(
       s.arrows,
-      s.occasionalWeakerMoves || s.weakenedShowsTopMoves ? WEAKER_MOVE_MULTIPV : 1,
+      // Weaker moves need lines well below the best ones; the top five are
+      // usually within a few tenths of a pawn of each other.
+      s.occasionalWeakerMoves ? WEAKER_CANDIDATE_MULTIPV : s.weakenedShowsTopMoves ? WEAKER_MOVE_MULTIPV : 1,
     ),
     limit: s.searchMode === 'depth' ? { depth: s.depth } : { movetimeMs: s.movetimeMs },
     strength: { skillLevel: s.skillLevel, limitStrength: s.limitStrength, elo: s.elo },
@@ -144,7 +146,33 @@ export function weakerMoveCandidates(
     .sort((a, b) => a.lossCp - b.lossCp);
 }
 
-/** Occasionally select a legal, close-scoring MultiPV alternative. */
+/**
+ * The candidate whose loss is closest to a target between half the loss
+ * limit and the full limit (sample 0 → half, 1 → the limit), so a higher
+ * limit gives clearly weaker moves instead of just allowing them.
+ */
+export function pickWeakerCandidate(
+  candidates: readonly MoveChoice[],
+  maxLossCp: number,
+  sample: number,
+): MoveChoice | null {
+  if (!candidates.length) return null;
+  const s = Number.isFinite(sample) ? Math.min(1, Math.max(0, sample)) : 0.5;
+  const target = maxLossCp * (0.5 + 0.5 * s);
+  return candidates.reduce((best, c) => (Math.abs(c.lossCp - target) < Math.abs(best.lossCp - target) ? c : best));
+}
+
+/** The weaker move previewed with autoplay off: the typical pick, at three quarters of the limit. */
+export function previewWeakerMove(
+  fen: string,
+  engineMove: string,
+  lines: PvLine[],
+  settings: Settings,
+): MoveChoice | null {
+  return pickWeakerCandidate(weakerMoveCandidates(fen, engineMove, lines, settings), settings.weakerMoveMaxLossCp, 0.5);
+}
+
+/** Occasionally select a legal MultiPV alternative near the configured loss. */
 export function chooseWeakerMove(
   fen: string,
   engineMove: string,
@@ -161,11 +189,7 @@ export function chooseWeakerMove(
     sample < 0 ||
     sample >= settings.weakerMoveChancePercent / 100
   ) return null;
-  const selection = random();
-  const index = Number.isFinite(selection)
-    ? Math.min(candidates.length - 1, Math.floor(Math.max(0, selection) * candidates.length))
-    : 0;
-  return candidates[index];
+  return pickWeakerCandidate(candidates, settings.weakerMoveMaxLossCp, random());
 }
 
 /** True when the engine's choice is deliberately weakened. */
@@ -514,7 +538,7 @@ export class HintController {
       this.lines.length
     ) {
       const primary = this.bestmove ?? this.lines[0].pv[0];
-      const weaker = weakerMoveCandidates(state.fen, primary, this.lines, this.settings)[0];
+      const weaker = previewWeakerMove(state.fen, primary, this.lines, this.settings);
       if (weaker) {
         const arrows: Arrow[] = [
           {

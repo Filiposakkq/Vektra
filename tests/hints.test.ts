@@ -4,6 +4,8 @@ import {
   buildRequest,
   chooseWeakerMove,
   isStrengthLimited,
+  pickWeakerCandidate,
+  previewWeakerMove,
   shouldHint,
   userMoveToRate,
   weakerMoveCandidates,
@@ -48,7 +50,7 @@ describe('hint rules', () => {
 
   it('requests enough engine lines when occasional weaker moves are enabled', () => {
     expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1 }).multipv).toBe(1);
-    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, occasionalWeakerMoves: true }).multipv).toBe(5);
+    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, occasionalWeakerMoves: true }).multipv).toBe(10);
     expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, weakenedShowsTopMoves: true }).multipv).toBe(5);
   });
 
@@ -95,6 +97,36 @@ describe('hint rules', () => {
     });
 
     expect(chooseWeakerMove(fen, 'e2e4', lines, { ...settings, occasionalWeakerMoves: false }, () => 0)).toBeNull();
+  });
+
+  it('aims for a loss between half the limit and the limit, not the closest alternative', () => {
+    const line = (move: string, multipv: number, value: number) => ({
+      multipv,
+      depth: 16,
+      score: { type: 'cp' as const, value },
+      pv: [move],
+    });
+    const lines = [
+      line('e2e4', 1, 60),
+      line('d2d4', 2, 50),
+      line('g1f3', 3, 30),
+      line('c2c4', 4, -60),
+      line('b1c3', 5, -160),
+      line('a2a3', 6, -260),
+    ];
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      occasionalWeakerMoves: true,
+      weakerMoveChancePercent: 100,
+      weakerMoveMaxLossCp: 300,
+    };
+    // Target 150 (sample 0) .. 300 (sample 1); the preview aims at 225.
+    expect(chooseWeakerMove(WHITE_TO_MOVE, 'e2e4', lines, settings, () => 0)?.move).toBe('c2c4');
+    expect(chooseWeakerMove(WHITE_TO_MOVE, 'e2e4', lines, settings, () => 0.99)?.move).toBe('b1c3');
+    expect(previewWeakerMove(WHITE_TO_MOVE, 'e2e4', lines, settings)?.move).toBe('b1c3');
+    // With a small limit, the pick stays close to the best move.
+    expect(previewWeakerMove(WHITE_TO_MOVE, 'e2e4', lines, { ...settings, weakerMoveMaxLossCp: 30 })?.move).toBe('g1f3');
+    expect(pickWeakerCandidate([], 100, 0.5)).toBeNull();
   });
 
   it('chooses the weaker preview relative to the selected engine move', () => {

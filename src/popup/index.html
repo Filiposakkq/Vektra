@@ -62,7 +62,7 @@
               <span>Enable weaker-move suggestions</span>
               <input type="checkbox" name="occasionalWeakerMoves" />
             </label>
-            <p class="note">With autoplay off, the best move stays first and an eligible weaker move is always shown second in purple. Autoplay may play a weaker move instead.</p>
+            <p class="note">With autoplay off, the best move stays first and an eligible weaker move is always shown second in violet. Autoplay may play a weaker move instead.</p>
             <div class="row" data-show="occasionalWeakerMoves=true">
               <label for="weakerMoveChancePercent">
                 <span>Autoplay chance per eligible turn</span>
@@ -72,13 +72,13 @@
             </div>
             <div class="row" data-show="occasionalWeakerMoves=true">
               <label for="weakerMoveMaxLossCp">
-                <span>Maximum move loss</span>
+                <span>How much weaker</span>
                 <output data-for="weakerMoveMaxLossCp" data-format="centipawns"></output>
               </label>
               <input type="range" id="weakerMoveMaxLossCp" name="weakerMoveMaxLossCp" min="10" max="300" step="10" />
             </div>
             <p class="note" data-show="occasionalWeakerMoves=true">
-              Only legal alternatives within this evaluation-loss limit are eligible. The chance setting applies to autoplay; without autoplay, an eligible weaker move is always shown.
+              Weaker moves give up between half of this and this much. When no move is that much worse, the closest one within the limit is used. The chance setting applies to autoplay; without autoplay, the weaker move is always shown.
             </p>
             <label class="row inline check">
               <span>Show additional candidate moves</span>

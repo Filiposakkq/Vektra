@@ -114,10 +114,14 @@ options are grouped under clearly labeled expandable sections.
   best engine lines at full or reduced strength, including alongside a weaker
   selection.
 - **Occasional alternatives**: optionally choose a legal move from the engine's
-  other top lines. Configure it under **Hints →
-  Move suggestions**: the default chance is 50% per eligible turn, with a
-  maximum evaluation loss of 2.00 pawns. Positions without a suitable legal
-  alternative keep the engine's first choice. With autoplay off, the engine's
+  other lines. Configure it under **Hints → Move suggestions**: the default
+  chance is 50% per eligible turn, and **How much weaker** defaults to 2.00
+  pawns. A weaker move aims to give up between half of that and all of it, so
+  a higher setting gives clearly worse moves; when no move is that much worse,
+  the closest one within the limit is used. The engine searches ten lines
+  while this is on (instead of up to three), so searches take longer.
+  Positions without a suitable legal alternative keep the engine's first
+  choice. With autoplay off, the engine's
   best move stays first and an eligible weaker alternative is always shown as
   the second, dim violet arrow; the chance setting does not hide this preview.
   With autoplay on, the chance setting controls whether the weaker alternative
@@ -133,8 +137,11 @@ options are grouped under clearly labeled expandable sections.
 - **Board look**: arrows are solid once the engine has finished and dashed
   while it is still searching. The best move's square is tinted and its
   target framed with corner marks. A suggested promotion shows the piece's
-  letter (Q, R, B, N) in the corner of the target square. Move badges are
-  rounded square tiles in the usual category colours.
+  letter (Q, R, B, N) in the corner of the target square. The eval bar's
+  score rides on the edge between White's and Black's share, in the colours
+  of the side ahead. Move badges are rounded tiles in the usual category
+  colours, with drawn glyphs that stay sharp at move-list size. The board
+  control shows only its switches until you point at it.
 - **Analysed positions**: the engine's line is drawn as numbered steps in one
   colour (1 = the move now, 2 = the reply, 3 = the next move), not as
   alternatives.

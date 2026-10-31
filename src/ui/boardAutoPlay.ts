@@ -33,6 +33,22 @@ const css = `
   .control:focus-within,
   :host([data-autoplay="true"]) .control,
   :host([data-open="true"]) .control { opacity: 1; }
+  /* Idle, only the switches show, so less of the top rank is covered. */
+  .label {
+    display: inline-block;
+    max-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    opacity: 0;
+    transition: max-width 160ms ease, opacity 120ms ease;
+  }
+  :host(:hover) .label,
+  .control:focus-within .label,
+  :host([data-open="true"]) .label { max-width: 110px; opacity: 1; }
+  button { gap: 0; padding: 0 5px; }
+  :host(:hover) button,
+  .control:focus-within button,
+  :host([data-open="true"]) button { gap: 6px; padding: 0 8px 0 6px; }
   button {
     display: inline-flex;
     align-items: center;
@@ -96,7 +112,7 @@ const css = `
   .suggestion { color: #eef2f7; }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) {
-    .control, .switch, .switch::after, .chevron { transition: none; }
+    .control, .switch, .switch::after, .chevron, .label { transition: none; }
   }
 `;
 
@@ -111,8 +127,16 @@ function switchButton(label: string, className: string): HTMLButtonElement {
   const track = document.createElement('span');
   track.className = 'switch';
   track.setAttribute('aria-hidden', 'true');
-  button.append(track, label);
+  button.append(track, buttonLabel(label));
   return button;
+}
+
+/** A button's text, hidden while the control is idle (the switches still show the state). */
+function buttonLabel(text: string): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.className = 'label';
+  span.textContent = text;
+  return span;
 }
 
 export class BoardAutoPlayControl {
@@ -149,7 +173,7 @@ export class BoardAutoPlayControl {
     const chevron = document.createElement('span');
     chevron.className = 'chevron';
     chevron.setAttribute('aria-hidden', 'true');
-    this.detailsToggle.append('Details', chevron);
+    this.detailsToggle.append(buttonLabel('Details'), chevron);
     this.detailsToggle.setAttribute('aria-label', 'Show move details');
     this.detailsToggle.setAttribute('aria-expanded', 'false');
     this.details = document.createElement('div');
