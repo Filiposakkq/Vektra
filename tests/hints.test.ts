@@ -42,6 +42,7 @@ describe('hint rules', () => {
       multipv: 3,
       limit: { depth: 16 },
       strength: { skillLevel: 20, limitStrength: false, elo: 2000 },
+      hashMb: 64,
     });
     expect(buildRequest('fen', { ...DEFAULT_SETTINGS, searchMode: 'movetime', movetimeMs: 800 }).limit).toEqual({
       movetimeMs: 800,

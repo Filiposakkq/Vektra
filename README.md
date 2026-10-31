@@ -148,7 +148,11 @@ options are grouped under clearly labeled expandable sections.
 - **Speed**: the engine never asks for more lines than there are legal
   moves, so arrows show while it searches even in check. Finished searches
   are kept for the last 300 requests, so stepping back to a position shows
-  its arrows at once.
+  its arrows at once. While the bot thinks, Vektra searches the position
+  after its most likely reply; when the bot plays it, the arrows appear
+  right away. Hint searches use 64 MB of engine memory, so each search can
+  reuse more of the last. Arrows that don't change stay put, and changed
+  ones fade rather than blink (no fading with reduced motion).
 - **Analysed positions**: the engine's line is drawn as numbered steps in one
   colour (1 = the move now, 2 = the reply, 3 = the next move), not as
   alternatives.

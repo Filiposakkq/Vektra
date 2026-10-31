@@ -101,6 +101,17 @@ export function nullMoveFen(fen: string): string | null {
   return parts.join(' ');
 }
 
+/** The position after a UCI move, as the board reader would report it, or null if the move is illegal. */
+export function fenAfterMove(fen: string, uci: string): string | null {
+  try {
+    const chess = new Chess(fen);
+    chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    return chess.fen();
+  } catch {
+    return null;
+  }
+}
+
 /** Legal moves in a position, or null when the FEN can't be read. */
 function legalMoveCount(fen: string): number | null {
   try {
@@ -120,12 +131,36 @@ export function capLines(fen: string, multipv: number): number {
   return legal === null ? multipv : Math.max(1, Math.min(multipv, legal));
 }
 
+/** Engine memory for hint searches, in MiB; kept the same for every hint search, since changing it clears it. */
+export const HINT_HASH_MB = 64;
+
+/** Options every hint search shares, so the engine never resets between them. */
+function hintEngineOptions(): Pick<AnalyzeRequest, 'hashMb'> {
+  return { hashMb: HINT_HASH_MB };
+}
+
 export function buildRequest(fen: string, s: Settings): AnalyzeRequest {
   return {
     fen,
     multipv: capLines(fen, Math.max(s.arrows, s.weakenedShowsTopMoves ? WEAKER_MOVE_MULTIPV : 1)),
     limit: s.searchMode === 'depth' ? { depth: s.depth } : { movetimeMs: s.movetimeMs },
     strength: { skillLevel: s.skillLevel, limitStrength: s.limitStrength, elo: s.elo },
+    ...hintEngineOptions(),
+  };
+}
+
+/** The threat search for a position: the opponent's best move if the side to move passed. Null in check. */
+export function buildThreatRequest(fen: string, s: Settings): AnalyzeRequest | null {
+  const passed = nullMoveFen(fen);
+  if (!passed) return null;
+  return {
+    fen: passed,
+    multipv: 1,
+    limit: s.searchMode === 'depth'
+      ? { depth: Math.min(s.depth, THREAT_DEPTH) }
+      : { movetimeMs: Math.min(s.movetimeMs, THREAT_MOVETIME_MS) },
+    strength: { skillLevel: 20, limitStrength: false, elo: s.elo },
+    ...hintEngineOptions(),
   };
 }
 
@@ -142,6 +177,7 @@ export function buildWeakerRequest(fen: string, s: Settings): AnalyzeRequest {
       ? { depth: Math.min(s.depth, WEAKER_SEARCH_DEPTH) }
       : { movetimeMs: Math.min(s.movetimeMs, WEAKER_SEARCH_MOVETIME_MS) },
     strength: { skillLevel: s.skillLevel, limitStrength: s.limitStrength, elo: s.elo },
+    ...hintEngineOptions(),
   };
 }
 
@@ -473,6 +509,9 @@ export class HintController {
             this.moveChoice?.lossCp ?? 0,
           );
         }
+        // On the bot's turn, get the user's next position ready.
+        const predicted = result.lines[0]?.pv[0];
+        if (kind === 'game' && !shouldHint(state, kind) && predicted) this.ponder(state.fen, predicted, stale);
       });
 
     // Quick passes run before the deep main search, so what they add shows
@@ -510,6 +549,29 @@ export class HintController {
     })();
   }
 
+  /**
+   * While the bot thinks, search the position after its most likely reply,
+   * with the same requests update() will make there, in the same order. When
+   * the bot plays that move, the hints come straight from the cache. The
+   * next position's update cancels whatever is still running.
+   */
+  private ponder(fen: string, reply: string, stale: () => boolean): void {
+    const next = fenAfterMove(fen, reply);
+    if (!next) return;
+    const s = this.settings;
+    const requests = [
+      s.occasionalWeakerMoves ? buildWeakerRequest(next, s) : null,
+      s.showThreats ? buildThreatRequest(next, s) : null,
+      buildRequest(next, s),
+    ].filter((req): req is AnalyzeRequest => req !== null);
+    void (async () => {
+      for (const req of requests) {
+        if (stale()) return;
+        if (!(await this.search(req))) return;
+      }
+    })();
+  }
+
   /** An engine search, answered from the cache when the same request was searched before. */
   private search(req: AnalyzeRequest, onUpdate?: (lines: PvLine[]) => void): Promise<SearchResult | null> {
     const key = `${this.settings.engine}|${JSON.stringify(req)}`;
@@ -535,18 +597,10 @@ export class HintController {
    * the latest evaluation, so it can show before the main search settles.
    */
   private searchThreat(state: BoardState, stale: () => boolean): Promise<void> {
-    const fen = nullMoveFen(state.fen);
-    if (!fen) return Promise.resolve();
-    const s = this.settings;
+    const req = buildThreatRequest(state.fen, this.settings);
+    if (!req) return Promise.resolve();
     return this
-      .search({
-        fen,
-        multipv: 1,
-        limit: s.searchMode === 'depth'
-          ? { depth: Math.min(s.depth, THREAT_DEPTH) }
-          : { movetimeMs: Math.min(s.movetimeMs, THREAT_MOVETIME_MS) },
-        strength: { skillLevel: 20, limitStrength: false, elo: s.elo },
-      })
+      .search(req)
       .then((result) => {
         const line = result?.lines[0];
         if (!result?.bestmove || !line || stale()) return;

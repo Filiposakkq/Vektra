@@ -141,6 +141,11 @@ export interface SquareBadge {
 }
 
 const SHADOW_ID = 'vektra-arrow-shadow';
+
+/** Whether to animate, honouring the user's reduced-motion setting. */
+function allowMotion(): boolean {
+  return typeof matchMedia === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 const LABEL_FONT = {
   'font-size': 0.2,
   'font-weight': 700,
@@ -264,6 +269,8 @@ function stepMarker(step: number, from: [number, number], toward: [number, numbe
 export class BoardOverlay {
   private lastBadge = '';
   private svg: SVGSVGElement;
+  /** The arrow elements on the board, by arrow kind and move. */
+  private arrowNodes = new Map<string, SVGGElement>();
   /** Colour per rank (best first). */
   colors: readonly string[] = DEFAULT_ARROW_COLORS;
 
@@ -291,10 +298,23 @@ export class BoardOverlay {
     }
   }
 
+  /**
+   * Draw the arrows. The engine sends many updates while it searches, so
+   * an arrow that hasn't changed keeps its element, and one that changed or
+   * left fades instead of blinking. Labels and highlights outside the arrows
+   * are redrawn each time.
+   */
   draw(board: HTMLElement, arrows: Arrow[], flipped: boolean): void {
     this.attach(board);
-    this.svg.replaceChildren();
-    this.svg.appendChild(this.shadowFilter());
+    const motion = allowMotion();
+    // Keep only the current arrows (and any still fading out until now).
+    for (const child of [...this.svg.children]) {
+      if (!(child instanceof SVGGElement && child.dataset.key && this.arrowNodes.get(child.dataset.key) === child)) {
+        child.remove();
+      }
+    }
+    this.svg.prepend(this.shadowFilter());
+    const nextNodes = new Map<string, SVGGElement>();
     const labels: { rank: number; draw: (slot: number) => SVGGElement; square: string }[] = [];
     // Threats go underneath; then worst first so the best arrow ends up on top.
     const order = (a: Arrow) => (a.threat ? Infinity : a.rank);
@@ -367,7 +387,23 @@ export class BoardOverlay {
       g.append(shaft, head);
       if (step) g.appendChild(stepMarker(step, from, corner ?? to, style.color));
       if (move.length === 5 && !threat) g.appendChild(promotionMarker(move[4], to, style.color));
-      this.svg.appendChild(g);
+      const key = `${threat ? 'threat' : weaker ? 'weaker' : step ? `step${step}` : 'move'}:${move}`;
+      const signature = [rank, flipped, provisional, opacity.toFixed(3), color].join('|');
+      g.dataset.key = key;
+      g.dataset.signature = signature;
+      const previous = this.arrowNodes.get(key);
+      if (previous?.dataset.signature === signature) {
+        // Unchanged: keep it (moving it keeps the drawing order right).
+        this.svg.appendChild(previous);
+        nextNodes.set(key, previous);
+      } else {
+        this.svg.appendChild(g);
+        // New arrows fade in; changed ones ease from their old strength.
+        const startOpacity = previous ? Number(previous.getAttribute('opacity') ?? 1) : 0;
+        if (motion) g.animate?.([{ opacity: startOpacity }, { opacity }], { duration: 160, easing: 'ease-out' });
+        previous?.remove();
+        nextNodes.set(key, g);
+      }
       const { label } = arrow;
       if (label) {
         labels.push({
@@ -377,6 +413,21 @@ export class BoardOverlay {
         });
       }
     }
+    // Arrows that are gone fade out, then leave; the next draw removes any left.
+    for (const [key, old] of this.arrowNodes) {
+      if (nextNodes.has(key)) continue;
+      delete old.dataset.key;
+      const fade = motion
+        ? old.animate?.([{ opacity: Number(old.getAttribute('opacity') ?? 1) }, { opacity: 0 }], {
+          duration: 140,
+          easing: 'ease-in',
+          fill: 'forwards',
+        })
+        : undefined;
+      if (fade) fade.onfinish = () => old.remove();
+      else old.remove();
+    }
+    this.arrowNodes = nextNodes;
     // Labels last, so no arrow covers a score; the best move's sits lowest.
     const slots = new Map<string, number>();
     for (const label of labels.sort((a, b) => a.rank - b.rank)) {
@@ -471,6 +522,7 @@ export class BoardOverlay {
 
   clear(): void {
     this.svg.replaceChildren();
+    this.arrowNodes.clear();
   }
 
   destroy(): void {

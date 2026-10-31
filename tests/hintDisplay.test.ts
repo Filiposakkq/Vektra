@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   arrowScoreLabel,
+  fenAfterMove,
   nullMoveFen,
   scoreArrows,
 } from '../src/content/hints';
 import type { PvLine } from '../src/engine/uci';
 import { DEFAULT_SETTINGS } from '../src/shared/settings';
+import { fenAfter } from './fixtures/dom';
 import { BOARD_COLORS, BoardOverlay, labelTextColor, lossFade, THREAT_ARROW_COLOR } from '../src/ui/overlay';
 
 const line = (move: string, multipv: number, value: number): PvLine => ({
@@ -221,5 +223,41 @@ describe('adjustable thresholds', () => {
     expect(loose.map((a) => a.move)).toEqual(['e2e4', 'd2d4', 'f2f3']);
     expect(loose[2].fadeFullAt).toBe(30);
     expect(lossFade(15, 30)).toBeGreaterThan(lossFade(15, 10));
+  });
+});
+
+describe('smooth redraws', () => {
+  it('keeps an unchanged arrow and replaces a changed or removed one', () => {
+    withBoard((board, overlay) => {
+      overlay.draw(board, [{ move: 'e2e4', rank: 0 }, { move: 'd2d4', rank: 1 }], false);
+      const first = board.querySelector('.vektra-move[data-move="e2e4"]');
+      const second = board.querySelector('.vektra-move[data-move="d2d4"]');
+      overlay.draw(board, [{ move: 'e2e4', rank: 0 }, { move: 'd2d4', rank: 1, provisional: true }], false);
+      expect(board.querySelector('.vektra-move[data-move="e2e4"]')).toBe(first);
+      expect(board.querySelector('.vektra-move[data-move="d2d4"]')).not.toBe(second);
+      overlay.draw(board, [{ move: 'e2e4', rank: 0 }], false);
+      expect(board.querySelectorAll('.vektra-move')).toHaveLength(1);
+      expect(board.querySelector('.vektra-move')).toBe(first);
+    });
+  });
+
+  it('starts fresh after a clear', () => {
+    withBoard((board, overlay) => {
+      overlay.draw(board, [{ move: 'e2e4', rank: 0 }], false);
+      const first = board.querySelector('.vektra-move');
+      overlay.clear();
+      overlay.draw(board, [{ move: 'e2e4', rank: 0 }], false);
+      expect(board.querySelector('.vektra-move')).not.toBe(first);
+      expect(board.querySelectorAll('.vektra-move')).toHaveLength(1);
+    });
+  });
+});
+
+describe('thinking ahead', () => {
+  it('finds the position after the predicted reply, as the board would report it', () => {
+    // The cache only helps if this matches the board reader's FEN exactly.
+    expect(fenAfterMove(fenAfter(['e4', 'e5', 'Nf3']), 'b8c6')).toBe(fenAfter(['e4', 'e5', 'Nf3', 'Nc6']));
+    expect(fenAfterMove(fenAfter(['e4', 'd5', 'e5']), 'f7f5')).toBe(fenAfter(['e4', 'd5', 'e5', 'f5']));
+    expect(fenAfterMove('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'e2e5')).toBeNull();
   });
 });
