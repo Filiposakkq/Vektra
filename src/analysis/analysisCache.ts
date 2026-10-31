@@ -14,10 +14,11 @@ import type { GameAnalysis, PositionEval } from './gameAnalysis';
  */
 
 /**
- * Bump when a change to the search settings would change the ratings, so
- * analyses saved before it are run again.
+ * Bump when a change to the search settings or the rating rules would change
+ * the ratings, so analyses saved before it are run again. 2: sacrifices count
+ * only newly exposed material, and recaptures are never Great.
  */
-export const ANALYSIS_PROFILE_VERSION = 1;
+export const ANALYSIS_PROFILE_VERSION = 2;
 /** Analyses saved before profiles existed count as this version. */
 const LEGACY_PROFILE_VERSION = 1;
 

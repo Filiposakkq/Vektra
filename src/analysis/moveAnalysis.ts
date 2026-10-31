@@ -1,4 +1,4 @@
-import { Chess } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
 import { whitePov, type PvLine, type Score } from '../engine/uci';
 import { CLASSIFICATION } from './config';
 import {
@@ -60,7 +60,7 @@ export function analyzeMove(
   before: PositionEval,
   after: PositionEval,
   move: { ply: number; san: string; uci: string },
-  context: { book: boolean; previous?: Category },
+  context: { book: boolean; previous?: Category; previousUci?: string },
 ): MoveAnalysis {
   const color = before.fen.split(' ')[1] as 'w' | 'b';
   const winBefore = ratingWinPercent(before.score, color);
@@ -83,6 +83,9 @@ export function analyzeMove(
     forced: new Chess(before.fen).moves().length === 1,
     sacrifice: isSacrifice(before.fen, move.uci),
     opponentErred: context.previous === 'mistake' || context.previous === 'blunder',
+    recapture: !!context.previousUci &&
+      context.previousUci.slice(2, 4) === move.uci.slice(2, 4) &&
+      !!new Chess(before.fen).get(move.uci.slice(2, 4) as Square),
   };
   const loss = winLoss(facts);
   return {

@@ -86,6 +86,7 @@ export function classifyGame(sans: string[], uci: string[], positions: PositionE
       analyzeMove(positions[i], positions[i + 1], { ply: i + 1, san: sans[i], uci: uci[i] }, {
         book: isBookLine(fens, i + 1),
         previous: moves[i - 1]?.category,
+        previousUci: uci[i - 1],
       }),
     );
   }
@@ -160,6 +161,7 @@ export async function analyzeGame(
     partial[i] = analyzeMove(positions[i]!, positions[i + 1]!, { ply: i + 1, san: played[i], uci: uci[i] }, {
       book: isBookLine(fens, i + 1),
       previous,
+      previousUci: uci[i - 1],
     });
     ratedWithPrevious[i] = previous;
     hasRated[i] = true;

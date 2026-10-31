@@ -103,6 +103,31 @@ export function nullMoveFen(fen: string): string | null {
   return parts.join(' ');
 }
 
+/** A new best move must beat the shown one by more than this (centipawns) to replace it at once. */
+export const STEADY_MARGIN_CP = 30;
+
+/**
+ * Lines to show for a search update, keeping the arrows steady: while the
+ * engine is still searching, the shown best move stays first unless the new
+ * best has also led the previous update (`persisted`) or is clearly better.
+ * Otherwise the lines are reordered with the shown move first. The final
+ * result is shown as it is, not through this.
+ */
+export function steadyLines(
+  shown: readonly PvLine[],
+  next: PvLine[],
+  persisted: boolean,
+  marginCp = STEADY_MARGIN_CP,
+): PvLine[] {
+  const ordered = [...next].sort((a, b) => a.multipv - b.multipv);
+  const shownTop = [...shown].sort((a, b) => a.multipv - b.multipv)[0]?.pv[0];
+  const newTop = ordered[0]?.pv[0];
+  if (!shownTop || !newTop || shownTop === newTop || persisted) return next;
+  const kept = ordered.find((line) => line.pv[0] === shownTop);
+  if (!kept || scoreToCp(ordered[0].score) - scoreToCp(kept.score) > marginCp) return next;
+  return [kept, ...ordered.filter((line) => line !== kept)].map((line, i) => ({ ...line, multipv: i + 1 }));
+}
+
 /** The position after a UCI move, as the board reader would report it, or null if the move is illegal. */
 export function fenAfterMove(fen: string, uci: string): string | null {
   try {
@@ -319,7 +344,7 @@ export function shouldHint(state: BoardState, kind: PageKind): boolean {
  */
 export async function userMoveToRate(
   state: BoardState,
-): Promise<{ beforeFen: string; ply: number; san: string; uci: string; book: boolean } | null> {
+): Promise<{ beforeFen: string; ply: number; san: string; uci: string; book: boolean; previousUci?: string } | null> {
   if (state.inVariation || state.ply < 1 || state.source !== 'replay') return null;
   const userColor = state.flipped ? 'b' : 'w';
   const justMoved = state.fen.split(' ')[1] === 'w' ? 'b' : 'w';
@@ -333,6 +358,7 @@ export async function userMoveToRate(
     san: state.sans[state.ply - 1],
     uci: uci[state.ply - 1],
     book: await isBookLine(fens, state.ply),
+    previousUci: uci[state.ply - 2],
   };
 }
 
@@ -351,6 +377,8 @@ export class HintController {
   /** Lines from the weaker-move search, and whether it is still running. */
   private weakerLines: PvLine[] = [];
   private weakerPending = false;
+  /** The best move of the previous search update, to tell a lasting change from a flicker. */
+  private lastUpdateTop: string | null = null;
   /** Counts update() calls, to tell an outdated search chain from the current one. */
   private updateGeneration = 0;
   /** Final results of recent searches, by request. */
@@ -364,7 +392,7 @@ export class HintController {
   private evals = new Map<string, PositionEval>();
   /** The user's last rated move in a live game, shown on its square. */
   private rating: { move: MoveAnalysis; sans: string[] } | null = null;
-  private pendingRating: { beforeFen: string; ply: number; san: string; uci: string; book: boolean } | null = null;
+  private pendingRating: Awaited<ReturnType<typeof userMoveToRate>> = null;
 
   /** Full-game analysis of the shown position, when there is one. */
   analysisLookup: ((state: BoardState) => PositionEval | undefined) | null = null;
@@ -409,6 +437,7 @@ export class HintController {
     this.moveChoice = null;
     this.weakerLines = [];
     this.weakerPending = false;
+    this.lastUpdateTop = null;
     this.threat = null;
     this.overlay ??= new BoardOverlay(state.board);
     this.overlay.clear();
@@ -485,7 +514,7 @@ export class HintController {
         if (lines[0].depth >= EARLY_RATING_DEPTH && this.rateMove(state, false)) this.redraw();
         if (lines[0].depth < minDepth) return;
         mainDrawn = true;
-        this.lines = lines;
+        this.lines = this.steady(lines);
         this.redraw();
       })
       .then((result) => {
@@ -536,7 +565,7 @@ export class HintController {
         .search(buildWeakerRequest(state.fen, this.settings), (lines) => {
           if (stale() || !(lines[0]?.depth >= WEAKER_DRAW_DEPTH)) return;
           this.weakerLines = lines;
-          if (!mainDrawn) this.lines = lines;
+          if (!mainDrawn) this.lines = this.steady(lines);
           this.redraw();
         })
         .then((weaker) => {
@@ -581,6 +610,14 @@ export class HintController {
         if (!(await this.search(req))) return;
       }
     })();
+  }
+
+  /** Lines from a search update, kept steady against the ones shown (see steadyLines). */
+  private steady(lines: PvLine[]): PvLine[] {
+    const top = [...lines].sort((a, b) => a.multipv - b.multipv)[0]?.pv[0] ?? null;
+    const persisted = top !== null && top === this.lastUpdateTop;
+    this.lastUpdateTop = top;
+    return steadyLines(this.lines, lines, persisted);
   }
 
   /** An engine search, answered from the cache when the same request was searched before. */
@@ -653,7 +690,7 @@ export class HintController {
     const after = this.evals.get(state.fen);
     if (!p || !before || !after) return false;
     if (final) this.pendingRating = null;
-    const move = analyzeMove(before, after, p, { book: p.book });
+    const move = analyzeMove(before, after, p, { book: p.book, previousUci: p.previousUci });
     this.rating = { move, sans: state.sans.slice(0, p.ply) };
     return true;
   }

@@ -138,8 +138,11 @@ options are grouped under clearly labeled expandable sections.
   additional candidate moves** is on). Arrows stay dim until the search
   finishes, and the eval bar shows the search depth (for example `d14`).
 - **Board look**: arrows are solid once the engine has finished and dashed
-  while it is still searching. The best move's square is tinted and its
-  target framed with corner marks. A suggested promotion shows the piece's
+  while it is still searching. Both squares of the best move get a light tint,
+  the target a little stronger. While the engine searches, the shown best
+  move only changes when a new one leads two updates in a row or is more
+  than 0.3 pawns better, so the arrows don't flicker between close moves;
+  the final result is always shown as it is. A suggested promotion shows the piece's
   letter (Q, R, B, N) in the corner of the target square. The eval bar's
   score rides on the edge between White's and Black's share, in the colours
   of the side ahead. Move badges are rounded tiles in the usual category
@@ -289,8 +292,8 @@ played. All thresholds are in `src/analysis/config.ts`:
 | Category | Rule (defaults) |
 | --- | --- |
 | Book | Every move so far is in the opening list (first 30 plies) |
-| Brilliant | A detected sacrifice that is best or within 1 percentage point of best, with win % before between 20 and 98 and at least 50 after |
-| Great | Best or equal-best move when the second-best line is at least 15 percentage points worse, with win % before no higher than 90 |
+| Brilliant | A detected sacrifice that is best or within 1 percentage point of best, with win % before between 20 and 98 and at least 50 after. Only material the move newly puts at risk counts: a piece that was already hanging isn't sacrificed by an unrelated move |
+| Great | Best or equal-best move when the second-best line is at least 15 percentage points worse, with win % before no higher than 90. Not for taking the piece the opponent just moved (a recapture), which is the expected reply |
 | Best | Engine's top move, another engine line scored within 5 cp of it, or the only legal move |
 | Excellent | Win-chance loss up to 2 percentage points |
 | Good | Loss up to 5 percentage points |

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   arrowScoreLabel,
+  steadyLines,
   fenAfterMove,
   nullMoveFen,
   scoreArrows,
@@ -193,13 +194,15 @@ describe('board visuals', () => {
     });
   });
 
-  it('frames the target square with corners and tints the piece square', () => {
+  it('tints both squares of the best move, the target a little more', () => {
     withBoard((board, overlay) => {
       overlay.draw(board, [{ move: 'g1f3', rank: 0 }], false);
-      expect(board.querySelector('.vektra-square-highlight-from')?.tagName).toBe('rect');
-      const corners = board.querySelector('.vektra-square-highlight-to');
-      expect(corners?.tagName).toBe('path');
-      expect(corners?.getAttribute('d')?.match(/M/g)).toHaveLength(4);
+      const from = board.querySelector('.vektra-square-highlight-from');
+      const to = board.querySelector('.vektra-square-highlight-to');
+      expect(from?.tagName).toBe('rect');
+      expect(to?.tagName).toBe('rect');
+      expect(to?.getAttribute('width')).toBe('1');
+      expect(Number(to?.getAttribute('fill-opacity'))).toBeGreaterThan(Number(from?.getAttribute('fill-opacity')));
     });
   });
 
@@ -259,5 +262,23 @@ describe('thinking ahead', () => {
     expect(fenAfterMove(fenAfter(['e4', 'e5', 'Nf3']), 'b8c6')).toBe(fenAfter(['e4', 'e5', 'Nf3', 'Nc6']));
     expect(fenAfterMove(fenAfter(['e4', 'd5', 'e5']), 'f7f5')).toBe(fenAfter(['e4', 'd5', 'e5', 'f5']));
     expect(fenAfterMove('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'e2e5')).toBeNull();
+  });
+});
+
+describe('steady arrows', () => {
+  const shown = [line('e2e4', 1, 40), line('d2d4', 2, 35)];
+  it('keeps the shown best move first when a new one is barely better', () => {
+    const next = [line('d2d4', 1, 45), line('e2e4', 2, 38)];
+    const steady = steadyLines(shown, next, false);
+    expect(steady.map((l) => l.pv[0])).toEqual(['e2e4', 'd2d4']);
+    expect(steady.map((l) => l.multipv)).toEqual([1, 2]);
+  });
+  it('switches when the new best lasts two updates or is clearly better', () => {
+    const next = [line('d2d4', 1, 45), line('e2e4', 2, 38)];
+    expect(steadyLines(shown, next, true)[0].pv[0]).toBe('d2d4');
+    expect(steadyLines(shown, [line('d2d4', 1, 120), line('e2e4', 2, 40)], false)[0].pv[0]).toBe('d2d4');
+  });
+  it('switches when the shown move is no longer among the lines', () => {
+    expect(steadyLines(shown, [line('g1f3', 1, 45), line('d2d4', 2, 40)], false)[0].pv[0]).toBe('g1f3');
   });
 });

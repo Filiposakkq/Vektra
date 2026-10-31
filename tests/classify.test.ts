@@ -54,6 +54,12 @@ describe('classifyMove by win % loss', () => {
     expect(classifyMove(facts({ isTopMove: true, winBefore: 55, winAfter: 55, winSecondBest: 50 }))).toBe('best');
   });
 
+  it('not great for taking back the piece that was just moved', () => {
+    expect(
+      classifyMove(facts({ isTopMove: true, winBefore: 55, winAfter: 55, winSecondBest: 10, recapture: true })),
+    ).toBe('best');
+  });
+
   it('miss: failing to punish the opponent error', () => {
     const f = { winBefore: 80, winAfter: 60, opponentErred: true };
     expect(classifyMove(facts(f))).toBe('miss');
@@ -96,9 +102,14 @@ describe('isSacrifice', () => {
     expect(isSacrifice('3rk3/8/8/3p4/8/2N5/8/3RK3 w - - 0 1', 'c3d5')).toBe(false);
   });
 
-  it('a piece left where it can be taken (ignoring a threat)', () => {
-    // exd5 wins the knight after the quiet king move.
-    expect(isSacrifice('4k3/8/4p3/3N4/8/8/8/6K1 w - - 0 1', 'g1g2')).toBe(true);
+  it('a piece newly left where it can be taken (ignoring a threat)', () => {
+    // e5 stops defending the knight, so Rxd5 wins it.
+    expect(isSacrifice('3rk3/8/8/3N4/4P3/8/8/6K1 w - - 0 1', 'e4e5')).toBe(true);
+  });
+
+  it('not a piece that was already hanging before the move', () => {
+    // exd5 could win the knight already; the quiet king move gives up nothing new.
+    expect(isSacrifice('4k3/8/4p3/3N4/8/8/8/6K1 w - - 0 1', 'g1g2')).toBe(false);
   });
 
   it('an exchange sacrifice', () => {
@@ -151,5 +162,25 @@ describe('classifyGame', () => {
     const cats = classifyGame(sans, uci, positions).map((m) => m.category);
     expect(cats.slice(0, 3)).toEqual(['book', 'book', 'book']);
     expect(cats.slice(3)).not.toContain('book');
+  });
+});
+
+describe('recaptures', () => {
+  it('rates taking back a piece as best, not great, even as the only good move', async () => {
+    const { analyzeMove } = await import('../src/analysis/moveAnalysis');
+    const line = (uci: string, multipv: number, value: number) => ({
+      multipv,
+      depth: 12,
+      score: { type: 'cp' as const, value },
+      pv: [uci],
+    });
+    // 1.e4 d5 2.exd5: Black takes back with the queen; anything else is a pawn down.
+    const beforeFen = 'rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2';
+    const afterFen = 'rnb1kbnr/ppp1pppp/8/3q4/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3';
+    const before = { fen: beforeFen, score: { type: 'cp' as const, value: 0 }, lines: [line('d8d5', 1, 0), line('g8f6', 2, -300)] };
+    const after = { fen: afterFen, score: { type: 'cp' as const, value: 0 }, lines: [line('b1c3', 1, 0)] };
+    const move = { ply: 4, san: 'Qxd5', uci: 'd8d5' };
+    expect(analyzeMove(before, after, move, { book: false }).category).toBe('great');
+    expect(analyzeMove(before, after, move, { book: false, previousUci: 'e4d5' }).category).toBe('best');
   });
 });

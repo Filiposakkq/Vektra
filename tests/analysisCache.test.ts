@@ -99,7 +99,8 @@ describe('legacy cache entries', () => {
     for (const label of ['Stockfish 19 lite', undefined]) {
       const profile = entryProfile(legacy(12, label))!;
       expect(profile).toMatchObject({ engine: 'lite', engineVersion: LITE_ENGINE_VERSION, depth: 12, multipv: 2 });
-      expect(findCached([legacy(12, label)], SANS, 'lite', 12)).toBeDefined();
+      // Made before the rating rules changed (profile version 2), so run again.
+      expect(findCached([legacy(12, label)], SANS, 'lite', 12)).toBeUndefined();
       expect(findCached([legacy(12, label)], SANS, 'full', 12)).toBeUndefined();
     }
   });
@@ -107,7 +108,6 @@ describe('legacy cache entries', () => {
   it("does not trust 'Stockfish 19' as the full engine (it may have fallen back to lite)", () => {
     const old = legacy(12, 'Stockfish 19');
     expect(entryProfile(old)?.engine).toBe('lite');
-    expect(findCached([old], SANS, 'lite', 12)).toBe(old);
     expect(findCached([old], SANS, 'full', 12)).toBeUndefined();
   });
 

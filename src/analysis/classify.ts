@@ -52,6 +52,8 @@ export interface MoveFacts {
   sacrifice: boolean;
   /** The opponent's previous move was a Mistake or Blunder. */
   opponentErred: boolean;
+  /** The move captures the piece the opponent just moved (a recapture, or taking a piece that moved en prise). */
+  recapture?: boolean;
 }
 
 /** Win % lost by the move, never negative. */
@@ -76,8 +78,11 @@ export function classifyMove(f: MoveFacts): Category {
     return 'brilliant';
   }
 
+  // The only good move, but not an obvious one: taking back the piece that
+  // was just moved is the expected reply, not a find.
   if (
     best &&
+    !f.recapture &&
     f.winSecondBest !== undefined &&
     f.winBefore - f.winSecondBest >= C.GREAT_MIN_GAP &&
     f.winBefore <= C.GREAT_MAX_WIN_BEFORE
@@ -129,11 +134,45 @@ function exchangeGain(chess: Chess, square: Square): number {
 }
 
 /**
+ * The most material the side to move could win by capturing one of the
+ * other side's pieces worth at least BRILLIANT_MIN_PIECE_VALUE.
+ */
+function exposure(chess: Chess, color: 'w' | 'b'): number {
+  let worst = 0;
+  for (const row of chess.board()) {
+    for (const piece of row) {
+      if (!piece || piece.color !== color || piece.type === 'k') continue;
+      if (PIECE_VALUE[piece.type] < C.BRILLIANT_MIN_PIECE_VALUE) continue;
+      worst = Math.max(worst, exchangeGain(chess, piece.square));
+    }
+  }
+  return worst;
+}
+
+/**
+ * Material the opponent could already win before the move, as if it were
+ * their turn. 0 when the mover is in check (the opponent can't "move" then).
+ */
+function exposureBefore(fenBefore: string, color: 'w' | 'b'): number {
+  const parts = fenBefore.split(' ');
+  if (new Chess(fenBefore).inCheck()) return 0;
+  parts[1] = color === 'w' ? 'b' : 'w';
+  parts[3] = '-';
+  try {
+    return exposure(new Chess(parts.join(' ')), color);
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * True if the move gives up material: after it, the opponent can win at
- * least BRILLIANT_MIN_MATERIAL_LOSS more than the move itself captured,
- * by taking a piece worth at least BRILLIANT_MIN_PIECE_VALUE. That covers
- * the moved piece and pieces left en prise elsewhere (ignoring a threat).
- * Trades, and captures the mover can win back, don't count.
+ * least BRILLIANT_MIN_MATERIAL_LOSS more than the move itself captured, by
+ * taking a piece worth at least BRILLIANT_MIN_PIECE_VALUE, beyond what they
+ * could already win before it. That covers the moved piece and pieces newly
+ * left en prise elsewhere (ignoring a threat); a piece that was hanging
+ * already isn't sacrificed by this move. Trades, and captures the mover can
+ * win back, don't count.
  */
 export function isSacrifice(fenBefore: string, uci: string): boolean {
   const chess = new Chess(fenBefore);
@@ -146,14 +185,6 @@ export function isSacrifice(fenBefore: string, uci: string): boolean {
   const gained =
     (move.captured ? PIECE_VALUE[move.captured] : 0) +
     (move.promotion ? PIECE_VALUE[move.promotion] - 1 : 0);
-
-  let worst = 0;
-  for (const row of chess.board()) {
-    for (const piece of row) {
-      if (!piece || piece.color !== move.color || piece.type === 'k') continue;
-      if (PIECE_VALUE[piece.type] < C.BRILLIANT_MIN_PIECE_VALUE) continue;
-      worst = Math.max(worst, exchangeGain(chess, piece.square));
-    }
-  }
-  return worst - gained >= C.BRILLIANT_MIN_MATERIAL_LOSS;
+  const atRisk = exposure(chess, move.color) - exposureBefore(fenBefore, move.color);
+  return atRisk - gained >= C.BRILLIANT_MIN_MATERIAL_LOSS;
 }

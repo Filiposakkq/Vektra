@@ -153,30 +153,18 @@ const LABEL_FONT = {
   'font-variant-numeric': 'tabular-nums',
 };
 
-/** Four corner brackets just inside a square, framing it without covering the piece. */
-function squareCorners(center: [number, number], color: string, width = 0.055): SVGPathElement {
-  const inset = 0.06;
-  const arm = 0.24;
-  const [l, t] = [center[0] - 0.5 + inset, center[1] - 0.5 + inset];
-  const [r, b] = [center[0] + 0.5 - inset, center[1] + 0.5 - inset];
-  const p = (x: number, y: number) => `${x.toFixed(3)},${y.toFixed(3)}`;
-  const d = [
-    `M${p(l, t + arm)} L${p(l, t)} L${p(l + arm, t)}`,
-    `M${p(r - arm, t)} L${p(r, t)} L${p(r, t + arm)}`,
-    `M${p(r, b - arm)} L${p(r, b)} L${p(r - arm, b)}`,
-    `M${p(l + arm, b)} L${p(l, b)} L${p(l, b - arm)}`,
-  ].join(' ');
-  const path = document.createElementNS(SVG_NS, 'path');
+/** A light tint over a whole square. */
+function squareTint(center: [number, number], color: string, opacity: number): SVGRectElement {
+  const rect = document.createElementNS(SVG_NS, 'rect');
   for (const [k, v] of Object.entries({
-    d,
+    x: center[0] - 0.5,
+    y: center[1] - 0.5,
+    width: 1,
+    height: 1,
     fill: color,
-    'fill-opacity': 0,
-    stroke: color,
-    'stroke-width': width,
-    'stroke-linecap': 'round',
-    'stroke-linejoin': 'round',
-  })) path.setAttribute(k, String(v));
-  return path;
+    'fill-opacity': opacity,
+  })) rect.setAttribute(k, String(v));
+  return rect;
 }
 
 /** The piece a promoting move promotes to, as a letter tile in the target square's top-left corner. */
@@ -347,19 +335,11 @@ export class BoardOverlay {
       g.setAttribute('opacity', String(opacity));
       if (provisional) g.dataset.provisional = 'true';
       if (rank === 0 && !threat) {
-        // The piece's square is tinted; the target square is framed in corners.
-        const fromHighlight = document.createElementNS(SVG_NS, 'rect');
+        // Both squares get a light tint, the target a little stronger.
+        const fromHighlight = squareTint(from, style.color, 0.16);
         fromHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-from');
         fromHighlight.dataset.square = move.slice(0, 2);
-        for (const [k, v] of Object.entries({
-          x: from[0] - 0.5,
-          y: from[1] - 0.5,
-          width: 1,
-          height: 1,
-          fill: style.color,
-          'fill-opacity': 0.2,
-        })) fromHighlight.setAttribute(k, String(v));
-        const toHighlight = squareCorners(to, style.color);
+        const toHighlight = squareTint(to, style.color, 0.26);
         toHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-to');
         toHighlight.dataset.square = move.slice(2, 4);
         g.append(fromHighlight, toHighlight);
@@ -437,25 +417,14 @@ export class BoardOverlay {
     }
   }
 
-  /** Frame only the square of the piece to move (the first step of a hint). */
+  /** Tint only the square of the piece to move (the first step of a hint). */
   drawPieceHint(board: HTMLElement, square: string, flipped: boolean): void {
     this.attach(board);
-    const center = squareCenter(square, flipped);
     const color = this.colors[0] ?? DEFAULT_ARROW_COLORS[0];
     const g = document.createElementNS(SVG_NS, 'g');
     g.classList.add('vektra-piece-hint');
     g.dataset.square = square;
-    const tint = document.createElementNS(SVG_NS, 'rect');
-    for (const [k, v] of Object.entries({
-      x: center[0] - 0.5,
-      y: center[1] - 0.5,
-      width: 1,
-      height: 1,
-      fill: color,
-      'fill-opacity': 0.24,
-    })) tint.setAttribute(k, String(v));
-    g.append(tint, squareCorners(center, color, 0.07));
-    g.setAttribute('filter', `url(#${SHADOW_ID})`);
+    g.append(squareTint(squareCenter(square, flipped), color, 0.34));
     this.svg.appendChild(g);
   }
 
