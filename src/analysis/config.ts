@@ -47,10 +47,12 @@ export const CLASSIFICATION = {
   BRILLIANT_MIN_PIECE_VALUE: 3,
   /**
    * Net material (pawns) the opponent must be able to win, after all
-   * recaptures and minus anything the move captured, for it to count as a
-   * sacrifice. 2 includes exchange sacrifices (rook for minor piece).
+   * recaptures and minus anything the move captured, beyond what the best
+   * other move would give up, for it to count as a sacrifice. 1 includes a
+   * minor piece for two pawns and the exchange for a pawn, which chess.com
+   * rates Brilliant too.
    */
-  BRILLIANT_MIN_MATERIAL_LOSS: 2,
+  BRILLIANT_MIN_MATERIAL_LOSS: 1,
 
   /**
    * Great: the best move when the second-best move is clearly worse (the only

@@ -7,6 +7,7 @@ import {
   type FullEngineStatus,
 } from '../engine/fullEngine';
 import { ENSURE_ENGINE } from '../engine/protocol';
+import { NOT_RUNNING_TEXT, PAGE_HEALTH, pageHealthText, type PageHealth } from '../shared/pageHealth';
 import {
   DEFAULT_SETTINGS,
   ELO_PRESETS,
@@ -328,10 +329,34 @@ async function initializePopup() {
     ((await chrome.storage.local.get(FULL_ENGINE_STATUS_KEY))[FULL_ENGINE_STATUS_KEY] as FullEngineStatus | undefined) ??
     { state: 'missing' };
   renderEngine();
+  void renderPageHealth();
   void chrome.runtime
     .sendMessage({ type: ENSURE_ENGINE })
     .then(() => chrome.runtime.sendMessage({ type: FULL_ENGINE_STATUS, query: true }))
     .catch(() => {});
+}
+
+/** Warn when Vektra can't read the chess.com page in the active tab, or isn't running there. */
+async function renderPageHealth(): Promise<void> {
+  const warning = document.getElementById('page-warning');
+  if (!warning) return;
+  let text: string | null;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id === undefined || !tab.url?.startsWith('https://www.chess.com/')) return;
+    try {
+      const health = (await chrome.tabs.sendMessage(tab.id, { type: PAGE_HEALTH })) as PageHealth | undefined;
+      text = health ? pageHealthText(health) : NOT_RUNNING_TEXT;
+    } catch {
+      // No content script answered: the tab was open before Vektra was
+      // installed or reloaded.
+      text = NOT_RUNNING_TEXT;
+    }
+  } catch {
+    return;
+  }
+  warning.textContent = text ?? '';
+  warning.hidden = !text;
 }
 
 async function openFloatingSettings(): Promise<void> {

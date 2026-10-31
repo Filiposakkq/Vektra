@@ -316,6 +316,19 @@ form input[type="checkbox"]:checked::before { transform: translateX(14px); backg
 .segmented input:focus-visible + span { outline: 2px solid var(--lapis-text); outline-offset: 1px; }
 .segmented input:disabled + span { opacity: .45; cursor: not-allowed; }
 
+/* Vektra can't read the chess.com page (see src/shared/pageHealth.ts). */
+.page-warning {
+  margin: 0 16px 12px;
+  padding: 9px 11px 9px 12px;
+  border-radius: 8px;
+  background: rgba(229, 67, 47, .12);
+  box-shadow: inset 3px 0 0 var(--vermilion), inset 0 0 0 1px rgba(229, 67, 47, .3);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.page-warning[hidden] { display: none; }
+
 .note { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .note b { color: var(--text); font-weight: 650; }
 #engine-status:empty { display: none; }

@@ -317,7 +317,7 @@ played. All thresholds are in `src/analysis/config.ts`:
 | Category | Rule (defaults) |
 | --- | --- |
 | Book | Every move so far is in the opening list (first 30 plies) |
-| Brilliant | A detected sacrifice that is best or within 1 percentage point of best, with win % before between 20 and 98 and at least 50 after. Only material the move newly puts at risk counts: a piece that was already hanging isn't sacrificed by an unrelated move |
+| Brilliant | A detected sacrifice that is best or within 1 percentage point of best, with win % before between 20 and 98 and at least 50 after. A sacrifice gives up at least a pawn's worth more than the best other move would, in pieces worth 3 or more, after recaptures: so a knight for two pawns counts, and so does leaving an attacked piece where it is instead of saving it. A piece no move could save doesn't count, and nothing counts when the second-best move also wins outright |
 | Great | Best or equal-best move when the second-best line is at least 15 percentage points worse, with win % before no higher than 90. Not for taking the piece the opponent just moved (a recapture), which is the expected reply |
 | Best | Engine's top move, another engine line scored within 5 cp of it, or the only legal move |
 | Excellent | Win-chance loss up to 2 percentage points |
@@ -333,6 +333,21 @@ are handled separately. Per-move accuracy uses
 `103.1668 * exp(-0.08 * loss) - 3.1669`, clamped to 0-100. Side accuracy is
 the harmonic mean of that side's non-book move accuracies (or 100 if there are
 no such moves).
+
+### Comparing with Chess.com
+
+Most differences from Chess.com's Game Review come from the engines, not the
+rules: Chess.com searches deeper with its own settings, so in a decided
+position it may call a move a Mistake that Vektra's engine thinks is best.
+To compare a game, download its PGN from Chess.com after Game Review (it
+carries Chess.com's ratings as $3, $2 and so on) and run:
+
+```bash
+PGN=game.pgn DEPTH=12 npx vitest run tests/tools --silent=false
+```
+
+It prints Vektra's rating of each move beside Chess.com's and how many of
+the rated moves agree.
 
 ## Engine
 
@@ -386,6 +401,8 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
 ## Known limitations
 
 - chess.com may change its markup at any time; see "Updating selectors".
+  When the board, its pieces or a game's moves can't be found, the popup
+  says so, and it asks for a reload when Vektra isn't running in the tab.
   Markup was captured logged out, so logged-in-only variations (such as
   figurine notation) are untested.
 - The DOM-only fallback cannot know en passant rights or the move counters.

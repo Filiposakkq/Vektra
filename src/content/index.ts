@@ -17,6 +17,8 @@ import { isGameOver, resolveScope, type Scope } from './pageScope';
 import { uciToSan } from '../analysis/chessNotation';
 import type { AnalysisController } from './analysisController';
 import { reportAnalysisLoadFailure, setReloadNotice } from './extensionUpdate';
+import { checkPage } from './pageHealth';
+import { PAGE_HEALTH, type PageHealth } from '../shared/pageHealth';
 
 /**
  * Content script entry: decide whether Vektra may run on this page and, where
@@ -242,8 +244,17 @@ onSettingsChanged((next) => {
   }
 });
 
+/** chess.com builds the board after the page loads; until then a missing board is no sign of a change. */
+const PAGE_SETTLE_MS = 5000;
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === SHOW_HINT) hints?.showHint();
+  if (msg?.type === PAGE_HEALTH) {
+    const health: PageHealth = {
+      problems: performance.now() < PAGE_SETTLE_MS ? [] : checkPage(location.pathname),
+    };
+    sendResponse(health);
+  }
   if (msg?.type === OPEN_SETTINGS) {
     floatingSettings ??= new FloatingSettings(
       () => hints?.showHint(),

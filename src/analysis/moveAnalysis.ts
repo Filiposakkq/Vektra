@@ -9,6 +9,7 @@ import {
   type Category,
 } from './classify';
 import { ratingCp, ratingWinPercent } from './scoreScale';
+import { winPercent } from './winProbability';
 import { uciToSan } from './chessNotation';
 
 export interface PositionEval {
@@ -83,6 +84,7 @@ export function analyzeMove(
     forced: new Chess(before.fen).moves().length === 1,
     sacrifice: isSacrifice(before.fen, move.uci),
     opponentErred: context.previous === 'mistake' || context.previous === 'blunder',
+    wonEitherWay: !!second && winPercent(second.score) >= CLASSIFICATION.BRILLIANT_MAX_WIN_BEFORE,
     recapture: !!context.previousUci &&
       context.previousUci.slice(2, 4) === move.uci.slice(2, 4) &&
       !!new Chess(before.fen).get(move.uci.slice(2, 4) as Square),

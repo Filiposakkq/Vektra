@@ -1,7 +1,10 @@
 /**
  * Not a unit test: analyses a PGN with the real engine and prints a report,
  * for comparing Vektra's classifications with another tool.
- * Run with: PGN=path/to/game.pgn DEPTH=16 npx vitest run tests/tools
+ * Run with: PGN=path/to/game.pgn DEPTH=16 npx vitest run tests/tools --silent=false
+ *
+ * A PGN downloaded from chess.com after Game Review carries its ratings as
+ * NAGs ($3 Brilliant, $2 Mistake, ...); they are printed beside Vektra's.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -18,6 +21,16 @@ import { UciEngine } from '../../src/engine/uciEngine';
 
 const pgnPath = process.env.PGN;
 
+/** chess.com's move ratings as PGN NAGs. Moves without one are Book to Good. */
+const NAG_CATEGORY: Record<string, string> = {
+  $3: 'brilliant',
+  $1: 'great',
+  $6: 'inaccuracy',
+  $2: 'mistake',
+  $4: 'blunder',
+};
+const FLAGGED = new Set(Object.values(NAG_CATEGORY));
+
 it.runIf(pgnPath)('analyse PGN', { timeout: 1_800_000 }, async () => {
   const require = createRequire(import.meta.url);
   const listeners: ((l: string) => void)[] = [];
@@ -28,10 +41,13 @@ it.runIf(pgnPath)('analyse PGN', { timeout: 1_800_000 }, async () => {
   listeners.push((l) => engine.handleLine(l));
 
   const text = readFileSync(pgnPath!, 'utf8').replace(/\[.*?\]/g, '').replace(/\{.*?\}/gs, '');
-  const sans = text
-    .replace(/\d+\.(\.\.)?/g, ' ')
-    .split(/\s+/)
-    .filter((t) => t && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t));
+  const sans: string[] = [];
+  const theirs: (string | undefined)[] = [];
+  for (const t of text.replace(/\d+\.(\.\.)?/g, ' ').split(/\s+/)) {
+    if (!t || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(t)) continue;
+    if (t.startsWith('$')) theirs[sans.length - 1] = NAG_CATEGORY[t];
+    else sans.push(t);
+  }
   // REUSE=saved.json re-classifies saved engine output without re-running the engine.
   let a: GameAnalysis | null;
   if (process.env.REUSE) {
@@ -43,11 +59,21 @@ it.runIf(pgnPath)('analyse PGN', { timeout: 1_800_000 }, async () => {
     a = await analyzeGame(sans, engine, { depth: Number(process.env.DEPTH ?? 16) });
   }
   if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify(a));
+  let flagged = 0;
+  let agreed = 0;
   for (const m of a!.moves) {
+    const their = theirs[m.ply - 1];
+    const ours = FLAGGED.has(m.category) ? m.category : undefined;
+    if (their || ours) {
+      flagged++;
+      if (their === ours) agreed++;
+    }
+    const mark = their || ours ? `  chess.com ${their ?? '-'}${their === ours ? '' : '  <>'}` : '';
     console.log(
-      `${String(Math.ceil(m.ply / 2)).padStart(2)}${m.color === 'w' ? '. ' : '...'} ${m.san.padEnd(7)} ${m.category.padEnd(10)} loss ${m.loss.toFixed(1).padStart(5)}  before ${m.winBefore.toFixed(0).padStart(3)} after ${m.winAfter.toFixed(0).padStart(3)}  best ${m.bestSan}`,
+      `${String(Math.ceil(m.ply / 2)).padStart(2)}${m.color === 'w' ? '. ' : '...'} ${m.san.padEnd(7)} ${m.category.padEnd(10)} loss ${m.loss.toFixed(1).padStart(5)}  before ${m.winBefore.toFixed(0).padStart(3)} after ${m.winAfter.toFixed(0).padStart(3)}  best ${m.bestSan}${mark}`,
     );
   }
+  if (theirs.some(Boolean)) console.log(`chess.com agreement on rated moves: ${agreed}/${flagged}`);
   console.log('white', a!.summary.w.accuracy.toFixed(1), JSON.stringify(a!.summary.w.counts));
   console.log('black', a!.summary.b.accuracy.toFixed(1), JSON.stringify(a!.summary.b.counts));
   sf.terminate?.();

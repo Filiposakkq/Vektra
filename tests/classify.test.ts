@@ -45,6 +45,9 @@ describe('classifyMove by win % loss', () => {
     expect(classifyMove(facts({ sacrifice: true, isTopMove: true, winBefore: 55, winAfter: 56 }))).toBe('brilliant');
     // Completely decided already: just best.
     expect(classifyMove(facts({ sacrifice: true, isTopMove: true, winBefore: 99, winAfter: 99 }))).toBe('best');
+    // A forced mate (rated below 98%) where another move wins outright too:
+    // giving material up there decides nothing.
+    expect(classifyMove(facts({ sacrifice: true, isTopMove: true, winBefore: 88, winAfter: 90, wonEitherWay: true }))).toBe('best');
     // Unsound sacrifice: judged by its loss.
     expect(classifyMove(facts({ sacrifice: true, winBefore: 55, winAfter: 20 }))).toBe('blunder');
   });
@@ -107,9 +110,28 @@ describe('isSacrifice', () => {
     expect(isSacrifice('3rk3/8/8/3N4/4P3/8/8/6K1 w - - 0 1', 'e4e5')).toBe(true);
   });
 
-  it('not a piece that was already hanging before the move', () => {
-    // exd5 could win the knight already; the quiet king move gives up nothing new.
-    expect(isSacrifice('4k3/8/4p3/3N4/8/8/8/6K1 w - - 0 1', 'g1g2')).toBe(false);
+  it('a piece that was already attacked and is left there rather than saved', () => {
+    // exd5 can win the knight, which could step away; the king move leaves it.
+    expect(isSacrifice('4k3/8/4p3/3N4/8/8/8/6K1 w - - 0 1', 'g1g2')).toBe(true);
+    // From a game chess.com rated Brilliant: Bxc4 leaves the c3 knight to
+    // b4xc3, a knight for two pawns, when Nb5 or Ne4 would have saved it.
+    const { fens } = replay([
+      'e3', 'e5', 'd4', 'exd4', 'exd4', 'Qe7+', 'Be2', 'd5', 'Nf3', 'Nf6',
+      'c4', 'dxc4', 'Nc3', 'b5', 'O-O', 'a6', 'a4', 'b4',
+    ]);
+    expect(isSacrifice(fens[18], 'e2c4')).toBe(true);
+  });
+
+  it('not a piece that no move could save', () => {
+    // The knight on a8 is lost whatever White plays: Be4 attacks it, and
+    // a7 and the king cover its only squares.
+    expect(isSacrifice('N2k4/p7/8/8/4b3/8/8/7K w - - 0 1', 'h1h2')).toBe(false);
+    expect(isSacrifice('N2k4/p7/8/8/4b3/8/8/7K w - - 0 1', 'a8b6')).toBe(false);
+  });
+
+  it('not a free pawn taken', () => {
+    // Nothing can take the knight on e5, so it gives nothing up.
+    expect(isSacrifice('4k3/8/8/4p3/8/5N2/8/4K3 w - - 0 1', 'f3e5')).toBe(false);
   });
 
   it('an exchange sacrifice', () => {

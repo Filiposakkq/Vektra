@@ -54,6 +54,12 @@ export interface MoveFacts {
   opponentErred: boolean;
   /** The move captures the piece the opponent just moved (a recapture, or taking a piece that moved en prise). */
   recapture?: boolean;
+  /**
+   * The engine's second-best move would also leave the game decided (a forced
+   * mate, or a win % of at least BRILLIANT_MAX_WIN_BEFORE), so giving up
+   * material there decides nothing.
+   */
+  wonEitherWay?: boolean;
 }
 
 /** Win % lost by the move, never negative. */
@@ -70,6 +76,7 @@ export function classifyMove(f: MoveFacts): Category {
 
   if (
     f.sacrifice &&
+    !f.wonEitherWay &&
     (f.isTopMove || loss <= C.BRILLIANT_MAX_LOSS) &&
     f.winBefore >= C.BRILLIANT_MIN_WIN_BEFORE &&
     f.winBefore <= C.BRILLIANT_MAX_WIN_BEFORE &&
@@ -150,41 +157,38 @@ function exposure(chess: Chess, color: 'w' | 'b'): number {
 }
 
 /**
- * Material the opponent could already win before the move, as if it were
- * their turn. 0 when the mover is in check (the opponent can't "move" then).
+ * Material the move gives away: what the opponent can then win by capturing
+ * (see exposure), minus what the move itself captured. Never below 0, so
+ * passing up a capture doesn't count as giving material away.
  */
-function exposureBefore(fenBefore: string, color: 'w' | 'b'): number {
-  const parts = fenBefore.split(' ');
-  if (new Chess(fenBefore).inCheck()) return 0;
-  parts[1] = color === 'w' ? 'b' : 'w';
-  parts[3] = '-';
-  try {
-    return exposure(new Chess(parts.join(' ')), color);
-  } catch {
-    return 0;
-  }
-}
-
-/**
- * True if the move gives up material: after it, the opponent can win at
- * least BRILLIANT_MIN_MATERIAL_LOSS more than the move itself captured, by
- * taking a piece worth at least BRILLIANT_MIN_PIECE_VALUE, beyond what they
- * could already win before it. That covers the moved piece and pieces newly
- * left en prise elsewhere (ignoring a threat); a piece that was hanging
- * already isn't sacrificed by this move. Trades, and captures the mover can
- * win back, don't count.
- */
-export function isSacrifice(fenBefore: string, uci: string): boolean {
-  const chess = new Chess(fenBefore);
-  let move;
-  try {
-    move = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-  } catch {
-    return false;
-  }
+function materialGivenUp(chess: Chess, move: Move): number {
+  chess.move(move);
   const gained =
     (move.captured ? PIECE_VALUE[move.captured] : 0) +
     (move.promotion ? PIECE_VALUE[move.promotion] - 1 : 0);
-  const atRisk = exposure(chess, move.color) - exposureBefore(fenBefore, move.color);
-  return atRisk - gained >= C.BRILLIANT_MIN_MATERIAL_LOSS;
+  const given = exposure(chess, move.color) - gained;
+  chess.undo();
+  return Math.max(0, given);
+}
+
+/**
+ * True if the move gives up material that another move would have kept: by
+ * at least BRILLIANT_MIN_MATERIAL_LOSS, in pieces worth at least
+ * BRILLIANT_MIN_PIECE_VALUE, after recaptures and minus anything the move
+ * captured. That covers the moved piece, pieces newly left en prise, and a
+ * piece that was already attacked and is left there rather than saved. A
+ * piece no move could save isn't sacrificed. Trades, and captures the mover
+ * can win back, don't count.
+ */
+export function isSacrifice(fenBefore: string, uci: string): boolean {
+  const chess = new Chess(fenBefore);
+  const moves = chess.moves({ verbose: true });
+  const played = moves.find(
+    (m) => m.from === uci.slice(0, 2) && m.to === uci.slice(2, 4) && (m.promotion ?? '') === (uci[4] ?? ''),
+  );
+  if (!played) return false;
+  const given = materialGivenUp(chess, played);
+  if (given < C.BRILLIANT_MIN_MATERIAL_LOSS) return false;
+  // Sacrificed only if some other move would have kept it.
+  return moves.some((m) => m !== played && given - materialGivenUp(chess, m) >= C.BRILLIANT_MIN_MATERIAL_LOSS);
 }

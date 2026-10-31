@@ -14,7 +14,10 @@ const documentListeners: Parameters<typeof document.addEventListener>[] = [];
  * separate copy of the settings module acting as the background worker, the
  * way they do in the extension.
  */
-async function openPopup(stored = { ...DEFAULT_SETTINGS }) {
+async function openPopup(
+  stored = { ...DEFAULT_SETTINGS },
+  { tab = { url: 'https://www.chess.com/play/online' }, pageHealth }: { tab?: Partial<chrome.tabs.Tab>; pageHealth?: unknown } = {},
+) {
   vi.resetModules();
   const background = await import('../src/shared/settings');
   background.becomeSettingsWriter();
@@ -25,7 +28,11 @@ async function openPopup(stored = { ...DEFAULT_SETTINGS }) {
         if (!background.handleSettingsMessage(msg, resolve)) resolve(undefined);
       }),
   });
-  fake.chrome.tabs.query.mockResolvedValue([{ url: 'https://www.chess.com/play/online' } as chrome.tabs.Tab]);
+  fake.chrome.tabs.query.mockResolvedValue([tab as chrome.tabs.Tab]);
+  fake.chrome.tabs.sendMessage.mockImplementation((async () => {
+    if (pageHealth instanceof Error) throw pageHealth;
+    return pageHealth;
+  }) as () => Promise<undefined>);
 
   const page = new DOMParser().parseFromString(POPUP_HTML, 'text/html');
   page.querySelectorAll('script').forEach((s) => s.remove());
@@ -74,6 +81,34 @@ afterEach(() => {
 });
 
 describe('settings popup', () => {
+  it('warns when Vektra cannot read the chess.com page', async () => {
+    const tab = { id: 7, url: 'https://www.chess.com/play/computer' };
+    await openPopup(undefined, { tab, pageHealth: { problems: ['board'] } });
+    const warning = document.getElementById('page-warning')!;
+    await vi.waitFor(() => expect(warning.hidden).toBe(false));
+    expect(warning.textContent).toMatch(/can't find the board/);
+    expect(fake.chrome.tabs.sendMessage).toHaveBeenCalledWith(7, { type: 'vektra:page-health' });
+  });
+
+  it('asks for a reload when Vektra is not running in the tab', async () => {
+    const tab = { id: 7, url: 'https://www.chess.com/play/computer' };
+    await openPopup(undefined, { tab, pageHealth: new Error('Receiving end does not exist.') });
+    const warning = document.getElementById('page-warning')!;
+    await vi.waitFor(() => expect(warning.textContent).toMatch(/Reload the page/));
+  });
+
+  it('shows no warning when the page reads fine', async () => {
+    await openPopup(undefined, { tab: { id: 7, url: 'https://www.chess.com/play/computer' }, pageHealth: { problems: [] } });
+    await vi.waitFor(() => expect(fake.chrome.tabs.sendMessage).toHaveBeenCalled());
+    expect(document.getElementById('page-warning')!.hidden).toBe(true);
+  });
+
+  it('does not check pages other than chess.com', async () => {
+    await openPopup(undefined, { tab: { id: 8, url: 'https://example.com/' } });
+    expect(fake.chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(document.getElementById('page-warning')!.hidden).toBe(true);
+  });
+
   it('shows the stored settings', async () => {
     await openPopup({ ...DEFAULT_SETTINGS, liveRatings: false, hintMode: 'hotkey', analysisDepth: 18 });
     expect(input('liveRatings').checked).toBe(false);

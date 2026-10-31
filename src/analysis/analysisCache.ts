@@ -16,9 +16,11 @@ import type { GameAnalysis, PositionEval } from './gameAnalysis';
 /**
  * Bump when a change to the search settings or the rating rules would change
  * the ratings, so analyses saved before it are run again. 2: sacrifices count
- * only newly exposed material, and recaptures are never Great.
+ * only newly exposed material, and recaptures are never Great. 3: a sacrifice
+ * is material another move would have kept (a piece left attacked counts),
+ * from a knight for two pawns up, and not when another move wins outright.
  */
-export const ANALYSIS_PROFILE_VERSION = 2;
+export const ANALYSIS_PROFILE_VERSION = 3;
 /** Analyses saved before profiles existed count as this version. */
 const LEGACY_PROFILE_VERSION = 1;
 
