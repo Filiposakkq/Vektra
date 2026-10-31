@@ -37,6 +37,21 @@ export const FULL_ENGINE_STATUS = 'vektra:full-engine:status';
 /** chrome.storage.local key holding the last FullEngineStatus. */
 export const FULL_ENGINE_STATUS_KEY = 'fullEngineStatus';
 
+/**
+ * How the engine setting follows a change of the full engine's status:
+ * 'full' when a download has just finished, 'lite' (if full was selected)
+ * when the engine stopped being available, null otherwise, including a
+ * status reported again unchanged.
+ */
+export function engineSettingForStatus(
+  previous: FullEngineStatus['state'] | undefined,
+  next: FullEngineStatus['state'],
+): 'full' | 'lite' | null {
+  if (previous === next) return null;
+  if (next === 'ready') return previous === 'downloading' ? 'full' : null;
+  return next === 'downloading' ? null : 'lite';
+}
+
 async function sha256Hex(data: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', data);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
