@@ -33,7 +33,7 @@ export default defineManifest({
   },
   // The display font is loaded into chess.com pages for the Vektra panel.
   web_accessible_resources: [
-    { resources: ['fonts/*', 'src/popup/index.html', 'assets/*'], matches: ['https://www.chess.com/*'] },
+    { resources: ['src/popup/index.html', 'assets/*'], matches: ['https://www.chess.com/*'] },
   ],
   content_scripts: [
     {

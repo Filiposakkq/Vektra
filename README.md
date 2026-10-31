@@ -319,6 +319,3 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
   and the [stockfish.js source](https://github.com/nmrugg/stockfish.js).
 - Opening names come from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings),
   released under CC0; see [`data/openings/README.md`](data/openings/README.md).
-- The display face is [Young Serif](https://github.com/noirblancrouge/YoungSerif),
-  bundled under the SIL Open Font License; see
-  [`public/fonts/OFL.txt`](public/fonts/OFL.txt).
