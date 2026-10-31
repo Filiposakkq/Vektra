@@ -138,9 +138,9 @@ options are grouped under clearly labeled expandable sections.
   additional candidate moves** is on). Arrows stay dim until the search
   finishes, and the eval bar shows the search depth (for example `d14`).
 - **Board look**: arrows are solid once the engine has finished and dashed
-  while it is still searching. Both squares of the best move are highlighted
-  with a strong tint and a border just inside the edge; the target is
-  stronger and pulses gently (not with reduced motion). While the engine searches, the shown best
+  while it is still searching. Both squares of the best move get an even tint
+  in the arrow's colour, drawn under the pieces like Chess.com's own
+  highlights; the target a little stronger. While the engine searches, the shown best
   move only changes when a new one leads two updates in a row or is more
   than 0.3 pawns better, so the arrows don't flicker between close moves;
   the final result is always shown as it is. A suggested promotion shows the piece's

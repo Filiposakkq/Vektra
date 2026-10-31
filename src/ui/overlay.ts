@@ -153,16 +153,9 @@ const LABEL_FONT = {
   'font-variant-numeric': 'tabular-nums',
 };
 
-/** A light tint over a whole square. */
-/**
- * A highlighted square: a strong tint over the whole square and a rounded
- * border just inside its edge, so it reads on both light and dark squares
- * and around the piece. A pulsing one breathes gently, unless the user
- * prefers reduced motion.
- */
-function squareTint(center: [number, number], color: string, opacity: number, pulse = false): SVGGElement {
-  const g = document.createElementNS(SVG_NS, 'g');
-  const fill = document.createElementNS(SVG_NS, 'rect');
+/** An even tint over a whole square, drawn under the pieces. */
+function squareTint(center: [number, number], color: string, opacity: number): SVGRectElement {
+  const rect = document.createElementNS(SVG_NS, 'rect');
   for (const [k, v] of Object.entries({
     x: center[0] - 0.5,
     y: center[1] - 0.5,
@@ -170,29 +163,8 @@ function squareTint(center: [number, number], color: string, opacity: number, pu
     height: 1,
     fill: color,
     'fill-opacity': opacity,
-  })) fill.setAttribute(k, String(v));
-  const border = document.createElementNS(SVG_NS, 'rect');
-  const inset = 0.035;
-  for (const [k, v] of Object.entries({
-    x: center[0] - 0.5 + inset,
-    y: center[1] - 0.5 + inset,
-    width: 1 - inset * 2,
-    height: 1 - inset * 2,
-    rx: 0.06,
-    fill: 'none',
-    stroke: color,
-    'stroke-opacity': 0.85,
-    'stroke-width': 0.04,
-  })) border.setAttribute(k, String(v));
-  g.append(fill, border);
-  if (pulse && allowMotion()) {
-    g.animate?.([{ opacity: 1 }, { opacity: 0.55 }, { opacity: 1 }], {
-      duration: 1400,
-      iterations: Infinity,
-      easing: 'ease-in-out',
-    });
-  }
-  return g;
+  })) rect.setAttribute(k, String(v));
+  return rect;
 }
 
 /** The piece a promoting move promotes to, as a letter tile in the target square's top-left corner. */
@@ -285,6 +257,8 @@ function stepMarker(step: number, from: [number, number], toward: [number, numbe
 export class BoardOverlay {
   private lastBadge = '';
   private svg: SVGSVGElement;
+  /** Square highlights, under the pieces like chess.com's own. */
+  private under: SVGSVGElement;
   /** The arrow elements on the board, by arrow kind and move. */
   private arrowNodes = new Map<string, SVGGElement>();
   /** Colour per rank (best first). */
@@ -304,6 +278,18 @@ export class BoardOverlay {
       pointerEvents: 'none',
       zIndex: '50',
     });
+    // No z-index: as the board's first child it sits below the pieces.
+    this.under = document.createElementNS(SVG_NS, 'svg');
+    this.under.classList.add('vektra-underlay');
+    this.under.setAttribute('viewBox', '0 0 8 8');
+    this.under.setAttribute('aria-hidden', 'true');
+    Object.assign(this.under.style, {
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+    });
   }
 
   /** Re-attach if chess.com replaced the board or removed the layer. */
@@ -312,6 +298,8 @@ export class BoardOverlay {
       if (getComputedStyle(board).position === 'static') board.style.position = 'relative';
       board.appendChild(this.svg);
     }
+    // chess.com can add elements first; the highlights must stay below the pieces.
+    if (board.firstChild !== this.under) board.insertBefore(this.under, board.firstChild);
   }
 
   /**
@@ -331,6 +319,7 @@ export class BoardOverlay {
     }
     this.svg.prepend(this.shadowFilter());
     const nextNodes = new Map<string, SVGGElement>();
+    const highlights: SVGRectElement[] = [];
     const labels: { rank: number; draw: (slot: number) => SVGGElement; square: string }[] = [];
     // Threats go underneath; then worst first so the best arrow ends up on top.
     const order = (a: Arrow) => (a.threat ? Infinity : a.rank);
@@ -363,14 +352,14 @@ export class BoardOverlay {
       g.setAttribute('opacity', String(opacity));
       if (provisional) g.dataset.provisional = 'true';
       if (rank === 0 && !threat) {
-        // Both squares are highlighted; the target is stronger and pulses.
-        const fromHighlight = squareTint(from, style.color, 0.3);
+        // Both squares get an even tint under the pieces, the target a bit more.
+        const fromHighlight = squareTint(from, style.color, 0.38);
         fromHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-from');
         fromHighlight.dataset.square = move.slice(0, 2);
-        const toHighlight = squareTint(to, style.color, 0.45, true);
+        const toHighlight = squareTint(to, style.color, 0.5);
         toHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-to');
         toHighlight.dataset.square = move.slice(2, 4);
-        g.append(fromHighlight, toHighlight);
+        highlights.push(fromHighlight, toHighlight);
       }
       g.setAttribute('filter', `url(#${SHADOW_ID})`);
       const shaft = document.createElementNS(SVG_NS, 'path');
@@ -436,6 +425,7 @@ export class BoardOverlay {
       else old.remove();
     }
     this.arrowNodes = nextNodes;
+    this.under.replaceChildren(...highlights);
     // Labels last, so no arrow covers a score; the best move's sits lowest.
     const slots = new Map<string, number>();
     for (const label of labels.sort((a, b) => a.rank - b.rank)) {
@@ -452,8 +442,8 @@ export class BoardOverlay {
     const g = document.createElementNS(SVG_NS, 'g');
     g.classList.add('vektra-piece-hint');
     g.dataset.square = square;
-    g.append(squareTint(squareCenter(square, flipped), color, 0.45, true));
-    this.svg.appendChild(g);
+    g.append(squareTint(squareCenter(square, flipped), color, 0.5));
+    this.under.appendChild(g);
   }
 
   /** A soft shadow under the arrows so they stand out on light and dark squares. */
@@ -519,10 +509,12 @@ export class BoardOverlay {
 
   clear(): void {
     this.svg.replaceChildren();
+    this.under.replaceChildren();
     this.arrowNodes.clear();
   }
 
   destroy(): void {
     this.svg.remove();
+    this.under.remove();
   }
 }

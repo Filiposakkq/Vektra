@@ -109,7 +109,7 @@ if (runSuite('board')) for (const [url, name] of [
     // Read both at once: the arrows are redrawn as the search goes deeper.
     const { primaryMove, highlights } = await p.evaluate(() => ({
       primaryMove: document.querySelector('.vektra-move[data-rank="0"]')?.dataset.move,
-      highlights: [...document.querySelectorAll('svg.vektra-overlay .vektra-square-highlight')].map(
+      highlights: [...document.querySelectorAll('svg.vektra-underlay .vektra-square-highlight')].map(
         (el) => el.dataset.square,
       ),
     }));
@@ -540,7 +540,16 @@ if (runSuite('settings')) {
     'floating settings: title bar drags the window',
   );
 
-  await settings.locator('[data-tab="engine"]').click();
+  // The window may still be settling after the drag, so a click can miss;
+  // make sure the Engine tab really opened before using it.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await settings.locator('[data-tab="engine"]').click();
+    const opened = await settings
+      .locator('[data-tab="engine"][aria-selected="true"]')
+      .waitFor({ timeout: 2000 })
+      .then(() => true, () => false);
+    if (opened) break;
+  }
   await settings.locator('input[name="depth"]').evaluate((input) => {
     input.value = '24';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -588,7 +597,7 @@ if (runSuite('settings')) {
   const pieceOnly = await game
     .waitForFunction(
       () =>
-        document.querySelector('svg.vektra-overlay .vektra-piece-hint') &&
+        document.querySelector('svg.vektra-underlay .vektra-piece-hint') &&
         !document.querySelector('svg.vektra-overlay .vektra-move'),
       null,
       { timeout: 30000 },

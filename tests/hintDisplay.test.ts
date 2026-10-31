@@ -194,19 +194,19 @@ describe('board visuals', () => {
     });
   });
 
-  it('highlights both squares of the best move, the target more strongly', () => {
+  it('tints both squares of the best move under the pieces, the target a bit more', () => {
     withBoard((board, overlay) => {
+      board.append(Object.assign(document.createElement('div'), { className: 'piece wn square-71' }));
       overlay.draw(board, [{ move: 'g1f3', rank: 0 }], false);
       const from = board.querySelector('.vektra-square-highlight-from');
       const to = board.querySelector('.vektra-square-highlight-to');
-      // A fill over the whole square and a border just inside it.
-      const [fill, border] = [...(to?.querySelectorAll('rect') ?? [])];
-      expect(fill.getAttribute('width')).toBe('1');
-      expect(border.getAttribute('fill')).toBe('none');
-      expect(Number(border.getAttribute('stroke-width'))).toBeGreaterThan(0);
-      expect(Number(fill.getAttribute('fill-opacity'))).toBeGreaterThan(
-        Number(from?.querySelector('rect')?.getAttribute('fill-opacity')),
-      );
+      expect(to?.getAttribute('width')).toBe('1');
+      expect(Number(to?.getAttribute('fill-opacity'))).toBeGreaterThan(Number(from?.getAttribute('fill-opacity')));
+      // In their own layer, first in the board, so the pieces draw over them.
+      const layer = to?.closest('svg');
+      expect(layer?.classList.contains('vektra-underlay')).toBe(true);
+      expect(board.firstElementChild).toBe(layer);
+      expect(board.querySelector('svg.vektra-overlay .vektra-square-highlight')).toBeNull();
     });
   });
 
