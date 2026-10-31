@@ -54,6 +54,10 @@
             <span>Scores on arrows</span>
             <input type="checkbox" name="arrowScores" />
           </label>
+          <label class="row inline check">
+            <span>Avoid draws<small>Skip a move that draws at once when another keeps you level or better.</small></span>
+            <input type="checkbox" name="avoidDraws" />
+          </label>
           <div class="row">
             <label for="hideWorseWinLoss">
               <span>Hide alternatives that cost more than</span>
@@ -152,6 +156,10 @@
             <button type="button" id="engine-remove" class="link" hidden>Remove download</button>
           </div>
           <div class="progress" id="engine-progress" role="progressbar" aria-label="Full engine download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i></i></div>
+          <label class="row inline check">
+            <span>Light mode<small>One engine instead of three: less memory, but threats and weaker moves wait their turn.</small></span>
+            <input type="checkbox" name="lightMode" />
+          </label>
         </section>
         <details class="advanced-settings">
           <summary>

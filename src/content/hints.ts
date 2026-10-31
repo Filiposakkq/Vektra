@@ -128,6 +128,81 @@ export function steadyLines(
   return [kept, ...ordered.filter((line) => line !== kept)].map((line, i) => ({ ...line, multipv: i + 1 }));
 }
 
+/** The game so far: every position (from the start) and the moves between them. */
+export interface GameHistory {
+  fens: string[];
+  uci: string[];
+}
+
+/** The game that led to the board's position, or null when it can't be replayed from the move list. */
+export function gameHistory(state: BoardState): GameHistory | null {
+  if (state.source !== 'replay' || state.inVariation) return null;
+  const { fens, uci, failedAt } = replay(state.sans.slice(0, state.ply));
+  if (failedAt !== null || fens[fens.length - 1] !== state.fen) return null;
+  return { fens, uci };
+}
+
+/**
+ * The part of the game the engine needs: from the last capture or pawn move
+ * on (nothing before it can repeat, and its FEN carries the 50-move count).
+ * Keeping it short keeps cached searches reusable.
+ */
+export function searchHistory(game: GameHistory): NonNullable<AnalyzeRequest['history']> {
+  let start = 0;
+  for (let i = game.fens.length - 1; i >= 0; i--) {
+    if (game.fens[i].split(' ')[4] === '0') {
+      start = i;
+      break;
+    }
+  }
+  return { startFen: game.fens[start], moves: game.uci.slice(start) };
+}
+
+/** The game after one more move, or null if it is illegal. */
+export function extendHistory(game: GameHistory, uci: string): GameHistory | null {
+  const next = fenAfterMove(game.fens[game.fens.length - 1], uci);
+  return next ? { fens: [...game.fens, next], uci: [...game.uci, uci] } : null;
+}
+
+/** True if playing the move ends the game in a draw at once: repetition, stalemate, 50 moves or too little material. */
+export function drawsAfter(game: GameHistory, uci: string): boolean {
+  const { startFen, moves } = searchHistory(game);
+  try {
+    const chess = new Chess(startFen);
+    for (const move of [...moves, uci]) {
+      chess.move({ from: move.slice(0, 2), to: move.slice(2, 4), promotion: move[4] });
+    }
+    return chess.isDraw();
+  } catch {
+    return false;
+  }
+}
+
+/** Most an "avoid draws" move may give up against the drawing best move, in centipawns. */
+export const AVOID_DRAW_MAX_LOSS_CP = 100;
+/** ...and the worst score (for the mover) it may leave: about level. */
+export const AVOID_DRAW_MIN_SCORE_CP = -30;
+
+/**
+ * When the best move draws at once, the best of the other lines that doesn't
+ * and keeps the mover about level (within AVOID_DRAW_MAX_LOSS_CP of the best
+ * and no worse than AVOID_DRAW_MIN_SCORE_CP), or null to keep the best move.
+ */
+export function drawAvoidingLine(game: GameHistory, lines: readonly PvLine[], bestmove: string): PvLine | null {
+  if (!drawsAfter(game, bestmove)) return null;
+  const ordered = [...lines].sort((a, b) => a.multipv - b.multipv);
+  const best = ordered.find((line) => line.pv[0] === bestmove) ?? ordered[0];
+  if (!best) return null;
+  const bestCp = scoreToCp(best.score);
+  for (const line of ordered) {
+    const move = line.pv[0];
+    if (!move || move === bestmove || drawsAfter(game, move)) continue;
+    const cp = scoreToCp(line.score);
+    if (bestCp - cp <= AVOID_DRAW_MAX_LOSS_CP && cp >= AVOID_DRAW_MIN_SCORE_CP) return line;
+  }
+  return null;
+}
+
 /** The position after a UCI move, as the board reader would report it, or null if the move is illegal. */
 export function fenAfterMove(fen: string, uci: string): string | null {
   try {
@@ -166,13 +241,20 @@ function hintEngineOptions(): Pick<AnalyzeRequest, 'hashMb'> {
   return { hashMb: HINT_HASH_MB };
 }
 
-export function buildRequest(fen: string, s: Settings): AnalyzeRequest {
+/** The game's moves for a search, when known (see searchHistory). */
+function historyOption(game?: GameHistory | null): Pick<AnalyzeRequest, 'history'> {
+  return game ? { history: searchHistory(game) } : {};
+}
+
+export function buildRequest(fen: string, s: Settings, game?: GameHistory | null): AnalyzeRequest {
   return {
     fen,
-    multipv: capLines(fen, Math.max(s.arrows, s.weakenedShowsTopMoves ? WEAKER_MOVE_MULTIPV : 1)),
+    // Avoiding a draw needs at least one other line to choose from.
+    multipv: capLines(fen, Math.max(s.arrows, s.weakenedShowsTopMoves ? WEAKER_MOVE_MULTIPV : 1, s.avoidDraws ? 2 : 1)),
     limit: s.searchMode === 'depth' ? { depth: s.depth } : { movetimeMs: s.movetimeMs },
     strength: { skillLevel: s.skillLevel, limitStrength: s.limitStrength, elo: s.elo },
     ...hintEngineOptions(),
+    ...historyOption(game),
   };
 }
 
@@ -192,11 +274,11 @@ export function buildThreatRequest(fen: string, s: Settings): AnalyzeRequest | n
 }
 
 /**
- * The quick search for weaker-move candidates, run before the main one: many lines,
- * since the top few are usually close together, at a shallower limit so it
- * stays quick. The main search keeps few lines and its full depth.
+ * The quick search for weaker-move candidates, run next to the main one: many
+ * lines, since the top few are usually close together, at a shallower limit so
+ * it stays quick. The main search keeps few lines and its full depth.
  */
-export function buildWeakerRequest(fen: string, s: Settings): AnalyzeRequest {
+export function buildWeakerRequest(fen: string, s: Settings, game?: GameHistory | null): AnalyzeRequest {
   return {
     fen,
     multipv: capLines(fen, WEAKER_CANDIDATE_MULTIPV),
@@ -205,6 +287,7 @@ export function buildWeakerRequest(fen: string, s: Settings): AnalyzeRequest {
       : { movetimeMs: Math.min(s.movetimeMs, WEAKER_SEARCH_MOVETIME_MS) },
     strength: { skillLevel: s.skillLevel, limitStrength: s.limitStrength, elo: s.elo },
     ...hintEngineOptions(),
+    ...historyOption(game),
   };
 }
 
@@ -414,6 +497,11 @@ export class HintController {
   setSettings(settings: Settings): void {
     this.settings = settings;
     for (const engine of [this.engine, ...this.helpers]) engine.setFullEngine(settings.engine === 'full');
+    if (settings.lightMode && this.helpers.length) {
+      // One engine only: close the extra ones and free their memory.
+      for (const helper of this.helpers) helper.disconnect();
+      this.helpers = [];
+    }
     if (this.current) this.update(this.current.state, this.current.kind);
   }
 
@@ -513,31 +601,34 @@ export class HintController {
 
     // The weaker-move and threat passes run on their own engines alongside the
     // main search, so what they add shows within moments and nothing waits in
-    // line. The weaker-move pass is quick and wide; it also draws the first
-    // arrows (the violet one included) until the main search has lines.
+    // line; in light mode one engine runs them first, one at a time. The
+    // weaker-move pass is quick and wide; it also draws the first arrows (the
+    // violet one included) until the main search has lines.
+    const parallel = !this.settings.lightMode;
+    // The game's moves go with each search, so the engine sees repetitions.
+    const game = gameHistory(state);
+    const withThreat = kind === 'game' && this.settings.showThreats && shouldHint(state, kind);
     let weakerDone: Promise<void> = Promise.resolve();
-    if (withWeaker) {
-      this.weakerPending = true;
-      weakerDone = this
-        .search(buildWeakerRequest(state.fen, this.settings), (lines) => {
-          if (stale() || !(lines[0]?.depth >= WEAKER_DRAW_DEPTH)) return;
-          this.weakerLines = lines;
-          if (!mainDrawn) this.lines = this.steady(lines);
-          this.redraw();
-        }, this.helper(0))
-        .then((weaker) => {
-          if (!weaker || stale()) return;
-          this.weakerLines = weaker.lines;
-          if (!mainDrawn) this.lines = weaker.lines;
-          this.redraw();
-        });
-    }
-    if (kind === 'game' && this.settings.showThreats && shouldHint(state, kind)) {
-      void this.searchThreat(state, stale, this.helper(1));
-    }
+    if (withWeaker) this.weakerPending = true;
+    const runWeaker = (): Promise<void> => this
+      .search(buildWeakerRequest(state.fen, this.settings, game), (lines) => {
+        if (stale() || !(lines[0]?.depth >= WEAKER_DRAW_DEPTH)) return;
+        this.weakerLines = lines;
+        if (!mainDrawn) this.lines = this.steady(lines);
+        this.redraw();
+      }, parallel ? this.helper(0) : this.engine)
+      .then((weaker) => {
+        if (!weaker || stale()) return;
+        this.weakerLines = weaker.lines;
+        if (!mainDrawn) this.lines = weaker.lines;
+        this.redraw();
+      });
+    const runThreat = (): Promise<void> => withThreat
+      ? this.searchThreat(state, stale, parallel ? this.helper(1) : this.engine)
+      : Promise.resolve();
 
-    void this
-      .search(buildRequest(state.fen, this.settings), (lines) => {
+    const runMain = () => void this
+      .search(buildRequest(state.fen, this.settings, game), (lines) => {
         if (stale() || !(lines[0]?.depth > 0)) return;
         this.rememberEval(state, lines);
         if (lines[0].depth >= EARLY_RATING_DEPTH && this.rateMove(state, false)) this.redraw();
@@ -553,8 +644,18 @@ export class HintController {
         this.bestmove = result.bestmove;
         this.rememberEval(state, result.lines);
         this.rateMove(state, true);
+        let bestmove = result.bestmove;
+        // Avoid draws: when the best move draws at once and another keeps the
+        // game going about level, show and play that one instead.
+        const avoiding = this.settings.avoidDraws && game && bestmove && kind === 'game' && shouldHint(state, kind);
+        const keepGoing = avoiding ? drawAvoidingLine(game, result.lines, bestmove!) : null;
+        if (keepGoing) {
+          bestmove = keepGoing.pv[0];
+          this.bestmove = bestmove;
+          this.lines = [keepGoing, ...result.lines.filter((line) => line !== keepGoing)]
+            .map((line, i) => ({ ...line, multipv: i + 1 }));
+        }
         this.redraw();
-        const bestmove = result.bestmove;
         // The weaker move is picked against the main search's final choice,
         // once its candidates are in; autoplay waits for both.
         await weakerDone;
@@ -562,6 +663,8 @@ export class HintController {
         this.moveChoice = withWeaker && this.settings.autoPlay && bestmove
           ? chooseWeakerMove(state.fen, bestmove, this.weakerLines, this.settings)
           : null;
+        // A weaker move that draws at once isn't played when avoiding draws.
+        if (this.moveChoice && avoiding && drawsAfter(game!, this.moveChoice.move)) this.moveChoice = null;
         this.weakerPending = false;
         this.redraw();
         // Report the choice before autoplay plans it, so its delay belongs to it.
@@ -582,9 +685,22 @@ export class HintController {
             .map((line) => line.pv[0])
             .filter((move): move is string => !!move)
             .slice(0, PONDER_REPLIES);
-          this.ponder(state.fen, replies, stale);
+          this.ponder(state.fen, game, replies, stale);
         }
       });
+
+    if (parallel) {
+      if (withWeaker) weakerDone = runWeaker();
+      void runThreat();
+      runMain();
+    } else {
+      if (withWeaker) weakerDone = runWeaker();
+      void weakerDone
+        .then(() => (stale() ? undefined : runThreat()))
+        .then(() => {
+          if (!stale()) runMain();
+        });
+    }
   }
 
   /** A helper engine (0: weaker moves, 1: threats; both also think ahead). */
@@ -604,17 +720,21 @@ export class HintController {
    * same order. When the bot plays one of them, the hints come straight from
    * the cache. The next position's update cancels whatever is still running.
    */
-  private ponder(fen: string, replies: readonly string[], stale: () => boolean): void {
+  private ponder(fen: string, game: GameHistory | null, replies: readonly string[], stale: () => boolean): void {
     const s = this.settings;
-    // Each reply gets its own engine, so the replies are searched side by side.
-    const engines = [this.engine, this.helper(0), this.helper(1)];
+    // Each reply gets its own engine, so the replies are searched side by
+    // side; in light mode only the most likely reply is searched.
+    if (this.settings.lightMode) replies = replies.slice(0, 1);
+    const engines = this.settings.lightMode ? [this.engine] : [this.engine, this.helper(0), this.helper(1)];
     replies.forEach((reply, i) => {
       const next = fenAfterMove(fen, reply);
       if (!next) return;
+      // The same game moves the next update will send, so the cache matches.
+      const nextGame = game ? extendHistory(game, reply) : null;
       const requests = [
-        s.occasionalWeakerMoves ? buildWeakerRequest(next, s) : null,
+        s.occasionalWeakerMoves ? buildWeakerRequest(next, s, nextGame) : null,
         s.showThreats ? buildThreatRequest(next, s) : null,
-        buildRequest(next, s),
+        buildRequest(next, s, nextGame),
       ].filter((req): req is AnalyzeRequest => req !== null);
       const engine = engines[i % engines.length];
       void (async () => {

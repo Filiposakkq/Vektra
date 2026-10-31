@@ -83,7 +83,8 @@ export class UciEngine {
         if (info.multipv === req.multipv || lines.size === 1) onUpdate?.(sorted());
       };
 
-      this.send(`position fen ${req.fen}`);
+      const moves = req.history?.moves.length ? ` moves ${req.history.moves.join(' ')}` : '';
+      this.send(`position fen ${req.history?.startFen ?? req.fen}${moves}`);
       const done = this.waitFor((l) => parseBestMove(l) !== undefined, onLine);
       const { depth, movetimeMs } = req.limit;
       this.send(

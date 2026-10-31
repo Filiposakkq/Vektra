@@ -52,10 +52,13 @@ describe('hint rules', () => {
   });
 
   it('keeps the main search light and searches weaker moves separately', () => {
-    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1 }).multipv).toBe(1);
+    const one = { ...DEFAULT_SETTINGS, arrows: 1 as const, avoidDraws: false };
+    expect(buildRequest('fen', one).multipv).toBe(1);
     // Weaker moves don't widen the main search; they get their own.
-    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, occasionalWeakerMoves: true }).multipv).toBe(1);
-    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, weakenedShowsTopMoves: true }).multipv).toBe(5);
+    expect(buildRequest('fen', { ...one, occasionalWeakerMoves: true }).multipv).toBe(1);
+    expect(buildRequest('fen', { ...one, weakenedShowsTopMoves: true }).multipv).toBe(5);
+    // Avoiding draws needs a second line to choose from.
+    expect(buildRequest('fen', { ...one, avoidDraws: true }).multipv).toBe(2);
     const weaker = buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, depth: 18 });
     expect(weaker.multipv).toBe(10);
     expect(weaker.limit).toEqual({ depth: 10 });

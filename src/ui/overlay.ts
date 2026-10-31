@@ -126,6 +126,34 @@ export function arrowGeometry(
   return { shaft, head: [to, barbA, notch, barbB].map(fmt).join(' ') };
 }
 
+/** How far (board units) a threat arrow is moved aside when it would cover a move arrow. */
+export const THREAT_OFFSET = 0.18;
+
+/**
+ * True if two straight segments lie along the same line and overlap, so one
+ * arrow drawn over the other would hide it.
+ */
+export function segmentsOverlap(
+  a: [[number, number], [number, number]],
+  b: [[number, number], [number, number]],
+): boolean {
+  const [ax, ay] = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
+  const len = Math.hypot(ax, ay);
+  if (len === 0) return false;
+  const [ux, uy] = [ax / len, ay / len];
+  const [bx, by] = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+  const blen = Math.hypot(bx, by);
+  if (blen === 0) return false;
+  // Parallel (within about 12 degrees) and close to the same line.
+  if (Math.abs(ux * by - uy * bx) / blen > 0.2) return false;
+  const distance = Math.abs(ux * (b[0][1] - a[0][1]) - uy * (b[0][0] - a[0][0]));
+  if (distance > 0.25) return false;
+  // Overlapping along the line.
+  const t0 = ux * (b[0][0] - a[0][0]) + uy * (b[0][1] - a[0][1]);
+  const t1 = ux * (b[1][0] - a[0][0]) + uy * (b[1][1] - a[0][1]);
+  return Math.max(Math.min(t0, t1), 0) < Math.min(Math.max(t0, t1), len) - 0.1;
+}
+
 /** A knight move's corner: along the long leg first, then the short one. */
 export function knightCorner(from: [number, number], to: [number, number]): [number, number] | null {
   const dx = Math.abs(to[0] - from[0]);
@@ -323,6 +351,12 @@ export class BoardOverlay {
     const labels: { rank: number; draw: (slot: number) => SVGGElement; square: string }[] = [];
     // Threats go underneath; then worst first so the best arrow ends up on top.
     const order = (a: Arrow) => (a.threat ? Infinity : a.rank);
+    const moveSegments = arrows
+      .filter((a) => !a.threat)
+      .map((a): [[number, number], [number, number]] => [
+        squareCenter(a.move.slice(0, 2), flipped),
+        squareCenter(a.move.slice(2, 4), flipped),
+      ]);
     for (const arrow of [...arrows].sort((a, b) => order(b) - order(a))) {
       const { move, rank, provisional, weaker, threat, step } = arrow;
       const r = Math.min(rank, ARROW_STYLES.length - 1);
@@ -335,10 +369,20 @@ export class BoardOverlay {
             ? this.colors[0] ?? DEFAULT_ARROW_COLORS[0]
             : this.colors[r] ?? DEFAULT_ARROW_COLORS[r];
       const style = { ...(threat ? ARROW_STYLES[2] : ARROW_STYLES[r]), color };
-      const from = squareCenter(move.slice(0, 2), flipped);
-      const to = squareCenter(move.slice(2, 4), flipped);
+      let from = squareCenter(move.slice(0, 2), flipped);
+      let to = squareCenter(move.slice(2, 4), flipped);
       if (from[0] === to[0] && from[1] === to[1]) continue;
-      const corner = knightCorner(from, to);
+      let corner = knightCorner(from, to);
+      // A threat along the same line as a move arrow would hide it (or be
+      // hidden): move the threat a little to one side.
+      if (threat && moveSegments.some((segment) => segmentsOverlap([from, to], segment))) {
+        const len = Math.hypot(to[0] - from[0], to[1] - from[1]);
+        const shift: [number, number] = [(-(to[1] - from[1]) / len) * THREAT_OFFSET, ((to[0] - from[0]) / len) * THREAT_OFFSET];
+        const moved = (p: [number, number]): [number, number] => [p[0] + shift[0], p[1] + shift[1]];
+        from = moved(from);
+        to = moved(to);
+        if (corner) corner = moved(corner);
+      }
       const shape = arrowGeometry(from, to, style.width, corner, 0.42);
 
       const g = document.createElementNS(SVG_NS, 'g');

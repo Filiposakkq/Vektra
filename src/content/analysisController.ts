@@ -19,6 +19,7 @@ import {
 import { replay } from './fen';
 import { handleStaleExtension } from './extensionUpdate';
 import { downloadJson } from '../analysis/export';
+import type { Category } from '../analysis/classify';
 import { downloadPdf } from '../analysis/pdfExport';
 import { EngineClient } from '../engine/client';
 import type { Settings } from '../shared/settings';
@@ -56,6 +57,18 @@ function poolSize(full: boolean): number {
 
 /** What the controller needs from an engine; EngineClient in the extension. */
 export type AnalysisEngine = Pick<EngineClient, 'analyze' | 'engine' | 'setFullEngine' | 'disconnect' | 'onError'>;
+
+const MISTAKES: readonly Category[] = ['inaccuracy', 'mistake', 'miss', 'blunder'];
+
+/** The player's move that lost the most win chance, among inaccuracies and worse. */
+export function biggestMistake(moves: readonly MoveAnalysis[], color: 'w' | 'b'): MoveAnalysis | null {
+  let worst: MoveAnalysis | null = null;
+  for (const move of moves) {
+    if (move.color !== color || !MISTAKES.includes(move.category)) continue;
+    if (!worst || move.loss > worst.loss) worst = move;
+  }
+  return worst;
+}
 
 export class AnalysisController {
   /**
@@ -106,6 +119,7 @@ export class AnalysisController {
   update(state: BoardState, kind: PageKind = this.kind): void {
     this.state = state;
     this.kind = kind;
+    this.panel.reviewMode = kind === 'game';
     this.panel.ensureMounted();
     this.refreshVisibility();
     if (this.abort) return; // running; progress is on the panel
@@ -210,6 +224,9 @@ export class AnalysisController {
   private async run(): Promise<void> {
     if (!this.state || this.abort) return;
     const sans = this.state.sans;
+    // A review of a finished bot game ends on the player's biggest mistake.
+    const review = this.kind === 'game';
+    const player = this.state.flipped ? 'b' : 'w';
     const abort = new AbortController();
     this.abort = abort;
     this.analysis = null;
@@ -262,6 +279,10 @@ export class AnalysisController {
     result.engine = engineLabel(engine);
     this.show(result);
     void this.saveCached(sans, result, engine);
+    if (review) {
+      const mistake = biggestMistake(result.moves, player);
+      if (mistake) this.goToPly(mistake.ply);
+    }
   }
 
   /** Called when an analysis finishes, so the board can redraw with it. */

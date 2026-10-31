@@ -195,7 +195,7 @@ describe('EngineClient connection', () => {
     await expect(search).resolves.toEqual({ bestmove: 'g1f3', lines: [] });
   });
 
-  it('still cancels searches when the current port drops', async () => {
+  it('reconnects once and sends a waiting search again when the port drops', async () => {
     const ports = stubRuntime();
     const errors: string[] = [];
     const client = new EngineClient();
@@ -203,6 +203,25 @@ describe('EngineClient connection', () => {
     const search = client.analyze(REQUEST);
     await vi.waitFor(() => expect(ports[0]?.posted).toHaveLength(1));
     ports[0].drop('engine host closed');
+    // A new connection gets the same search.
+    await vi.waitFor(() => expect(ports[1]?.posted).toHaveLength(1));
+    expect(ports[1].posted[0]).toMatchObject({ type: 'analyze', fen: REQUEST.fen });
+    const { id } = ports[1].posted[0] as { id: number };
+    ports[1].send({ type: 'done', id, bestmove: 'e2e4', lines: [] });
+    await expect(search).resolves.toEqual({ bestmove: 'e2e4', lines: [] });
+    expect(errors).toEqual([]);
+  });
+
+  it('gives up with an error when the connection drops again', async () => {
+    const ports = stubRuntime();
+    const errors: string[] = [];
+    const client = new EngineClient();
+    client.onError = (m) => errors.push(m);
+    const search = client.analyze(REQUEST);
+    await vi.waitFor(() => expect(ports[0]?.posted).toHaveLength(1));
+    ports[0].drop('engine host closed');
+    await vi.waitFor(() => expect(ports[1]?.posted).toHaveLength(1));
+    ports[1].drop('engine host closed');
     await expect(search).resolves.toBeNull();
     expect(errors).toEqual(['Engine connection closed: engine host closed']);
   });

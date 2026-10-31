@@ -25,6 +25,10 @@ export default defineManifest({
       suggested_key: { default: 'Alt+Shift+J' },
       description: 'Show hint now',
     },
+    'toggle-autoplay': {
+      suggested_key: { default: 'Alt+Shift+A' },
+      description: 'Turn autoplay on or off',
+    },
   },
   // Stockfish is WebAssembly, which needs wasm-unsafe-eval on extension pages
   // (the offscreen document and its worker).

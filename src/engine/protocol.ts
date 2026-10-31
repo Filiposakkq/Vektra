@@ -26,6 +26,12 @@ export interface AnalyzeRequest {
   strength: Strength;
   /** Optional transposition-table size for analysis searches, in MiB. */
   hashMb?: number;
+  /**
+   * How the game reached `fen`: a starting position and the moves played
+   * from it. With it the engine knows the repetitions so far and counts a
+   * third repetition as a draw; without it the position is searched alone.
+   */
+  history?: { startFen: string; moves: string[] };
 }
 
 export interface SearchResult {

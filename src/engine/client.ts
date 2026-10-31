@@ -10,9 +10,13 @@ import {
 import type { PvLine } from './uci';
 
 interface Pending {
+  req: AnalyzeRequest;
   onUpdate?: (lines: PvLine[]) => void;
   resolve: (r: SearchResult | null) => void;
 }
+
+/** Times a dropped connection is reopened, and its search sent again, before giving up. */
+const MAX_RECONNECTS = 1;
 
 /**
  * Content-script side of the engine. Only the latest search matters: starting
@@ -27,6 +31,8 @@ export class EngineClient {
   private pending = new Map<number, Pending>();
   private full = false;
   private readyEngine: 'lite' | 'full' | null = null;
+  /** Reconnects since the last search that finished. */
+  private reconnects = 0;
   onError?: (message: string) => void;
 
   /**
@@ -75,11 +81,18 @@ export class EngineClient {
       port.onDisconnect.addListener(() => {
         const error = chrome.runtime.lastError;
         if (port !== this.port) return;
+        this.port = null;
+        this.readyEngine = null;
+        // A search was waiting: open a new connection and send it again
+        // (the engine page may have restarted, or its worker crashed).
+        if (this.pending.size && this.reconnects < MAX_RECONNECTS) {
+          this.reconnects++;
+          void this.resend();
+          return;
+        }
         if (error?.message && !/back\/forward cache/i.test(error.message)) {
           if (this.pending.size) this.reportError(`Engine connection closed: ${error.message}`);
         }
-        this.port = null;
-        this.readyEngine = null;
         this.cancelAll();
       });
       this.port = port;
@@ -99,14 +112,18 @@ export class EngineClient {
     }
     if (msg.type === 'error') {
       this.reportError(msg.message);
+      // An error without a search id closes the connection next; the waiting
+      // search is sent again then (see onDisconnect), or given up.
       if (msg.id !== undefined) this.settle(msg.id, null);
-      else this.cancelAll();
       return;
     }
     const p = this.pending.get(msg.id);
     if (!p) return;
     if (msg.type === 'update') p.onUpdate?.(msg.lines);
-    else this.settle(msg.id, { bestmove: msg.bestmove, lines: msg.lines });
+    else {
+      this.reconnects = 0;
+      this.settle(msg.id, { bestmove: msg.bestmove, lines: msg.lines });
+    }
   }
 
   private settle(id: number, result: SearchResult | null) {
@@ -123,7 +140,7 @@ export class EngineClient {
   async analyze(req: AnalyzeRequest, onUpdate?: (lines: PvLine[]) => void): Promise<SearchResult | null> {
     this.cancelAll();
     const id = this.nextId++;
-    const result = new Promise<SearchResult | null>((resolve) => this.pending.set(id, { onUpdate, resolve }));
+    const result = new Promise<SearchResult | null>((resolve) => this.pending.set(id, { req, onUpdate, resolve }));
     try {
       const port = await this.connect();
       if (!port) this.settle(id, null);
@@ -133,6 +150,21 @@ export class EngineClient {
       this.settle(id, null);
     }
     return result;
+  }
+
+  /** Reconnect and send the waiting searches again. */
+  private async resend(): Promise<void> {
+    let port: chrome.runtime.Port | null = null;
+    try {
+      port = await this.connect();
+    } catch (err) {
+      this.reportError(`Could not reconnect to the chess engine: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (!port) {
+      this.cancelAll();
+      return;
+    }
+    for (const [id, p] of this.pending) port.postMessage({ type: 'analyze', id, ...p.req } satisfies ClientMessage);
   }
 
   stop(): void {

@@ -74,6 +74,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'toggle-hints') {
     await applySettingsPatch(({ enabled }) => ({ enabled: !enabled }));
+  } else if (command === 'toggle-autoplay') {
+    await applySettingsPatch(({ autoPlay }) => ({ autoPlay: !autoPlay }));
   } else if (command === 'show-hint') {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id !== undefined) chrome.tabs.sendMessage(tab.id, { type: SHOW_HINT }).catch(() => {});

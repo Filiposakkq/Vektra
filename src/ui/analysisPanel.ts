@@ -65,6 +65,8 @@ export class AnalysisPanel {
   /** Where the user dragged it, as viewport coordinates; null until then. */
   private position: { left: number; top: number } | null = null;
   private placed = false;
+  /** On a finished bot game the action is a review that jumps to your biggest mistake. */
+  reviewMode = false;
   private readonly onResize = () => this.keepOnscreen();
 
   /** findBoard: the board element, to open beside it. */
@@ -259,12 +261,15 @@ export class AnalysisPanel {
     this.subtitle.textContent = moveCount ? `${moveCount} moves` : '';
     const note = message ?? (stale
       ? 'The moves changed since the last analysis.'
-      : moveCount
-        ? `Rate all ${moveCount} moves and see where the game turned.`
-        : 'No moves to analyze yet.');
+      : this.reviewMode && moveCount
+        ? 'Rate every move of this game and go straight to your biggest mistake.'
+        : moveCount
+          ? `Rate all ${moveCount} moves and see where the game turned.`
+          : 'No moves to analyze yet.');
+    const label = stale ? 'Analyze again' : this.reviewMode ? 'Review this game' : 'Analyze game';
     this.body.replaceChildren(
       el('p', { margin: '0 0 12px', color: THEME.muted }, note),
-      ...(moveCount ? [button(stale ? 'Analyze again' : 'Analyze game', () => this.cb.onAnalyze(), true)] : []),
+      ...(moveCount ? [button(label, () => this.cb.onAnalyze(), true)] : []),
     );
   }
 

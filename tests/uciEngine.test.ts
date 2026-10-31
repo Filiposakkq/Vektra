@@ -32,6 +32,14 @@ describe('UciEngine with Stockfish', { timeout: 60000 }, () => {
     expect(updates.length).toBeGreaterThan(1);
   });
 
+  it('plays the game moves from the start position when they are given', async () => {
+    const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const after = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const r = await engine.analyze(req(after, { history: { startFen: start, moves: ['e2e4'] } }));
+    // Black to move after 1.e4: the reply comes from Black's side of the board.
+    expect(r?.bestmove).toMatch(/^[a-h][78]/);
+  });
+
   it('finds mate in one', async () => {
     const r = await engine.analyze(req('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', { multipv: 1 }));
     expect(r?.bestmove).toBe('a1a8');

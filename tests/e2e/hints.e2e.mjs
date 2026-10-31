@@ -761,7 +761,16 @@ if (runSuite('settings')) {
     typeof searchTime === 'string' && /^Think: \d+\.\d{2} s$/.test(searchTime),
     `autoplay: board control displays engine think time in seconds (${searchTime})`,
   );
-  await settings.locator('input[name="liveRatings"]').uncheck();
+  // The settings page can still be loading after the window reopens; retry
+  // until the switch has really turned off.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const unchecked = await settings
+      .locator('input[name="liveRatings"]')
+      .uncheck({ timeout: 4000 })
+      .then(() => settings.locator('input[name="liveRatings"]').isChecked())
+      .then((checked) => !checked, () => false);
+    if (unchecked) break;
+  }
   const settingsUpdated = await sw.evaluate(async () => {
     for (let attempt = 0; attempt < 40; attempt++) {
       const { settings } = await chrome.storage.sync.get('settings');

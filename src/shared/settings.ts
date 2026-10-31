@@ -32,6 +32,10 @@ export interface Settings {
   hideWorseWinLoss: number;
   /** A threat is shown only when allowing it would cost at least this much win chance. */
   threatWinLoss: number;
+  /** One engine instead of three: less memory, but the extra searches wait their turn. */
+  lightMode: boolean;
+  /** Prefer a move that keeps the game going over one that draws at once, when it costs little. */
+  avoidDraws: boolean;
   /** Engine depth for full-game analysis. */
   analysisDepth: number;
   /** Rate the user's moves (Best, Mistake...) during bot games. */
@@ -67,6 +71,8 @@ export const DEFAULT_SETTINGS: Settings = {
   showThreats: true,
   hideWorseWinLoss: 10,
   threatWinLoss: 12,
+  lightMode: false,
+  avoidDraws: true,
   analysisDepth: 12,
   liveRatings: true,
   occasionalWeakerMoves: false,
@@ -208,6 +214,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     showThreats: bool(r.showThreats, d.showThreats),
     hideWorseWinLoss: clampInt(r.hideWorseWinLoss, 2, 40, d.hideWorseWinLoss),
     threatWinLoss: clampInt(r.threatWinLoss, 4, 40, d.threatWinLoss),
+    lightMode: bool(r.lightMode, d.lightMode),
+    avoidDraws: bool(r.avoidDraws, d.avoidDraws),
     liveRatings: bool(r.liveRatings, d.liveRatings),
     occasionalWeakerMoves: bool(r.occasionalWeakerMoves, d.occasionalWeakerMoves),
     weakerMoveChancePercent: clampInt(r.weakerMoveChancePercent, 0, 100, d.weakerMoveChancePercent),

@@ -170,8 +170,24 @@ options are grouped under clearly labeled expandable sections.
 - **Bot threats**: on your turn, a red arrow shows what the bot would play if
   you passed, when allowing it would cost at least the chosen amount of win
   chance (12 points by default).
-  It comes from a quick search (up to depth 10 or 0.3 s) before the main one,
+  It comes from a quick search (up to depth 10 or 0.3 s) next to the main one,
   so it shows within moments. Turn it off with **Show the bot's threats**.
+  When it would run along the same line as a move arrow, it is drawn a
+  little to the side so neither hides the other.
+- **Draws**: every search gets the game's moves since the last capture or
+  pawn move, so the engine knows the repetitions so far and counts a third
+  repetition as a draw. With **Avoid draws** (on by default), when the best
+  move would draw at once (repetition, stalemate, the 50-move rule or too
+  little material), Vektra shows and plays the best other move instead, as
+  long as it gives up at most a pawn and leaves you no worse than about
+  level; a weaker move that would draw isn't played either.
+- **Light mode**: Vektra normally runs three engine workers (the main search,
+  weaker moves and threats side by side). **Light mode** in the Engine tab uses
+  one, saving about 150 MB, at the cost of the extra searches waiting their
+  turn and thinking ahead about only one bot reply.
+- **Engine connection**: if the connection to the engine drops while a search
+  is waiting (the engine page restarted or its worker crashed), Vektra
+  reconnects once and sends the search again before reporting an error.
 - **Autoplay**: off by default and available only in games against bots. The
   board control in the top-left corner has Autoplay and Weaker moves switches
   and a Details section with the chosen move, engine think time and the
@@ -203,6 +219,7 @@ Keyboard shortcuts (change them at `chrome://extensions/shortcuts`):
 | --- | --- |
 | Alt+Shift+H | Turn hints on or off |
 | Alt+Shift+J | Show the hint for the current position now |
+| Alt+Shift+A | Turn autoplay on or off |
 
 Chrome skips a suggested shortcut that clashes with another extension; set it
 on the shortcuts page if one shows as "not set" in the popup.
@@ -266,7 +283,9 @@ castling inferred from home squares and no en passant square.
 On a finished game, Game Review, or analysis-board page, the "Vektra analysis"
 panel opens as its own window beside the board (on the right if there is room,
 otherwise on the left); drag its title bar to move it, click it to fold it, and
-it remembers both. Click **Analyze game** to run Stockfish over every
+it remembers both. After a bot game the button is **Review this game**: it
+analyses the game and then jumps to your biggest mistake (the inaccuracy or
+worse that lost the most win chance). Click **Analyze game** to run Stockfish over every
 position of the main line (depth set in the popup, 12 by default). When it
 finishes:
 
