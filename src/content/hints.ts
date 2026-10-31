@@ -25,12 +25,16 @@ const MIN_DRAW_DEPTH = 8;
 const LIMITED_DRAW_DEPTH = 4;
 /** Search depth at which a provisional live move rating is useful. */
 const EARLY_RATING_DEPTH = 4;
-/** Limits for the threat search, which runs after the main one. */
-const THREAT_DEPTH = 12;
-const THREAT_MOVETIME_MS = 500;
-/** Limits for the weaker-move candidate search. */
-const WEAKER_SEARCH_DEPTH = 12;
-const WEAKER_SEARCH_MOVETIME_MS = 600;
+/** Limits for the threat search, a quick pass before the main one. */
+const THREAT_DEPTH = 10;
+const THREAT_MOVETIME_MS = 300;
+/**
+ * Limits for the quick weaker-move pass, which runs before the main search,
+ * and the depth from which its lines are drawn.
+ */
+const WEAKER_SEARCH_DEPTH = 10;
+const WEAKER_SEARCH_MOVETIME_MS = 400;
+const WEAKER_DRAW_DEPTH = 5;
 /** Final search results kept per request, so revisited positions show at once. */
 const SEARCH_CACHE_SIZE = 300;
 
@@ -126,7 +130,7 @@ export function buildRequest(fen: string, s: Settings): AnalyzeRequest {
 }
 
 /**
- * The search for weaker-move candidates, run after the main one: many lines,
+ * The quick search for weaker-move candidates, run before the main one: many lines,
  * since the top few are usually close together, at a shallower limit so it
  * stays quick. The main search keeps few lines and its full depth.
  */
@@ -309,12 +313,14 @@ export class HintController {
   /** Lines from the weaker-move search, and whether it is still running. */
   private weakerLines: PvLine[] = [];
   private weakerPending = false;
+  /** Counts update() calls, to tell an outdated search chain from the current one. */
+  private updateGeneration = 0;
   /** Final results of recent searches, by request. */
   private searchCache = new Map<string, SearchResult>();
   /** 0: hidden (on demand), 1: only the piece to move, 2: the full hint. */
   private revealStage: 0 | 1 | 2 = 0;
   /** The bot's threat in this position, when it is worth showing. */
-  private threat: string | null = null;
+  private threat: { move: string; score: Score } | null = null;
 
   /** Final engine evaluations of recent positions, for live move ratings. */
   private evals = new Map<string, PositionEval>();
@@ -425,56 +431,83 @@ export class HintController {
       this.settings.searchMode === 'depth' ? this.settings.depth : 1,
     );
     const searchStartedAt = performance.now();
-    void this
+    // Changing a setting runs this again for the same position, so the board
+    // state alone can't tell an old search chain from the current one.
+    const generation = ++this.updateGeneration;
+    const stale = () => generation !== this.updateGeneration || this.current?.state !== state;
+    const withWeaker = kind === 'game' && this.settings.occasionalWeakerMoves && shouldHint(state, kind);
+    // Set once the main search has lines to draw; until then the quick
+    // weaker-move pass draws the provisional arrows.
+    let mainDrawn = false;
+
+    const runMain = () => void this
       .search(buildRequest(state.fen, this.settings), (lines) => {
-        if (this.current?.state !== state || !(lines[0]?.depth > 0)) return;
+        if (stale() || !(lines[0]?.depth > 0)) return;
         this.rememberEval(state, lines);
         if (lines[0].depth >= EARLY_RATING_DEPTH && this.rateMove(state, false)) this.redraw();
         if (lines[0].depth < minDepth) return;
+        mainDrawn = true;
         this.lines = lines;
         this.redraw();
       })
       .then((result) => {
-        if (!result || this.current?.state !== state) return;
+        if (!result || stale()) return;
         this.onEngineReady?.();
         this.lines = result.lines;
         this.bestmove = result.bestmove;
         this.rememberEval(state, result.lines);
         this.rateMove(state, true);
         const bestmove = result.bestmove;
-        const finish = () => {
-          this.weakerPending = false;
-          this.redraw();
-          this.autoPlayCurrent();
-          if (kind === 'game' && this.settings.showThreats && shouldHint(state, kind)) {
-            this.searchThreat(state, result.lines);
-          }
-          if (kind === 'game' && shouldHint(state, kind) && bestmove) {
-            this.onMoveChosen?.(
-              state,
-              this.moveChoice?.move ?? bestmove,
-              Math.round(performance.now() - searchStartedAt),
-              this.moveChoice?.lossCp ?? 0,
-            );
-          }
-        };
-        if (!(kind === 'game' && this.settings.occasionalWeakerMoves && shouldHint(state, kind) && bestmove)) {
-          finish();
-          return;
-        }
-        // Weaker moves come from their own, lighter search. The main arrows
-        // show now; autoplay waits until the candidates are known.
-        this.weakerPending = true;
+        // The weaker move is picked against the main search's final choice.
+        this.moveChoice = withWeaker && this.settings.autoPlay && bestmove
+          ? chooseWeakerMove(state.fen, bestmove, this.weakerLines, this.settings)
+          : null;
+        this.weakerPending = false;
         this.redraw();
-        void this.search(buildWeakerRequest(state.fen, this.settings)).then((weaker) => {
-          if (this.current?.state !== state) return;
-          this.weakerLines = weaker?.lines ?? [];
-          this.moveChoice = this.settings.autoPlay
-            ? chooseWeakerMove(state.fen, bestmove, this.weakerLines, this.settings)
-            : null;
-          finish();
-        });
+        this.autoPlayCurrent();
+        if (kind === 'game' && shouldHint(state, kind) && bestmove) {
+          this.onMoveChosen?.(
+            state,
+            this.moveChoice?.move ?? bestmove,
+            Math.round(performance.now() - searchStartedAt),
+            this.moveChoice?.lossCp ?? 0,
+          );
+        }
       });
+
+    // Quick passes run before the deep main search, so what they add shows
+    // within moments instead of after the main search settles. The engine
+    // runs one search at a time.
+    const quickPasses: (() => Promise<void>)[] = [];
+    if (withWeaker) {
+      // A wide, shallow pass finds the weaker-move candidates and draws the
+      // arrows (the violet one included); the main search refines the normal
+      // arrows. Autoplay waits for both.
+      this.weakerPending = true;
+      quickPasses.push(() => this
+        .search(buildWeakerRequest(state.fen, this.settings), (lines) => {
+          if (stale() || !(lines[0]?.depth >= WEAKER_DRAW_DEPTH)) return;
+          this.weakerLines = lines;
+          if (!mainDrawn) this.lines = lines;
+          this.redraw();
+        })
+        .then((weaker) => {
+          if (!weaker || stale()) return;
+          this.weakerLines = weaker.lines;
+          if (!mainDrawn) this.lines = weaker.lines;
+          this.redraw();
+        }));
+    }
+    if (kind === 'game' && this.settings.showThreats && shouldHint(state, kind)) {
+      quickPasses.push(() => this.searchThreat(state, stale));
+    }
+    void (async () => {
+      for (const pass of quickPasses) {
+        await pass();
+        if (stale()) return;
+      }
+      runMain();
+    })();
   }
 
   /** An engine search, answered from the cache when the same request was searched before. */
@@ -498,14 +531,14 @@ export class HintController {
 
   /**
    * Search the position as if the user passed. The bot's best move there is
-   * its threat; it is kept only when allowing it would cost the user a lot.
+   * its threat; whether it is worth showing is judged in threatMove against
+   * the latest evaluation, so it can show before the main search settles.
    */
-  private searchThreat(state: BoardState, lines: PvLine[]): void {
-    const best = [...lines].sort((a, b) => a.multipv - b.multipv)[0];
+  private searchThreat(state: BoardState, stale: () => boolean): Promise<void> {
     const fen = nullMoveFen(state.fen);
-    if (!best || !fen) return;
+    if (!fen) return Promise.resolve();
     const s = this.settings;
-    void this
+    return this
       .search({
         fen,
         multipv: 1,
@@ -515,15 +548,20 @@ export class HintController {
         strength: { skillLevel: 20, limitStrength: false, elo: s.elo },
       })
       .then((result) => {
-        if (!result?.bestmove || this.current?.state !== state) return;
-        const line = result.lines[0];
-        if (!line) return;
-        // The user's win chance now, against after the bot's free move.
-        const loss = winPercent(best.score) - (100 - winPercent(line.score));
-        if (loss < s.threatWinLoss) return;
-        this.threat = result.bestmove;
+        const line = result?.lines[0];
+        if (!result?.bestmove || !line || stale()) return;
+        this.threat = { move: result.bestmove, score: line.score };
         this.redraw();
       });
+  }
+
+  /** The threat, when allowing it would cost the user enough win chance. */
+  private threatMove(): string | null {
+    const best = [...this.lines].sort((a, b) => a.multipv - b.multipv)[0];
+    if (!this.threat || !best) return null;
+    // The user's win chance now, against after the bot's free move.
+    const loss = winPercent(best.score) - (100 - winPercent(this.threat.score));
+    return loss >= this.settings.threatWinLoss ? this.threat.move : null;
   }
 
   private autoPlayCurrent(): void {
@@ -597,7 +635,8 @@ export class HintController {
 
   private arrowsFor(state: BoardState, kind: PageKind): Arrow[] {
     if (this.revealStage === 0 || !shouldHint(state, kind)) return [];
-    const threat: Arrow[] = this.threat ? [{ move: this.threat, rank: 0, threat: true }] : [];
+    const threatMove = this.threatMove();
+    const threat: Arrow[] = threatMove ? [{ move: threatMove, rank: 0, threat: true }] : [];
     if (this.revealStage < 2) return threat;
     const turn = state.fen.split(' ')[1] as 'w' | 'b';
     const searching = this.bestmove === undefined;

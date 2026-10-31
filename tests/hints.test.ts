@@ -57,11 +57,11 @@ describe('hint rules', () => {
     expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, weakenedShowsTopMoves: true }).multipv).toBe(5);
     const weaker = buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, depth: 18 });
     expect(weaker.multipv).toBe(10);
-    expect(weaker.limit).toEqual({ depth: 12 });
+    expect(weaker.limit).toEqual({ depth: 10 });
     expect(buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, depth: 8 }).limit).toEqual({ depth: 8 });
     expect(
       buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, searchMode: 'movetime', movetimeMs: 2000 }).limit,
-    ).toEqual({ movetimeMs: 600 });
+    ).toEqual({ movetimeMs: 400 });
   });
 
   it('never asks for more lines than there are legal moves', () => {

@@ -118,10 +118,10 @@ options are grouped under clearly labeled expandable sections.
   chance is 50% per eligible turn, and **How much weaker** defaults to 2.00
   pawns. A weaker move aims to give up between half of that and all of it, so
   a higher setting gives clearly worse moves; when no move is that much worse,
-  the closest one within the limit is used. Candidates come from a second,
-  lighter search (ten lines, up to depth 12 or 0.6 s) after the main one, so
-  the main arrows appear as quickly as without weaker moves; autoplay waits
-  for it.
+  the closest one within the limit is used. Candidates come from a quick,
+  wide search (ten lines, up to depth 10 or 0.4 s) that runs before the main
+  one and draws the first arrows, the violet one included, within moments;
+  the main search then refines the normal arrows. Autoplay waits for both.
   Positions without a suitable legal alternative keep the engine's first
   choice. With autoplay off, the engine's
   best move stays first and an eligible weaker alternative is always shown as
@@ -160,8 +160,8 @@ options are grouped under clearly labeled expandable sections.
 - **Bot threats**: on your turn, a red arrow shows what the bot would play if
   you passed, when allowing it would cost at least the chosen amount of win
   chance (12 points by default).
-  It comes from a second, shorter search (up to depth 12 or 0.5 s) after the
-  main one. Turn it off with **Show the bot's threats**.
+  It comes from a quick search (up to depth 10 or 0.3 s) before the main one,
+  so it shows within moments. Turn it off with **Show the bot's threats**.
 - **Autoplay**: off by default and available only in games against bots. The
   board control in the top-left corner has Autoplay and Weaker moves switches
   and a Details section with engine think time, the selected delay before a
