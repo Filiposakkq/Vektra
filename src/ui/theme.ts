@@ -20,23 +20,6 @@ export const THEME = {
 export const DISPLAY_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 export const BODY_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
-const FONT_STYLE_ID = 'vektra-font';
-
-/** Load the display face into the page once (it ships with the extension). */
-export function ensureDisplayFont(): void {
-  if (document.getElementById(FONT_STYLE_ID)) return;
-  let url: string;
-  try {
-    url = chrome.runtime.getURL('fonts/young-serif.woff2');
-  } catch {
-    return; // Outside the extension (tests): Georgia stands in.
-  }
-  const style = document.createElement('style');
-  style.id = FONT_STYLE_ID;
-  style.textContent = `@font-face{font-family:"Vektra Young Serif";src:url("${url}") format("woff2");font-display:swap}`;
-  document.head.appendChild(style);
-}
-
 /**
  * A restrained accent strip under Vektra's headers.
  */

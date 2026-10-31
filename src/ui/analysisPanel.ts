@@ -2,7 +2,7 @@ import { CATEGORIES, CATEGORY_LABELS } from '../analysis/classify';
 import { describeMoveAnalysis, type GameAnalysis } from '../analysis/gameAnalysis';
 import { categoryBadge } from './categoryStyle';
 import { renderEvalGraph } from './evalGraph';
-import { BODY_FONT, DISPLAY_FONT, THEME, boardEdge, ensureDisplayFont } from './theme';
+import { BODY_FONT, DISPLAY_FONT, THEME, boardEdge } from './theme';
 
 export interface PanelCallbacks {
   onAnalyze(): void;
@@ -62,7 +62,6 @@ export class AnalysisPanel {
     private findSidebar: () => HTMLElement | null = () => null,
   ) {
     document.getElementById(PANEL_ID)?.remove();
-    ensureDisplayFont();
     this.root = el('div', {
       overflowY: 'auto',
       overflowX: 'hidden',
