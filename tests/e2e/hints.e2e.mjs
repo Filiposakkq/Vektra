@@ -561,7 +561,11 @@ if (runSuite('settings')) {
 
   const autoplay = settings.locator('input[name="autoPlay"]');
   check(!(await autoplay.isChecked()), 'autoplay: off by default');
-  check(await weakerMoves.isChecked(), 'occasional weaker moves: board toggle synchronizes with settings');
+  const weakerSynced = await settings
+    .locator('input[name="occasionalWeakerMoves"]:checked')
+    .waitFor({ state: 'attached', timeout: 10000 })
+    .then(() => true, () => false);
+  check(weakerSynced, 'occasional weaker moves: board toggle synchronizes with settings');
   await weakerMoves.uncheck();
   check(
     await game.waitForFunction(
@@ -626,16 +630,21 @@ if (runSuite('settings')) {
     }
   });
   await autoplay.check();
+  // The change reaches the page through the background worker and storage,
+  // so wait for it instead of reading the page straight away.
   const stopAutoplay = game.locator('#vektra-floating-settings button[aria-label="Stop autoplay"]');
-  // The stop control appears once the saved setting reaches the page, so wait for it.
   const stopShown = await stopAutoplay.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
   check(stopShown, 'autoplay: visible stop control when enabled');
-  check(
-    (await game
-      .locator('wc-chess-board .vektra-autoplay-control')
-      .evaluate((host) => host.shadowRoot?.querySelector('button')?.textContent)) === 'AUTO · ON',
-    'autoplay: board control reflects enabled state',
-  );
+  const boardControlOn = await game
+    .waitForFunction(
+      () =>
+        document.querySelector('wc-chess-board .vektra-autoplay-control')?.shadowRoot?.querySelector('button')
+          ?.textContent === 'AUTO · ON',
+      null,
+      { timeout: 10000 },
+    )
+    .then(() => true, () => false);
+  check(boardControlOn, 'autoplay: board control reflects enabled state');
   await game.locator('#vektra-floating-settings button[aria-label="Show hint now"]').click();
   const selectedDelay = await game
     .waitForFunction(
