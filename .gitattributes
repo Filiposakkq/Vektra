@@ -1,0 +1,3 @@
+# Text files use LF line endings in the repository and in checkouts on every
+# platform, so editors and core.autocrlf settings do not mix them.
+* text=auto eol=lf
