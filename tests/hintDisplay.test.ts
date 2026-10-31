@@ -194,15 +194,19 @@ describe('board visuals', () => {
     });
   });
 
-  it('tints both squares of the best move, the target a little more', () => {
+  it('highlights both squares of the best move, the target more strongly', () => {
     withBoard((board, overlay) => {
       overlay.draw(board, [{ move: 'g1f3', rank: 0 }], false);
       const from = board.querySelector('.vektra-square-highlight-from');
       const to = board.querySelector('.vektra-square-highlight-to');
-      expect(from?.tagName).toBe('rect');
-      expect(to?.tagName).toBe('rect');
-      expect(to?.getAttribute('width')).toBe('1');
-      expect(Number(to?.getAttribute('fill-opacity'))).toBeGreaterThan(Number(from?.getAttribute('fill-opacity')));
+      // A fill over the whole square and a border just inside it.
+      const [fill, border] = [...(to?.querySelectorAll('rect') ?? [])];
+      expect(fill.getAttribute('width')).toBe('1');
+      expect(border.getAttribute('fill')).toBe('none');
+      expect(Number(border.getAttribute('stroke-width'))).toBeGreaterThan(0);
+      expect(Number(fill.getAttribute('fill-opacity'))).toBeGreaterThan(
+        Number(from?.querySelector('rect')?.getAttribute('fill-opacity')),
+      );
     });
   });
 

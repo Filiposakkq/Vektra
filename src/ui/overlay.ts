@@ -154,8 +154,15 @@ const LABEL_FONT = {
 };
 
 /** A light tint over a whole square. */
-function squareTint(center: [number, number], color: string, opacity: number): SVGRectElement {
-  const rect = document.createElementNS(SVG_NS, 'rect');
+/**
+ * A highlighted square: a strong tint over the whole square and a rounded
+ * border just inside its edge, so it reads on both light and dark squares
+ * and around the piece. A pulsing one breathes gently, unless the user
+ * prefers reduced motion.
+ */
+function squareTint(center: [number, number], color: string, opacity: number, pulse = false): SVGGElement {
+  const g = document.createElementNS(SVG_NS, 'g');
+  const fill = document.createElementNS(SVG_NS, 'rect');
   for (const [k, v] of Object.entries({
     x: center[0] - 0.5,
     y: center[1] - 0.5,
@@ -163,8 +170,29 @@ function squareTint(center: [number, number], color: string, opacity: number): S
     height: 1,
     fill: color,
     'fill-opacity': opacity,
-  })) rect.setAttribute(k, String(v));
-  return rect;
+  })) fill.setAttribute(k, String(v));
+  const border = document.createElementNS(SVG_NS, 'rect');
+  const inset = 0.035;
+  for (const [k, v] of Object.entries({
+    x: center[0] - 0.5 + inset,
+    y: center[1] - 0.5 + inset,
+    width: 1 - inset * 2,
+    height: 1 - inset * 2,
+    rx: 0.06,
+    fill: 'none',
+    stroke: color,
+    'stroke-opacity': 0.85,
+    'stroke-width': 0.04,
+  })) border.setAttribute(k, String(v));
+  g.append(fill, border);
+  if (pulse && allowMotion()) {
+    g.animate?.([{ opacity: 1 }, { opacity: 0.55 }, { opacity: 1 }], {
+      duration: 1400,
+      iterations: Infinity,
+      easing: 'ease-in-out',
+    });
+  }
+  return g;
 }
 
 /** The piece a promoting move promotes to, as a letter tile in the target square's top-left corner. */
@@ -335,11 +363,11 @@ export class BoardOverlay {
       g.setAttribute('opacity', String(opacity));
       if (provisional) g.dataset.provisional = 'true';
       if (rank === 0 && !threat) {
-        // Both squares get a light tint, the target a little stronger.
-        const fromHighlight = squareTint(from, style.color, 0.16);
+        // Both squares are highlighted; the target is stronger and pulses.
+        const fromHighlight = squareTint(from, style.color, 0.3);
         fromHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-from');
         fromHighlight.dataset.square = move.slice(0, 2);
-        const toHighlight = squareTint(to, style.color, 0.26);
+        const toHighlight = squareTint(to, style.color, 0.45, true);
         toHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-to');
         toHighlight.dataset.square = move.slice(2, 4);
         g.append(fromHighlight, toHighlight);
@@ -424,7 +452,7 @@ export class BoardOverlay {
     const g = document.createElementNS(SVG_NS, 'g');
     g.classList.add('vektra-piece-hint');
     g.dataset.square = square;
-    g.append(squareTint(squareCenter(square, flipped), color, 0.34));
+    g.append(squareTint(squareCenter(square, flipped), color, 0.45, true));
     this.svg.appendChild(g);
   }
 

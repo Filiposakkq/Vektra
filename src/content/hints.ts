@@ -365,6 +365,8 @@ export async function userMoveToRate(
 /** Runs the engine on each new position and draws the result on the board. */
 export class HintController {
   private engine = new EngineClient();
+  /** Extra engines for the quick passes and thinking ahead, made when first needed. */
+  private helpers: EngineClient[] = [];
   private overlay: BoardOverlay | null = null;
   private evalBar: EvalBar | null = null;
   private settings: Settings = DEFAULT_SETTINGS;
@@ -411,7 +413,7 @@ export class HintController {
 
   setSettings(settings: Settings): void {
     this.settings = settings;
-    this.engine.setFullEngine(settings.engine === 'full');
+    for (const engine of [this.engine, ...this.helpers]) engine.setFullEngine(settings.engine === 'full');
     if (this.current) this.update(this.current.state, this.current.kind);
   }
 
@@ -441,6 +443,8 @@ export class HintController {
     this.threat = null;
     this.overlay ??= new BoardOverlay(state.board);
     this.overlay.clear();
+    // The helpers' searches belong to the previous position.
+    for (const helper of this.helpers) helper.stop();
 
     if (!this.settings.enabled) {
       this.engine.stop();
@@ -507,7 +511,32 @@ export class HintController {
     // weaker-move pass draws the provisional arrows.
     let mainDrawn = false;
 
-    const runMain = () => void this
+    // The weaker-move and threat passes run on their own engines alongside the
+    // main search, so what they add shows within moments and nothing waits in
+    // line. The weaker-move pass is quick and wide; it also draws the first
+    // arrows (the violet one included) until the main search has lines.
+    let weakerDone: Promise<void> = Promise.resolve();
+    if (withWeaker) {
+      this.weakerPending = true;
+      weakerDone = this
+        .search(buildWeakerRequest(state.fen, this.settings), (lines) => {
+          if (stale() || !(lines[0]?.depth >= WEAKER_DRAW_DEPTH)) return;
+          this.weakerLines = lines;
+          if (!mainDrawn) this.lines = this.steady(lines);
+          this.redraw();
+        }, this.helper(0))
+        .then((weaker) => {
+          if (!weaker || stale()) return;
+          this.weakerLines = weaker.lines;
+          if (!mainDrawn) this.lines = weaker.lines;
+          this.redraw();
+        });
+    }
+    if (kind === 'game' && this.settings.showThreats && shouldHint(state, kind)) {
+      void this.searchThreat(state, stale, this.helper(1));
+    }
+
+    void this
       .search(buildRequest(state.fen, this.settings), (lines) => {
         if (stale() || !(lines[0]?.depth > 0)) return;
         this.rememberEval(state, lines);
@@ -517,15 +546,19 @@ export class HintController {
         this.lines = this.steady(lines);
         this.redraw();
       })
-      .then((result) => {
+      .then(async (result) => {
         if (!result || stale()) return;
         this.onEngineReady?.();
         this.lines = result.lines;
         this.bestmove = result.bestmove;
         this.rememberEval(state, result.lines);
         this.rateMove(state, true);
+        this.redraw();
         const bestmove = result.bestmove;
-        // The weaker move is picked against the main search's final choice.
+        // The weaker move is picked against the main search's final choice,
+        // once its candidates are in; autoplay waits for both.
+        await weakerDone;
+        if (stale()) return;
         this.moveChoice = withWeaker && this.settings.autoPlay && bestmove
           ? chooseWeakerMove(state.fen, bestmove, this.weakerLines, this.settings)
           : null;
@@ -551,40 +584,17 @@ export class HintController {
           this.ponder(state.fen, replies, stale);
         }
       });
+  }
 
-    // Quick passes run before the deep main search, so what they add shows
-    // within moments instead of after the main search settles. The engine
-    // runs one search at a time.
-    const quickPasses: (() => Promise<void>)[] = [];
-    if (withWeaker) {
-      // A wide, shallow pass finds the weaker-move candidates and draws the
-      // arrows (the violet one included); the main search refines the normal
-      // arrows. Autoplay waits for both.
-      this.weakerPending = true;
-      quickPasses.push(() => this
-        .search(buildWeakerRequest(state.fen, this.settings), (lines) => {
-          if (stale() || !(lines[0]?.depth >= WEAKER_DRAW_DEPTH)) return;
-          this.weakerLines = lines;
-          if (!mainDrawn) this.lines = this.steady(lines);
-          this.redraw();
-        })
-        .then((weaker) => {
-          if (!weaker || stale()) return;
-          this.weakerLines = weaker.lines;
-          if (!mainDrawn) this.lines = weaker.lines;
-          this.redraw();
-        }));
+  /** A helper engine (0: weaker moves, 1: threats; both also think ahead). */
+  private helper(index: number): EngineClient {
+    while (this.helpers.length <= index) {
+      const engine = new EngineClient();
+      engine.setFullEngine(this.settings.engine === 'full');
+      engine.onError = (message) => this.onEngineError?.(message);
+      this.helpers.push(engine);
     }
-    if (kind === 'game' && this.settings.showThreats && shouldHint(state, kind)) {
-      quickPasses.push(() => this.searchThreat(state, stale));
-    }
-    void (async () => {
-      for (const pass of quickPasses) {
-        await pass();
-        if (stale()) return;
-      }
-      runMain();
-    })();
+    return this.helpers[index];
   }
 
   /**
@@ -595,21 +605,24 @@ export class HintController {
    */
   private ponder(fen: string, replies: readonly string[], stale: () => boolean): void {
     const s = this.settings;
-    const requests = replies.flatMap((reply) => {
+    // Each reply gets its own engine, so the replies are searched side by side.
+    const engines = [this.engine, this.helper(0), this.helper(1)];
+    replies.forEach((reply, i) => {
       const next = fenAfterMove(fen, reply);
-      if (!next) return [];
-      return [
+      if (!next) return;
+      const requests = [
         s.occasionalWeakerMoves ? buildWeakerRequest(next, s) : null,
         s.showThreats ? buildThreatRequest(next, s) : null,
         buildRequest(next, s),
       ].filter((req): req is AnalyzeRequest => req !== null);
+      const engine = engines[i % engines.length];
+      void (async () => {
+        for (const req of requests) {
+          if (stale()) return;
+          if (!(await this.search(req, undefined, engine))) return;
+        }
+      })();
     });
-    void (async () => {
-      for (const req of requests) {
-        if (stale()) return;
-        if (!(await this.search(req))) return;
-      }
-    })();
   }
 
   /** Lines from a search update, kept steady against the ones shown (see steadyLines). */
@@ -621,7 +634,11 @@ export class HintController {
   }
 
   /** An engine search, answered from the cache when the same request was searched before. */
-  private search(req: AnalyzeRequest, onUpdate?: (lines: PvLine[]) => void): Promise<SearchResult | null> {
+  private search(
+    req: AnalyzeRequest,
+    onUpdate?: (lines: PvLine[]) => void,
+    engine: EngineClient = this.engine,
+  ): Promise<SearchResult | null> {
     const key = `${this.settings.engine}|${JSON.stringify(req)}`;
     const cached = this.searchCache.get(key);
     if (cached) {
@@ -630,7 +647,7 @@ export class HintController {
       this.searchCache.set(key, cached);
       return Promise.resolve(cached);
     }
-    return this.engine.analyze(req, onUpdate).then((result) => {
+    return engine.analyze(req, onUpdate).then((result) => {
       if (result) {
         this.searchCache.set(key, result);
         if (this.searchCache.size > SEARCH_CACHE_SIZE) this.searchCache.delete(this.searchCache.keys().next().value!);
@@ -644,11 +661,11 @@ export class HintController {
    * its threat; whether it is worth showing is judged in threatMove against
    * the latest evaluation, so it can show before the main search settles.
    */
-  private searchThreat(state: BoardState, stale: () => boolean): Promise<void> {
+  private searchThreat(state: BoardState, stale: () => boolean, engine: EngineClient): Promise<void> {
     const req = buildThreatRequest(state.fen, this.settings);
     if (!req) return Promise.resolve();
     return this
-      .search(req)
+      .search(req, undefined, engine)
       .then((result) => {
         const line = result?.lines[0];
         if (!result?.bestmove || !line || stale()) return;
@@ -810,6 +827,8 @@ export class HintController {
 
   dispose(): void {
     this.engine.disconnect();
+    for (const helper of this.helpers) helper.disconnect();
+    this.helpers = [];
     this.overlay?.destroy();
     this.evalBar?.destroy();
     this.overlay = null;

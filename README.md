@@ -138,8 +138,9 @@ options are grouped under clearly labeled expandable sections.
   additional candidate moves** is on). Arrows stay dim until the search
   finishes, and the eval bar shows the search depth (for example `d14`).
 - **Board look**: arrows are solid once the engine has finished and dashed
-  while it is still searching. Both squares of the best move get a light tint,
-  the target a little stronger. While the engine searches, the shown best
+  while it is still searching. Both squares of the best move are highlighted
+  with a strong tint and a border just inside the edge; the target is
+  stronger and pulses gently (not with reduced motion). While the engine searches, the shown best
   move only changes when a new one leads two updates in a row or is more
   than 0.3 pawns better, so the arrows don't flicker between close moves;
   the final result is always shown as it is. A suggested promotion shows the piece's
@@ -151,8 +152,10 @@ options are grouped under clearly labeled expandable sections.
 - **Speed**: the engine never asks for more lines than there are legal
   moves, so arrows show while it searches even in check. Finished searches
   are kept for the last 300 requests, so stepping back to a position shows
-  its arrows at once. While the bot thinks, Vektra searches the positions
-  after its two most likely replies; when the bot plays it, the arrows appear
+  its arrows at once. The weaker-move and threat passes run on two extra
+  engine workers alongside the main search, so they never hold it up. While
+  the bot thinks, Vektra searches the positions after its two most likely
+  replies, each on its own worker; when the bot plays it, the arrows appear
   right away. Hint searches use 64 MB of engine memory, so each search can
   reuse more of the last. Arrows that don't change stay put, and changed
   ones fade rather than blink (no fading with reduced motion).

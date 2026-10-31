@@ -19,6 +19,9 @@ const OFFSCREEN_URL = 'src/engine/offscreen.html';
 let creating: Promise<void> | null = null;
 
 async function ensureOffscreen(): Promise<void> {
+  // While it is being created the document already "exists" but may not be
+  // listening yet, so a caller that arrives then waits for the creation.
+  if (creating) return creating;
   if (await chrome.offscreen.hasDocument()) return;
   creating ??= chrome.offscreen
     .createDocument({

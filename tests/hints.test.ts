@@ -263,7 +263,7 @@ describe('overlay geometry', () => {
     expect(weaker?.dataset.weaker).toBe('true');
     expect(Number(weaker?.getAttribute('opacity'))).toBeLessThan(0.92);
     expect(weaker?.querySelector('.vektra-arrow-line')?.getAttribute('stroke')).toBe(WEAKER_ARROW_COLOR);
-    expect(weaker?.querySelector('.vektra-square-highlight')?.getAttribute('fill')).toBe(WEAKER_ARROW_COLOR);
+    expect(weaker?.querySelector('.vektra-square-highlight rect')?.getAttribute('fill')).toBe(WEAKER_ARROW_COLOR);
     expect(normal?.getAttribute('stroke')).toBe('#222222');
     overlay.destroy();
     board.remove();
