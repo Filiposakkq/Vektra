@@ -148,8 +148,8 @@ options are grouped under clearly labeled expandable sections.
 - **Speed**: the engine never asks for more lines than there are legal
   moves, so arrows show while it searches even in check. Finished searches
   are kept for the last 300 requests, so stepping back to a position shows
-  its arrows at once. While the bot thinks, Vektra searches the position
-  after its most likely reply; when the bot plays it, the arrows appear
+  its arrows at once. While the bot thinks, Vektra searches the positions
+  after its two most likely replies; when the bot plays it, the arrows appear
   right away. Hint searches use 64 MB of engine memory, so each search can
   reuse more of the last. Arrows that don't change stay put, and changed
   ones fade rather than blink (no fading with reduced motion).
@@ -255,8 +255,9 @@ castling inferred from home squares and no en passant square.
 ## Game analysis
 
 On a finished game, Game Review, or analysis-board page, the "Vektra analysis"
-panel sits at the top of Chess.com's sidebar next to the board (or bottom right
-if there is no sidebar). Click **Analyze game** to run Stockfish over every
+panel opens as its own window beside the board (on the right if there is room,
+otherwise on the left); drag its title bar to move it, click it to fold it, and
+it remembers both. Click **Analyze game** to run Stockfish over every
 position of the main line (depth set in the popup, 12 by default). When it
 finishes:
 
@@ -366,8 +367,6 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
   surrounding chess.com element clips it.
 - In bot games, "your side" is taken to be the side at the bottom of the board.
 - Game analysis covers the main line only.
-- The analysis panel docks into chess.com's sidebar by its id
-  (`#board-layout-sidebar`); if chess.com changes it, the panel floats instead.
 - The full engine uses about 100 MB of memory per engine worker; full-game
   analysis can use more than one worker.
 - The sacrifice test for Brilliant checks material only (a static exchange

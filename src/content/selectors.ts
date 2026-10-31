@@ -88,9 +88,6 @@ export const SELECTORS = {
   figurine: '[data-figurine]',
   figurineAttr: 'data-figurine',
 
-  /** chess.com's right-hand panel next to the board; the analysis panel docks here. CONFIRMED */
-  sidebar: '#board-layout-sidebar',
-
   /**
    * Result at the end of the move list (1-0, 0-1, 1/2-1/2). Only present once
    * the game has ended; the most reliable game-over signal. CONFIRMED

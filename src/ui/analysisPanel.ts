@@ -2,7 +2,7 @@ import { CATEGORIES, CATEGORY_LABELS } from '../analysis/classify';
 import { describeMoveAnalysis, type GameAnalysis } from '../analysis/gameAnalysis';
 import { categoryBadge } from './categoryStyle';
 import { renderEvalGraph } from './evalGraph';
-import { BODY_FONT, DISPLAY_FONT, THEME, boardEdge } from './theme';
+import { BODY_FONT, THEME } from './theme';
 
 export interface PanelCallbacks {
   onAnalyze(): void;
@@ -14,7 +14,9 @@ export interface PanelCallbacks {
 
 const PANEL_ID = 'vektra-analysis-panel';
 const COLLAPSED_KEY = 'analysisPanelCollapsed';
-
+const POSITION_KEY = 'analysisPanelPosition';
+const WIDTH = 340;
+const GAP = 16;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -29,12 +31,12 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 function button(label: string, onClick: () => void, primary = false): HTMLButtonElement {
   const b = el('button', {
-    padding: '8px 12px',
-    border: `1px solid ${primary ? THEME.brass : THEME.line}`,
+    padding: '7px 12px',
+    border: primary ? '0' : `1px solid ${THEME.line}`,
     borderRadius: '7px',
     background: primary ? THEME.brass : THEME.claret,
-    color: primary ? THEME.oxblood : THEME.bone,
-    font: `600 12px ${BODY_FONT}`,
+    color: primary ? THEME.brassText : THEME.bone,
+    font: `650 12.5px ${BODY_FONT}`,
     cursor: 'pointer',
   }, label);
   b.type = 'button';
@@ -42,133 +44,226 @@ function button(label: string, onClick: () => void, primary = false): HTMLButton
   return b;
 }
 
+/** A small section heading inside the panel. */
+function heading(text: string): HTMLDivElement {
+  return el('div', { margin: '14px 0 6px', color: THEME.muted, font: `650 12px ${BODY_FONT}` }, text);
+}
+
 /**
- * Floating panel for full-game analysis: start button, progress, accuracy,
- * eval graph, category counts and export.
+ * Full-game analysis in its own window beside the board: start button,
+ * progress, accuracy, eval graph, the selected move, category counts and
+ * export. It opens next to the board (right if there is room, else left),
+ * can be dragged by its title bar and folded to the bar, and remembers both.
  */
 export class AnalysisPanel {
   private root: HTMLDivElement;
   private body: HTMLDivElement;
+  private subtitle: HTMLSpanElement;
   private collapsed = false;
   private analysis: GameAnalysis | null = null;
   private currentPly: number | null = null;
+  /** Where the user dragged it, as viewport coordinates; null until then. */
+  private position: { left: number; top: number } | null = null;
+  private placed = false;
+  private readonly onResize = () => this.keepOnscreen();
 
-  /**
-   * findSidebar: chess.com's right-hand sidebar to dock in, if the page has
-   * one (the content script knows the page's markup).
-   */
+  /** findBoard: the board element, to open beside it. */
   constructor(
     private cb: PanelCallbacks,
-    private findSidebar: () => HTMLElement | null = () => null,
+    private findBoard: () => HTMLElement | null = () => null,
   ) {
     document.getElementById(PANEL_ID)?.remove();
     this.root = el('div', {
-      overflowY: 'auto',
-      overflowX: 'hidden',
+      position: 'fixed',
+      zIndex: '2147483646',
+      width: `${WIDTH}px`,
+      maxWidth: `calc(100vw - ${GAP * 2}px)`,
+      maxHeight: `calc(100vh - ${GAP * 2}px)`,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
       background: THEME.oxblood,
       color: THEME.bone,
-      border: `1px solid ${THEME.line}`,
-      borderRadius: '12px',
-      font: `13px/1.5 ${BODY_FONT}`,
-      boxShadow: '0 8px 24px rgba(0,0,0,.24)',
+      border: '1px solid rgba(255, 245, 235, 0.1)',
+      borderRadius: '14px',
+      font: `13.5px/1.5 ${BODY_FONT}`,
+      boxShadow: '0 18px 48px rgba(0, 0, 0, 0.5)',
     });
     this.root.id = PANEL_ID;
 
+    // The title bar folds the panel on a click and moves it on a drag. It is
+    // not a <button>, so the panel's first button stays its main action.
     const header = el('div', {
+      flex: 'none',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '12px 14px',
-      background: `linear-gradient(120deg, ${THEME.claret}, ${THEME.oxblood})`,
-      cursor: 'pointer',
+      gap: '10px',
+      padding: '11px 14px 10px 16px',
+      borderBottom: `1px solid ${THEME.hairline}`,
+      cursor: 'grab',
       userSelect: 'none',
-      borderBottom: `1px solid ${THEME.line}`,
+      touchAction: 'none',
     });
-    header.title = 'Expand or collapse the Vektra analysis panel';
+    header.title = 'Drag to move. Click to fold or unfold.';
     header.setAttribute('role', 'button');
     header.tabIndex = 0;
     header.setAttribute('aria-controls', `${PANEL_ID}-content`);
-    header.append(el('span', {     font: `600 16px/1.2 ${DISPLAY_FONT}` }, 'Vektra · Game analysis'));
-    const toggle = el('span', { color: THEME.brass, font: `600 18px/1 ${BODY_FONT}` }, '−');
-    header.append(toggle);
+    const titles = el('div', { display: 'grid', gap: '1px', minWidth: '0' });
+    this.subtitle = el('span', {
+      color: THEME.muted,
+      fontSize: '12px',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    });
+    titles.append(el('span', { font: `700 15px/1.25 ${BODY_FONT}` }, 'Game analysis'), this.subtitle);
+    const chevron = el('span', {
+      flex: 'none',
+      width: '7px',
+      height: '7px',
+      borderRight: `1.6px solid ${THEME.muted}`,
+      borderBottom: `1.6px solid ${THEME.muted}`,
+      transition: 'transform .15s ease',
+    });
+    header.append(titles, chevron);
+
+    this.body = el('div', { padding: '12px 16px 16px', overflowY: 'auto', overscrollBehavior: 'contain' });
+    this.body.id = `${PANEL_ID}-content`;
+
     const setCollapsed = (collapsed: boolean) => {
       this.collapsed = collapsed;
       this.body.style.display = collapsed ? 'none' : 'block';
-      toggle.textContent = collapsed ? '+' : '−';
+      header.style.borderBottomColor = collapsed ? 'transparent' : THEME.hairline;
+      chevron.style.transform = collapsed ? 'translateY(-2px) rotate(45deg)' : 'translateY(2px) rotate(225deg)';
       header.setAttribute('aria-expanded', String(!collapsed));
     };
+    setCollapsed(false);
+    let dragged = false;
     header.addEventListener('click', () => {
+      if (dragged) {
+        dragged = false;
+        return;
+      }
       setCollapsed(!this.collapsed);
       void chrome.storage.local.set({ [COLLAPSED_KEY]: this.collapsed }).catch(() => {});
+      this.keepOnscreen();
     });
     header.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       header.click();
     });
-    // Remember whether the panel was folded away.
+    header.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      const rect = this.root.getBoundingClientRect();
+      const [startX, startY] = [event.clientX, event.clientY];
+      const move = (next: PointerEvent) => {
+        if (!dragged && Math.abs(next.clientX - startX) + Math.abs(next.clientY - startY) <= 3) return;
+        dragged = true;
+        header.style.cursor = 'grabbing';
+        this.moveTo(rect.left + next.clientX - startX, rect.top + next.clientY - startY);
+      };
+      const stop = () => {
+        header.removeEventListener('pointermove', move);
+        header.style.cursor = 'grab';
+        if (dragged && this.position) {
+          void chrome.storage.local.set({ [POSITION_KEY]: this.position }).catch(() => {});
+        }
+      };
+      header.setPointerCapture?.(event.pointerId);
+      header.addEventListener('pointermove', move);
+      header.addEventListener('pointerup', stop, { once: true });
+      header.addEventListener('pointercancel', stop, { once: true });
+    });
+
+    // Remember whether the panel was folded and where it was put.
     chrome.storage.local
-      .get(COLLAPSED_KEY)
-      .then((v) => setCollapsed(v[COLLAPSED_KEY] === true))
+      .get([COLLAPSED_KEY, POSITION_KEY])
+      .then((v) => {
+        setCollapsed(v[COLLAPSED_KEY] === true);
+        const saved = v[POSITION_KEY] as { left?: unknown; top?: unknown } | undefined;
+        if (typeof saved?.left === 'number' && typeof saved.top === 'number') {
+          this.moveTo(saved.left, saved.top);
+        }
+      })
       .catch(() => {});
 
-    this.body = el('div', { padding: '14px' });
-    this.body.id = `${PANEL_ID}-content`;
-    this.root.append(header, boardEdge(), this.body);
+    this.root.append(header, this.body);
+    window.addEventListener('resize', this.onResize);
     this.ensureMounted();
   }
 
-  /**
-   * Dock at the top of chess.com's right-hand sidebar when there is one, so
-   * the panel sits beside the board instead of over the page; otherwise float
-   * in the bottom-right corner. Called again on updates because chess.com can
-   * re-render its sidebar.
-   */
+  /** Mount on the page and, the first time, open beside the board. */
   ensureMounted(): void {
-    const sidebar = this.findSidebar();
-    if (sidebar) {
-      if (this.root.parentElement === sidebar) return;
-      Object.assign(this.root.style, {
-        position: 'relative',
-        right: '',
-        bottom: '',
-        width: 'auto',
-        maxHeight: '48vh',
-        zIndex: '1',
-        margin: '0 0 8px',
-        borderRadius: '12px',
-        boxShadow: 'none',
-      });
-      sidebar.prepend(this.root);
-    } else if (this.root.parentElement !== document.body) {
-      Object.assign(this.root.style, {
-        position: 'fixed',
-        right: '12px',
-        bottom: '44px',
-        width: '300px',
-        maxHeight: 'calc(100vh - 100px)',
-        zIndex: '2147483646',
-        margin: '0',
-        borderRadius: '12px',
-        boxShadow: '0 8px 24px rgba(0,0,0,.4)',
-      });
-      document.body.appendChild(this.root);
+    if (this.root.parentElement !== document.body) document.body.appendChild(this.root);
+    if (!this.placed) this.placeBesideBoard();
+  }
+
+  private placeBesideBoard(): void {
+    if (this.position) return;
+    const board = this.findBoard()?.getBoundingClientRect();
+    const width = Math.min(WIDTH, window.innerWidth - GAP * 2);
+    if (!board || board.width <= 0) {
+      // No board yet: the bottom-right corner until there is one.
+      Object.assign(this.root.style, { left: '', top: '', right: '12px', bottom: '44px' });
+      return;
     }
+    let left = window.innerWidth - width - GAP;
+    if (window.innerWidth - board.right - GAP * 2 >= width) left = board.right + GAP;
+    else if (board.left - GAP * 2 >= width) left = board.left - width - GAP;
+    this.placed = true;
+    this.applyPosition(left, Math.max(GAP, board.top));
+  }
+
+  private moveTo(left: number, top: number): void {
+    this.placed = true;
+    this.position = this.clamp(left, top);
+    this.applyPosition(this.position.left, this.position.top);
+  }
+
+  private clamp(left: number, top: number): { left: number; top: number } {
+    const rect = this.root.getBoundingClientRect();
+    const width = rect.width || WIDTH;
+    return {
+      left: Math.round(Math.max(8, Math.min(window.innerWidth - width - 8, left))),
+      top: Math.round(Math.max(8, Math.min(window.innerHeight - 48, top))),
+    };
+  }
+
+  private applyPosition(left: number, top: number): void {
+    Object.assign(this.root.style, {
+      left: `${left}px`,
+      top: `${top}px`,
+      right: '',
+      bottom: '',
+      // Never past the bottom of the window; the body scrolls instead.
+      maxHeight: `calc(100vh - ${top + GAP}px)`,
+    });
+  }
+
+  private keepOnscreen(): void {
+    const rect = this.root.getBoundingClientRect();
+    if (!this.placed || rect.width === 0) return;
+    const { left, top } = this.clamp(rect.left, rect.top);
+    this.applyPosition(left, top);
   }
 
   setVisible(visible: boolean): void {
-    this.root.style.display = visible ? '' : 'none';
+    this.root.style.display = visible ? 'flex' : 'none';
+    if (visible && !this.placed) this.placeBesideBoard();
   }
 
   showIdle(moveCount: number, stale = false, message?: string): void {
     this.analysis = null;
+    this.subtitle.textContent = moveCount ? `${moveCount} moves` : '';
     const note = message ?? (stale
       ? 'The moves changed since the last analysis.'
       : moveCount
-        ? `Analyze all ${moveCount} moves with Stockfish.`
+        ? `Rate all ${moveCount} moves and see where the game turned.`
         : 'No moves to analyze yet.');
     this.body.replaceChildren(
-      el('p', { margin: '0 0 10px', color: THEME.muted }, note),
+      el('p', { margin: '0 0 12px', color: THEME.muted }, note),
       ...(moveCount ? [button(stale ? 'Analyze again' : 'Analyze game', () => this.cb.onAnalyze(), true)] : []),
     );
   }
@@ -176,7 +271,7 @@ export class AnalysisPanel {
   showProgress(done: number, total: number): void {
     const pct = total ? Math.round((done / total) * 100) : 0;
     const track = el('div', {
-      height: '6px',
+      height: '5px',
       background: THEME.ink,
       borderRadius: '3px',
       overflow: 'hidden',
@@ -189,7 +284,7 @@ export class AnalysisPanel {
     track.setAttribute('aria-valuenow', String(done));
     track.append(el('div', { height: '100%', width: `${pct}%`, background: THEME.brass, transition: 'width .2s' }));
     this.body.replaceChildren(
-      el('div', { color: THEME.muted }, `Analyzing positions… ${done} of ${total}`),
+      el('div', { color: THEME.muted, fontVariantNumeric: 'tabular-nums' }, `Analyzing positions… ${done} of ${total}`),
       track,
       button('Cancel', () => this.cb.onCancel()),
     );
@@ -210,85 +305,93 @@ export class AnalysisPanel {
   private render(): void {
     const a = this.analysis;
     if (!a) return;
+    this.subtitle.textContent = a.opening ?? `${a.moves.length} moves`;
+    this.subtitle.title = a.opening ?? '';
 
     // Accuracy as a light square and a dark square, one per side.
-    const acc = el('div', { display: 'flex', gap: '1px', marginBottom: '12px', border: `1px solid ${THEME.line}`, borderRadius: '8px', overflow: 'hidden', background: THEME.line });
+    const acc = el('div', {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '1px',
+      border: `1px solid ${THEME.line}`,
+      borderRadius: '9px',
+      overflow: 'hidden',
+      background: THEME.line,
+    });
     for (const [color, label, bg, fg] of [
-      ['w', 'White', THEME.bone, THEME.oxblood],
+      ['w', 'White', '#ebe6df', '#26231f'],
       ['b', 'Black', THEME.ink, THEME.bone],
     ] as const) {
-      const box = el('div', { flex: '1', background: bg, color: fg, padding: '10px 11px' });
+      const box = el('div', { background: bg, color: fg, padding: '10px 12px 11px' });
       box.append(
-        el('div', { fontSize: '11px', opacity: '0.75', letterSpacing: '.02em' }, `${label} accuracy`),
-        el('div', { font: `400 26px/1.1 ${DISPLAY_FONT}`, fontVariantNumeric: 'tabular-nums' }, `${a.summary[color].accuracy.toFixed(1)}%`),
+        el('div', { fontSize: '12px', opacity: '0.7' }, `${label} accuracy`),
+        el('div', { font: `750 28px/1.1 ${BODY_FONT}`, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }, `${a.summary[color].accuracy.toFixed(1)}%`),
       );
       acc.append(box);
     }
 
-    const opening = a.opening
-      ? el('div', { color: THEME.bone, font: `400 13px/1.3 ${DISPLAY_FONT}`, margin: '0 0 10px' }, a.opening)
-      : null;
-    const graph = renderEvalGraph(a, this.currentPly, (ply) => this.cb.onSelectPly(ply));
+    const graphWrap = el('div', { marginTop: '12px' });
+    graphWrap.append(renderEvalGraph(a, this.currentPly, (ply) => this.cb.onSelectPly(ply)));
 
+    // The selected move, as a sentence.
     const current = this.currentPly ? a.moves[this.currentPly - 1] : undefined;
     const info = el('div', {
-      minHeight: '20px',
-      margin: '10px 0',
-      padding: '9px 10px',
-      display: 'flex',
-      flexWrap: 'wrap',
-      alignItems: 'center',
-      gap: '6px',
-      border: `1px solid ${THEME.line}`,
-      borderRadius: '8px',
+      marginTop: '12px',
+      padding: '10px 12px',
+      border: `1px solid ${THEME.hairline}`,
+      borderRadius: '9px',
       background: THEME.claret,
     });
     if (current) {
       const num = `${Math.ceil(current.ply / 2)}${current.color === 'w' ? '.' : '...'}`;
       const explanation = describeMoveAnalysis(current);
+      const title = el('div', { display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '650' });
+      title.append(
+        categoryBadge(current.category, 18),
+        el('span', {}, `${num} ${current.san} was ${articleFor(CATEGORY_LABELS[current.category])}`),
+      );
+      const better = current.bestSan && current.bestMove !== current.uci && current.category !== 'best'
+        ? ` Best was ${current.bestSan}.`
+        : '';
       info.append(
-        categoryBadge(current.category, 16),
-        el('span', {}, `${num} ${current.san}: ${CATEGORY_LABELS[current.category].toLowerCase()}`),
+        title,
         el(
-          'span',
-          { color: THEME.muted },
-          `Move accuracy ${current.accuracy.toFixed(1)}% · win chances ${current.winBefore.toFixed(1)}% → ${current.winAfter.toFixed(1)}%`,
+          'div',
+          { marginTop: '4px', color: THEME.muted, fontSize: '12.5px', fontVariantNumeric: 'tabular-nums' },
+          `Move accuracy ${current.accuracy.toFixed(1)}%. Win chance ${current.winBefore.toFixed(1)}% to ${current.winAfter.toFixed(1)}%.${better}`,
         ),
       );
       info.title = explanation;
       info.setAttribute('role', 'group');
       info.setAttribute('aria-label', explanation);
-      if (current.bestSan && current.bestMove !== current.uci && current.category !== 'best') {
-        info.append(el('span', { color: THEME.muted }, `(best: ${current.bestSan})`));
-      }
     } else {
-      info.append(el('span', { color: THEME.muted }, 'Click a move or the graph to see how it was rated.'));
+      info.append(el('span', { color: THEME.muted }, 'Choose a move or a point on the graph to see how it was rated.'));
     }
 
-    const table = el('table', { width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' });
+    const table = el('table', { width: '100%', borderCollapse: 'collapse', fontSize: '13px' });
     const head = el('tr');
     head.append(
-      el('th', { textAlign: 'left', fontWeight: '400', color: THEME.muted }, ''),
-      el('th', { textAlign: 'right', fontWeight: '400', color: THEME.muted, width: '48px' }, 'White'),
-      el('th', { textAlign: 'right', fontWeight: '400', color: THEME.muted, width: '48px' }, 'Black'),
+      el('th', { textAlign: 'left', fontWeight: '500', color: THEME.muted, paddingBottom: '4px' }, ''),
+      el('th', { textAlign: 'right', fontWeight: '500', color: THEME.muted, width: '52px', paddingBottom: '4px' }, 'White'),
+      el('th', { textAlign: 'right', fontWeight: '500', color: THEME.muted, width: '52px', paddingBottom: '4px' }, 'Black'),
     );
     table.append(head);
     for (const cat of CATEGORIES) {
       const quiet = !a.summary.w.counts[cat] && !a.summary.b.counts[cat];
-      const row = el('tr', { opacity: quiet ? '0.45' : '1', borderTop: `1px solid ${THEME.claret}` });
-      const name = el('td', { padding: '3px 0' });
-      const wrap = el('span', { display: 'inline-flex', alignItems: 'center', gap: '6px' });
+      const row = el('tr', { opacity: quiet ? '0.4' : '1', borderTop: `1px solid ${THEME.hairline}` });
+      const name = el('td', { padding: '4px 0' });
+      const wrap = el('span', { display: 'inline-flex', alignItems: 'center', gap: '8px' });
       wrap.append(categoryBadge(cat, 16), el('span', {}, CATEGORY_LABELS[cat]));
       name.append(wrap);
       row.append(
         name,
-        el('td', { textAlign: 'right', fontVariantNumeric: 'tabular-nums' }, String(a.summary.w.counts[cat])),
-        el('td', { textAlign: 'right', fontVariantNumeric: 'tabular-nums' }, String(a.summary.b.counts[cat])),
+        el('td', { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '600' }, String(a.summary.w.counts[cat])),
+        el('td', { textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: '600' }, String(a.summary.b.counts[cat])),
       );
       table.append(row);
     }
 
-    const actions = el('div', { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '12px' });
+    const actions = el('div', { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '14px' });
     actions.append(
       button('Export PDF', () => this.cb.onExportPdf(), true),
       button('Export JSON', () => this.cb.onExport()),
@@ -297,20 +400,30 @@ export class AnalysisPanel {
 
     this.body.replaceChildren(
       acc,
-      ...(opening ? [opening] : []),
-      graph,
+      graphWrap,
       info,
+      heading('Move ratings'),
       table,
       actions,
       el(
         'div',
-        { marginTop: '8px', color: THEME.muted, fontSize: '11px' },
-        `${a.engine ?? 'Stockfish'}, depth ${a.depth}. Accuracy and move ratings are engine estimates, not official ratings.`,
+        { marginTop: '10px', color: THEME.muted, fontSize: '11.5px', lineHeight: '1.45' },
+        `${a.engine ?? 'Stockfish'}, depth ${a.depth}. Accuracy and ratings are engine estimates, not official ratings.`,
       ),
     );
   }
 
   destroy(): void {
+    window.removeEventListener('resize', this.onResize);
     this.root.remove();
   }
+}
+
+/** "a mistake", "an inaccuracy", "the best move" style wording for a category label. */
+function articleFor(label: string): string {
+  const lower = label.toLowerCase();
+  if (lower === 'best') return 'the best move';
+  if (lower === 'book') return 'a book move';
+  if (lower === 'miss') return 'a miss';
+  return `${/^[aeiou]/.test(lower) ? 'an' : 'a'} ${lower}${['brilliant', 'great', 'excellent', 'good'].includes(lower) ? ' move' : ''}`;
 }

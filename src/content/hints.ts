@@ -35,6 +35,8 @@ const THREAT_MOVETIME_MS = 300;
 const WEAKER_SEARCH_DEPTH = 10;
 const WEAKER_SEARCH_MOVETIME_MS = 400;
 const WEAKER_DRAW_DEPTH = 5;
+/** Bot replies whose positions are searched ahead while the bot thinks. */
+const PONDER_REPLIES = 2;
 /** Final search results kept per request, so revisited positions show at once. */
 const SEARCH_CACHE_SIZE = 300;
 
@@ -509,9 +511,16 @@ export class HintController {
             this.moveChoice?.lossCp ?? 0,
           );
         }
-        // On the bot's turn, get the user's next position ready.
-        const predicted = result.lines[0]?.pv[0];
-        if (kind === 'game' && !shouldHint(state, kind) && predicted) this.ponder(state.fen, predicted, stale);
+        // On the bot's turn, get the user's next position ready for its two
+        // most likely replies.
+        if (kind === 'game' && !shouldHint(state, kind)) {
+          const replies = [...result.lines]
+            .sort((a, b) => a.multipv - b.multipv)
+            .map((line) => line.pv[0])
+            .filter((move): move is string => !!move)
+            .slice(0, PONDER_REPLIES);
+          this.ponder(state.fen, replies, stale);
+        }
       });
 
     // Quick passes run before the deep main search, so what they add shows
@@ -550,20 +559,22 @@ export class HintController {
   }
 
   /**
-   * While the bot thinks, search the position after its most likely reply,
-   * with the same requests update() will make there, in the same order. When
-   * the bot plays that move, the hints come straight from the cache. The
-   * next position's update cancels whatever is still running.
+   * While the bot thinks, search the positions after its likely replies (most
+   * likely first), with the same requests update() will make there, in the
+   * same order. When the bot plays one of them, the hints come straight from
+   * the cache. The next position's update cancels whatever is still running.
    */
-  private ponder(fen: string, reply: string, stale: () => boolean): void {
-    const next = fenAfterMove(fen, reply);
-    if (!next) return;
+  private ponder(fen: string, replies: readonly string[], stale: () => boolean): void {
     const s = this.settings;
-    const requests = [
-      s.occasionalWeakerMoves ? buildWeakerRequest(next, s) : null,
-      s.showThreats ? buildThreatRequest(next, s) : null,
-      buildRequest(next, s),
-    ].filter((req): req is AnalyzeRequest => req !== null);
+    const requests = replies.flatMap((reply) => {
+      const next = fenAfterMove(fen, reply);
+      if (!next) return [];
+      return [
+        s.occasionalWeakerMoves ? buildWeakerRequest(next, s) : null,
+        s.showThreats ? buildThreatRequest(next, s) : null,
+        buildRequest(next, s),
+      ].filter((req): req is AnalyzeRequest => req !== null);
+    });
     void (async () => {
       for (const req of requests) {
         if (stale()) return;

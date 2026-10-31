@@ -1,35 +1,27 @@
 /**
- * Shared palette for the extension popup and in-page panels.
+ * Shared palette for the in-page panels and the eval bar, matching the
+ * settings window (src/popup/popup.css): warm charcoal to sit with
+ * chess.com's dark UI, with the board's best-move blue as the accent.
  */
 export const THEME = {
   /** Panel background. */
-  oxblood: '#111820',
+  oxblood: '#262421',
   /** Raised surfaces: buttons, cards, and the graph frame. */
-  claret: '#1a2531',
+  claret: '#2f2c29',
   /** Borders and separators. */
-  line: '#2b3948',
+  line: '#45403b',
+  /** Hairlines between rows. */
+  hairline: 'rgba(255, 245, 235, 0.07)',
   /** Deep surface used behind graphs and the eval bar. */
-  ink: '#0b1117',
+  ink: '#1e1c1a',
   /** Primary text. */
-  bone: '#e7eef6',
-  muted: '#9aaabd',
-  /** Selected and active things, and the primary button. */
-  brass: '#68dfc2',
+  bone: '#eeeae5',
+  muted: '#aaa39b',
+  /** Selected and active things, and the primary button (the best-move blue). */
+  brass: '#2f6fe4',
+  /** Text on the accent. */
+  brassText: '#ffffff',
 } as const;
 
 export const DISPLAY_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 export const BODY_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
-
-/**
- * A restrained accent strip under Vektra's headers.
- */
-export function boardEdge(height = 6): HTMLDivElement {
-  const strip = document.createElement('div');
-  strip.setAttribute('aria-hidden', 'true');
-  Object.assign(strip.style, {
-    height: `${height}px`,
-    background: `linear-gradient(90deg, ${THEME.brass}, ${THEME.brass} 34%, transparent 100%)`,
-    opacity: '0.8',
-  } satisfies Partial<CSSStyleDeclaration>);
-  return strip;
-}

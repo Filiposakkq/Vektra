@@ -27,7 +27,7 @@ import { applyMoveBadges, clearMoveBadges } from '../ui/moveBadges';
 import type { BoardState } from './boardReader';
 import { findMoveList } from './moveList';
 import { isGameOver, isLiveGamePath, type PageKind } from './pageScope';
-import { SELECTORS, queryAllFirst } from './selectors';
+import { SELECTORS, queryAllFirst, queryFirst } from './selectors';
 
 /** True if `prefix` is the start of `sans`. */
 function isPrefix(prefix: readonly string[], sans: readonly string[]): boolean {
@@ -88,7 +88,7 @@ export class AnalysisController {
         });
       },
       onSelectPly: (ply) => this.goToPly(ply),
-    }, () => document.querySelector<HTMLElement>(SELECTORS.sidebar));
+    }, () => queryFirst<HTMLElement>(document, SELECTORS.board));
   }
 
   /** The analysed move that led to the position on the board, if any. */

@@ -49,23 +49,27 @@ describe('analysis panel status', () => {
     panel.destroy();
   });
 
-  it("docks at the top of the page's sidebar when there is one, else floats", () => {
+  it('opens as its own window beside the board, on the side with room', () => {
     installFakeChrome({ baseUrl: '' });
     const callbacks = { onAnalyze: vi.fn(), onCancel: vi.fn(), onExport: vi.fn(), onExportPdf: vi.fn(), onSelectPly: vi.fn() };
-    let sidebar: HTMLElement | null = null;
-    const panel = new AnalysisPanel(callbacks, () => sidebar);
+    const board = document.createElement('div');
+    document.body.append(board);
+    let rect = new DOMRect(100, 80, 500, 500);
+    board.getBoundingClientRect = () => rect;
+    const panel = new AnalysisPanel(callbacks, () => board);
     const root = () => document.getElementById('vektra-analysis-panel')!;
     expect(root().parentElement).toBe(document.body);
     expect(root().style.position).toBe('fixed');
-
-    sidebar = document.createElement('div');
-    sidebar.append(document.createElement('section'));
-    document.body.append(sidebar);
-    panel.ensureMounted();
-    expect(root().parentElement).toBe(sidebar);
-    expect(sidebar.firstElementChild).toBe(root());
-    expect(root().style.position).toBe('relative');
+    // Room on the right of the board (the window is 1024 px wide here).
+    expect(root().style.left).toBe('616px');
+    expect(root().style.top).toBe('80px');
     panel.destroy();
-    sidebar.remove();
+
+    // No room on the right: it goes to the left of the board.
+    rect = new DOMRect(500, 80, 500, 500);
+    const left = new AnalysisPanel(callbacks, () => board);
+    expect(root().style.left).toBe('144px');
+    left.destroy();
+    board.remove();
   });
 });
