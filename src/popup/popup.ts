@@ -257,16 +257,14 @@ async function initializePopup() {
     render();
   });
   document.getElementById('engine-download')!.addEventListener('click', () => void startDownload());
+  // The background switches the engine setting when the full engine is
+  // downloaded or removed (see recordEngineStatus); the popup only shows it.
   document.getElementById('engine-remove')!.addEventListener('click', () => {
-    void save({ engine: 'lite' });
     void chrome.runtime.sendMessage({ type: FULL_ENGINE_REMOVE });
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !(FULL_ENGINE_STATUS_KEY in changes)) return;
-    const prev: FullEngineStatus['state'] = engineStatus.state;
     engineStatus = (changes[FULL_ENGINE_STATUS_KEY].newValue as FullEngineStatus | undefined) ?? { state: 'missing' };
-    if (prev === 'downloading' && engineStatus.state === 'ready') void save({ engine: 'full' });
-    if (engineStatus.state !== 'ready' && settings.engine === 'full') void save({ engine: 'lite' });
     renderEngine();
   });
 

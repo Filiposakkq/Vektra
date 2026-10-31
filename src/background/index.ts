@@ -1,4 +1,9 @@
-import { FULL_ENGINE_STATUS, FULL_ENGINE_STATUS_KEY } from '../engine/fullEngine';
+import {
+  FULL_ENGINE_STATUS,
+  FULL_ENGINE_STATUS_KEY,
+  engineSettingForStatus,
+  type FullEngineStatus,
+} from '../engine/fullEngine';
 import { ENSURE_ENGINE } from '../engine/protocol';
 import { SHOW_HINT, applySettingsPatch, becomeSettingsWriter, handleSettingsMessage } from '../shared/settings';
 
@@ -27,9 +32,31 @@ async function ensureOffscreen(): Promise<void> {
   await creating;
 }
 
+let statusQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Store the full engine's status (offscreen documents can't) and, on a real
+ * change, update the engine setting through the settings queue: the only
+ * place that writes it.
+ */
+function recordEngineStatus(status: FullEngineStatus): Promise<void> {
+  statusQueue = statusQueue
+    .then(async () => {
+      const previous = ((await chrome.storage.local.get(FULL_ENGINE_STATUS_KEY))[FULL_ENGINE_STATUS_KEY] as
+        | FullEngineStatus
+        | undefined)?.state;
+      await chrome.storage.local.set({ [FULL_ENGINE_STATUS_KEY]: status });
+      const engine = engineSettingForStatus(previous, status.state);
+      if (engine === 'full') await applySettingsPatch({ engine: 'full' });
+      else if (engine === 'lite') await applySettingsPatch((s) => (s.engine === 'full' ? { engine: 'lite' } : {}));
+    })
+    .catch((error: unknown) => console.error('[Vektra] Could not record the full engine status:', error));
+  return statusQueue;
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === FULL_ENGINE_STATUS && msg.status) {
-    void chrome.storage.local.set({ [FULL_ENGINE_STATUS_KEY]: msg.status });
+    void recordEngineStatus(msg.status);
     return;
   }
   if (handleSettingsMessage(msg, sendResponse)) return true;
