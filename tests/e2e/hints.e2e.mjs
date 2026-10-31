@@ -106,11 +106,13 @@ if (runSuite('board')) for (const [url, name] of [
       null,
       { timeout: 15000 },
     );
-    const primaryMove = await p.$eval('.vektra-move[data-rank="0"]', (el) => el.dataset.move);
-    const highlights = await p.$$eval(
-      'svg.vektra-overlay .vektra-square-highlight',
-      (els) => els.map((el) => el.dataset.square),
-    );
+    // Read both at once: the arrows are redrawn as the search goes deeper.
+    const { primaryMove, highlights } = await p.evaluate(() => ({
+      primaryMove: document.querySelector('.vektra-move[data-rank="0"]')?.dataset.move,
+      highlights: [...document.querySelectorAll('svg.vektra-overlay .vektra-square-highlight')].map(
+        (el) => el.dataset.square,
+      ),
+    }));
     const from = primaryMove?.slice(0, 2);
     const to = primaryMove?.slice(2, 4);
     check(
@@ -311,8 +313,13 @@ if (runSuite('settings')) {
   const settings = game.frameLocator('#vektra-floating-settings iframe');
   const weakerMoves = settings.locator('input[name="occasionalWeakerMoves"]');
   const hintsTab = settings.locator('[role="tab"][data-tab="hints"]');
+  // The popup script selects the tab after the frame shows; wait for it.
+  const hintsSelected = await settings
+    .locator('[role="tab"][data-tab="hints"][aria-selected="true"]')
+    .waitFor({ timeout: 10000 })
+    .then(() => true, () => false);
   check(
-    (await hintsTab.getAttribute('aria-selected')) === 'true' &&
+    hintsSelected &&
       (await settings.locator('[role="tab"]').count()) === 3 &&
       (await settings.locator('#context-hint').count()) === 0,
     'settings: opens on live-game controls for a live game',
@@ -790,11 +797,13 @@ if (runSuite('settings')) {
   const settingsFrame = analysisPage.locator('#vektra-floating-settings iframe');
   await settingsFrame.waitFor({ state: 'visible', timeout: 10000 });
   const analysisSettings = analysisPage.frameLocator('#vektra-floating-settings iframe');
+  // The popup script selects the tab after the frame shows; wait for it.
   const contextTab = await analysisSettings
-    .locator('[data-tab="analysis"]')
-    .getAttribute('aria-selected');
+    .locator('[data-tab="analysis"][aria-selected="true"]')
+    .waitFor({ timeout: 10000 })
+    .then(() => true, () => false);
   check(
-    contextTab === 'true' && (await analysisSettings.locator('[role="tab"]').count()) === 3,
+    contextTab && (await analysisSettings.locator('[role="tab"]').count()) === 3,
     'settings: opens on analysis tools on analysis pages',
   );
   await analysisPage.close();
