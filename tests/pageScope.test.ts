@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { classifyPath, isLiveGamePath, resolveScope } from '../src/content/pageScope';
 
+const RESULT_ROW =
+  '<wc-simple-move-list><div class="main-line-row move-list-row result-row"><span class="game-result">0-1 </span></div></wc-simple-move-list>';
+
 describe('classifyPath', () => {
   it.each([
     ['/play/computer', 'game'],
@@ -11,10 +14,11 @@ describe('classifyPath', () => {
     ['/game/review/123', 'review'],
     ['/game/live/123456', 'archived'],
     ['/game/daily/987', 'archived'],
-    ['/play/online', 'game'],
-    ['/play/online/new', 'game'],
-    ['/live', 'game'],
-    ['/game/123456', 'game'],
+    ['/play/online', 'archived'],
+    ['/play/online/new', 'archived'],
+    ['/live', 'archived'],
+    ['/game/123456', 'archived'],
+    ['/variants/chess960/game/1', 'archived'],
     ['/play/computerx', 'none'],
     ['/home', 'none'],
     ['/puzzles', 'none'],
@@ -22,43 +26,49 @@ describe('classifyPath', () => {
 });
 
 describe('resolveScope', () => {
-  const live = () => (document.body.innerHTML = '<wc-chess-board></wc-chess-board>');
+  const botBoard = () =>
+    (document.body.innerHTML = '<wc-chess-board id="board-play-computer"></wc-chess-board>');
 
-  it('enables bot, human, analysis and review pages', () => {
-    live();
-    for (const p of ['/play/computer', '/play/online', '/analysis', '/game/review/1']) {
+  it('enables bot games, analysis and review', () => {
+    botBoard();
+    for (const p of ['/play/computer', '/game/computer/1', '/analysis', '/game/review/1']) {
       expect(resolveScope(p, document).status).toBe('enabled');
+    }
+    expect(resolveScope('/play/computer', document)).toEqual({ status: 'enabled', kind: 'game' });
+  });
+
+  it('keeps /play/computer inactive without the bot board', () => {
+    document.body.innerHTML = '<wc-chess-board id="board-single"></wc-chess-board>';
+    expect(resolveScope('/play/computer', document).status).toBe('inactive');
+  });
+
+  it('never enables a game against a person in progress', () => {
+    botBoard();
+    for (const p of ['/play/online', '/game/live/123', '/game/daily/123', '/game/123', '/live', '/variants/x']) {
+      expect(resolveScope(p, document).status).toBe('inactive');
     }
   });
 
-  it('enables in-progress human games with the shared game behavior', () => {
-    live();
-    expect(resolveScope('/play/online', document)).toEqual({ status: 'enabled', kind: 'game' });
-    expect(resolveScope('/game/live/123', document)).toEqual({ status: 'enabled', kind: 'game' });
+  it('does not treat the game-over modal alone as a finished game against a person', () => {
+    document.body.innerHTML = '<div class="game-over-modal-shell-content"></div>';
+    expect(resolveScope('/game/live/123', document).status).toBe('inactive');
+    expect(resolveScope('/play/online', document).status).toBe('inactive');
   });
 
-  it('uses live-game behavior until an archived game is finished', () => {
-    document.body.innerHTML = '';
-    expect(resolveScope('/game/live/123', document)).toEqual({ status: 'enabled', kind: 'game' });
-    document.body.innerHTML = '<div class="game-over-modal-shell-content"></div>';
+  it('enables finished games against people for review once a result shows', () => {
+    document.body.innerHTML = RESULT_ROW;
     expect(resolveScope('/game/live/123', document)).toEqual({ status: 'enabled', kind: 'archived' });
-    document.body.innerHTML =
-      '<wc-simple-move-list><div class="main-line-row move-list-row result-row"><span class="game-result">0-1 </span></div></wc-simple-move-list>';
     expect(resolveScope('/game/daily/123', document)).toEqual({ status: 'enabled', kind: 'archived' });
-  });
-
-  it('keeps finished human games enabled for review', () => {
-    document.body.innerHTML = '<div class="game-over-modal-shell-content"></div>';
-    expect(resolveScope('/play/online', document)).toEqual({ status: 'enabled', kind: 'game' });
+    expect(resolveScope('/play/online', document)).toEqual({ status: 'enabled', kind: 'archived' });
   });
 
   it('is inactive elsewhere', () => {
     expect(resolveScope('/home', document).status).toBe('inactive');
   });
 
-  it('distinguishes live game URLs from saved bot games', () => {
-    expect(isLiveGamePath('/play/online')).toBe(true);
-    expect(isLiveGamePath('/game/live/123')).toBe(true);
+  it('treats only /play/computer as a bot game in progress', () => {
+    expect(isLiveGamePath('/play/computer')).toBe(true);
     expect(isLiveGamePath('/game/computer/123')).toBe(false);
+    expect(isLiveGamePath('/play/online')).toBe(false);
   });
 });

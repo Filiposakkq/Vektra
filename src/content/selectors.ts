@@ -17,6 +17,12 @@ export const SELECTORS = {
    */
   board: ['wc-chess-board', '#board-single', '#board-play-computer', '#board-analysis-board'],
 
+  /**
+   * The board on /play/computer. Bot games stay inactive without it, so if
+   * chess.com renames it, hints stop in bot games until this is updated. CONFIRMED
+   */
+  botBoard: ['#board-play-computer'],
+
   /** Class on the board element when it is shown from Black's side. CONFIRMED */
   boardFlippedClass: 'flipped',
 

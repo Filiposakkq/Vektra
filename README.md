@@ -4,10 +4,14 @@ Vektra is an independent browser extension that provides Stockfish move
 suggestions, optional live move ratings, and full-game analysis on supported
 Chess.com game and analysis pages. Optional autoplay is off by default.
 
+Hints, live move ratings and autoplay work only in games against Chess.com's
+bots. Games against people stay untouched while they are in progress and open
+for analysis only once they have finished (see [Where Vektra runs](#where-vektra-runs)).
+
 > [!IMPORTANT]
 > **Use Vektra responsibly.** Engine assistance and automated move input may be
-> restricted by Chess.com, tournament organizers, or other applicable rules,
-> especially during live games. Check the rules that apply to you before using
+> restricted by Chess.com, tournament organizers, or other applicable rules.
+> Check the rules that apply to you before using
 > these features. You are responsible for your use of the extension, moves
 > submitted through autoplay, and any resulting account or game consequences.
 > Autoplay can make a move you did not intend; keep it off unless you are
@@ -24,6 +28,7 @@ guarantees of playing strength, or a substitute for your own review.
 - [Important notices](#important-notices)
 - [Settings](#settings)
 - [Project layout](#layout)
+- [Where Vektra runs](#where-vektra-runs)
 - [Position detection](#how-the-position-is-read)
 - [Game analysis](#game-analysis)
 - [Engine](#engine)
@@ -43,7 +48,7 @@ guarantees of playing strength, or a substitute for your own review.
    controls for autoplay and weaker alternatives. With autoplay off, an
    eligible weaker alternative is shown as a dim second arrow while the best
    move stays visible. If autoplay selects that alternative, it is shown in
-   magenta. Hints in live games appear only on the bottom-side player's turn.
+   magenta. Hints in bot games appear only on the bottom-side player's turn.
    When live ratings are enabled, your moves receive estimated classifications;
    hover a badge for details.
 
@@ -61,9 +66,9 @@ if `dist` is missing that file or was built from different sources (including
 
 ## Important notices
 
-- **Live-game rules:** Vektra can display engine suggestions in live games
-  against people or bots. Autoplay submits moves through the board's input
-  handlers. The rules for engine assistance and automation vary by platform,
+- **Bot games only:** engine suggestions, live ratings and autoplay run only
+  in games against Chess.com's bots. Autoplay submits moves through the board's
+  input handlers. The rules for engine assistance and automation vary by platform,
   event, and context; verify that your use is permitted. Vektra does not
   determine whether a particular game allows assistance.
 - **Review every move:** Stockfish strength settings are approximate, searches
@@ -96,7 +101,7 @@ open settings in a content-sized window over Chess.com. Drag its title bar to
 move it and use the close button to dismiss it. On other pages, the regular
 toolbar popup remains available. Settings are saved in `chrome.storage.sync`
 and apply to open tabs straight away. Settings have three tabs: **Hints**
-(presets and live-game controls), **Engine** (engine choice, strength and search
+(presets and bot-game controls), **Engine** (engine choice, strength and search
 limits) and **Analysis** (full-game analysis depth). Less-used engine and timing
 options are grouped under clearly labeled expandable sections.
 
@@ -120,11 +125,10 @@ options are grouped under clearly labeled expandable sections.
 - **Search**: fixed depth (1-30) or a time per move.
 - **Board display**: move arrows use consistent colours, alongside the
   evaluation bar; there are no separate display controls.
-- **Hints in live games**: show recommendations immediately (default) or only
+- **Hints in bot games**: show recommendations immediately (default) or only
   when you press the "show hint" shortcut. Analysis and review pages always
   show hints immediately.
-- **Autoplay**: off by default and available in live games against people and
-  bots. The board control shows an Auto on/off state, engine think time, and
+- **Autoplay**: off by default and available only in games against bots. The board control shows an Auto on/off state, engine think time, and
   the selected delay before a move is submitted. Set minimum and maximum
   delays in the popup; Vektra picks a delay in that range after choosing a move. The
   existing Skill Level/Elo controls determine move strength. Vektra checks the
@@ -173,6 +177,26 @@ public/         extension assets copied into the production build
 
 For module responsibilities and runtime flow, see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Where Vektra runs
+
+This branch is limited to games against Chess.com's bots. The rules live in
+`src/content/pageScope.ts`:
+
+| Page | Behavior |
+| --- | --- |
+| `/play/computer` with the bot board (`#board-play-computer`) | Game: hints, live ratings, autoplay |
+| `/game/computer/<id>` | Game (a saved bot game) |
+| `/analysis`, `/game/review` | Analysis and review |
+| `/play/online`, `/game/live/<id>`, `/game/daily/<id>`, `/game/<id>`, `/live`, `/daily`, `/variants` | Inactive until the move list shows a result, then review only |
+| Anything else | Inactive |
+
+Anything that can't be confirmed as a bot game or a finished game stays
+inactive: the game-over modal alone doesn't unlock a game against a person,
+and `/play/computer` without the bot board stays off. The scope is checked
+again on every URL change, board change and before each autoplay move. If
+Chess.com renames the bot board, hints stop in bot games until
+`SELECTORS.botBoard` is updated.
 
 ## How the position is read
 
@@ -296,7 +320,7 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
 - Arrows along the same line overlap.
 - The eval bar sits just outside the board's left edge and may be hidden if a
   surrounding chess.com element clips it.
-- In live games, "your side" is taken to be the side at the bottom of the board.
+- In bot games, "your side" is taken to be the side at the bottom of the board.
 - Game analysis covers the main line only.
 - The analysis panel docks into chess.com's sidebar by its id
   (`#board-layout-sidebar`); if chess.com changes it, the panel floats instead.

@@ -38,7 +38,9 @@ const engineErrorNotice = new EngineErrorNotice();
 setReloadNotice(engineErrorNotice);
 const autoPlay = new AutoPlayScheduler(
   () => settings,
-  () => currentScope,
+  // Read from the page at every check, not the last scope seen, so a move is
+  // never submitted after the page has left a bot game.
+  () => resolveScope(location.pathname, document),
   readBoardState,
   (delay) => boardAutoPlay?.setMoveDelay(delay),
 );
@@ -112,6 +114,18 @@ function settingsContext(): 'analysis' | 'game' {
 }
 
 function onPosition(state: BoardState | null) {
+  // A new board can show up before the URL or page check catches up (chess.com
+  // navigates client-side), so the scope is checked first. When it changed,
+  // applying it reads the board again if the new page is still enabled.
+  const scope = resolveScope(location.pathname, document);
+  if (
+    location.pathname !== observedPathname ||
+    scope.status !== currentScope?.status ||
+    scope.kind !== currentScope.kind
+  ) {
+    evaluate();
+    return;
+  }
   if (state?.board !== lastBoard) {
     lastBoard = state?.board ?? null;
     autoPlay.resetPosition();

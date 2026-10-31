@@ -3,10 +3,15 @@ import { SELECTORS, queryFirst } from './selectors';
 /**
  * Where Vektra is allowed to run.
  *
- *  - game:      games against a person or the computer
+ * This build is limited to games against chess.com's bots. Hints, live
+ * ratings and autoplay run only in bot games; games against people are
+ * enabled only once they have finished, for review. Anything that can't be
+ * confirmed as one of those stays inactive.
+ *
+ *  - game:      a game against the computer
  *  - analysis:  analysis board (/analysis)
  *  - review:    game review (/game/review)
- *  - archived:  a finished /game/live or /game/daily page (review behavior)
+ *  - archived:  a finished game against a person (review behavior)
  *  - none:      not a board page
  */
 export type PageKind = 'game' | 'analysis' | 'review' | 'archived' | 'none';
@@ -15,48 +20,58 @@ export type Scope =
   | { status: 'enabled'; kind: PageKind }
   | { status: 'inactive'; kind: PageKind };
 
+const PLAY_COMPUTER = /^\/play\/computer(\/|$)/;
+/** A game against a bot, opened from the archive or after it ended. */
+const SAVED_COMPUTER_GAME = /^\/game\/computer\/[^/]+/;
+
 export function classifyPath(pathname: string): PageKind {
   const p = pathname.toLowerCase().replace(/\/+$/, '');
-  if (/^\/play\/(computer|online)(\/|$)/.test(p)) return 'game';
-  // A game against a bot, opened from the archive or after it ended.
-  if (/^\/game\/computer\/[^/]+/.test(p)) return 'game';
+  if (PLAY_COMPUTER.test(p) || SAVED_COMPUTER_GAME.test(p)) return 'game';
   if (/^\/analysis(\/|$)/.test(p)) return 'analysis';
   if (/^\/game\/review(\/|$)/.test(p)) return 'review';
-  if (/^\/game\/(live|daily)\/[^/]+/.test(p)) return 'archived';
-  if (/^\/(live|daily|game|variants|game-[^/]+)(\/|$)/.test(p)) return 'game';
+  // Games against people, in progress or finished.
+  if (/^\/play\/online(\/|$)/.test(p)) return 'archived';
+  if (/^\/(live|daily|game|variants|game-[^/]+)(\/|$)/.test(p)) return 'archived';
   return 'none';
 }
 
 /** True when the page shows clear signs that the game has finished. */
 export function isGameOver(doc: ParentNode): boolean {
   if (queryFirst(doc, SELECTORS.gameOverSignals)) return true;
+  return hasGameResult(doc);
+}
+
+/** True when the move list ends with a result, the most reliable game-over signal. */
+export function hasGameResult(doc: ParentNode): boolean {
   const result = queryFirst(doc, SELECTORS.resultText);
   return !!result && /^(1-0|0-1|1\/2-1\/2|½-½)$/.test((result.textContent ?? '').trim());
 }
 
 /**
- * Enable live games immediately; keep finished game pages in review behavior.
+ * Enable bot games, analysis and review. A game against a person is enabled
+ * for review only once its move list shows a result; until then, and whenever
+ * that can't be read, it stays inactive.
  */
 export function resolveScope(pathname: string, doc: ParentNode): Scope {
   const kind = classifyPath(pathname);
   switch (kind) {
     case 'game':
+      // The bot board is a second check, in case the page moves on to another
+      // game before its URL changes.
+      return PLAY_COMPUTER.test(pathname.toLowerCase()) && !queryFirst(doc, SELECTORS.botBoard)
+        ? { status: 'inactive', kind }
+        : { status: 'enabled', kind };
     case 'analysis':
     case 'review':
       return { status: 'enabled', kind };
     case 'archived':
-      return isGameOver(doc)
-        ? { status: 'enabled', kind }
-        : { status: 'enabled', kind: 'game' };
+      return hasGameResult(doc) ? { status: 'enabled', kind } : { status: 'inactive', kind };
     default:
       return { status: 'inactive', kind };
   }
 }
 
-/** Whether the current game URL can represent a game in progress. */
+/** Whether the current bot game URL can represent a game in progress. */
 export function isLiveGamePath(pathname: string): boolean {
-  const p = pathname.toLowerCase().replace(/\/+$/, '');
-  if (/^\/game\/computer\/[^/]+/.test(p)) return false;
-  return /^\/play\/(computer|online)(\/|$)/.test(p) ||
-    /^\/(live|daily|game|variants|game-[^/]+)(\/|$)/.test(p);
+  return PLAY_COMPUTER.test(pathname.toLowerCase().replace(/\/+$/, ''));
 }

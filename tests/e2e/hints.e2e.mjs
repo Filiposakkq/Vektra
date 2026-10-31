@@ -157,17 +157,39 @@ if (runSuite('games')) {
 {
   const p = await ctx.newPage();
   await p.goto('https://www.chess.com/game/live/42');
-  const active = await p
-    .waitForFunction(() => document.querySelectorAll('svg.vektra-overlay polygon').length >= 3, null, {
-      timeout: 30000,
-    })
-    .then(() => true, () => false);
-  check(active, 'human game: hints are drawn while the game is in progress');
+  // Long enough for the engine to have drawn arrows if the page were enabled.
+  await p.waitForTimeout(5000);
   check(
-    (await p.locator('wc-chess-board .vektra-autoplay-control').count()) === 1,
-    'human game: autoplay control is available',
+    (await p.locator('svg.vektra-overlay polygon').count()) === 0,
+    'human game: no hints while the game is in progress',
+  );
+  check(
+    (await p.locator('wc-chess-board .vektra-autoplay-control').count()) === 0,
+    'human game: no autoplay control',
   );
   if (shotDir) await p.screenshot({ path: join(shotDir, 'e2e-human.png') });
+  await p.close();
+}
+
+{
+  const p = await ctx.newPage();
+  await p.goto('https://www.chess.com/play/computer');
+  await p.waitForFunction(() => document.querySelectorAll('svg.vektra-overlay polygon').length >= 3, null, {
+    timeout: 30000,
+  });
+  // chess.com can move to a game against a person without a page load.
+  await p.evaluate(() => history.pushState({}, '', '/game/live/43'));
+  const cleared = await p
+    .waitForFunction(
+      () =>
+        document.querySelectorAll('svg.vektra-overlay polygon').length === 0 &&
+        !document.querySelector('wc-chess-board .vektra-autoplay-control'),
+      null,
+      { timeout: 5000 },
+    )
+    .then(() => true, () => false);
+  check(cleared, 'navigation: leaving a bot game for a human game removes hints and autoplay');
+  await p.close();
 }
 
 {
@@ -322,7 +344,7 @@ if (runSuite('settings')) {
     hintsSelected &&
       (await settings.locator('[role="tab"]').count()) === 3 &&
       (await settings.locator('#context-hint').count()) === 0,
-    'settings: opens on live-game controls for a live game',
+    'settings: opens on game controls for a bot game',
   );
   check(
     await settings.locator('body').evaluate((body) =>

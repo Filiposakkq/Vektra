@@ -38,9 +38,9 @@ describe('real chess.com markup', () => {
     expect(resolveScope('/game/live/186167189226', document).status).toBe('enabled');
   });
 
-  it('/game/live: in-progress game (no result row) is enabled', () => {
+  it('/game/live: in-progress game (no result row) is inactive', () => {
     load('computer-03-board', 'computer-03-movelist');
-    expect(resolveScope('/game/live/1', document)).toEqual({ status: 'enabled', kind: 'game' });
+    expect(resolveScope('/game/live/1', document).status).toBe('inactive');
   });
 
   it('/analysis: last move selected (mate)', () => {

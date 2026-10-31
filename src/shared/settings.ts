@@ -20,11 +20,11 @@ export interface Settings {
   movetimeMs: number;
   /** Number of arrows, 1-3. */
   arrows: 1 | 2 | 3;
-  /** Show hints immediately, or wait for the "show hint" shortcut in live games. */
+  /** Show hints immediately, or wait for the "show hint" shortcut in bot games. */
   hintMode: 'instant' | 'hotkey';
   /** Engine depth for full-game analysis. */
   analysisDepth: number;
-  /** Rate the user's moves (Best, Mistake...) during live games. */
+  /** Rate the user's moves (Best, Mistake...) during bot games. */
   liveRatings: boolean;
   /** Occasionally choose a playable MultiPV alternative instead of the engine's first choice. */
   occasionalWeakerMoves: boolean;
@@ -32,7 +32,7 @@ export interface Settings {
   weakerMoveChancePercent: number;
   /** Maximum evaluation loss allowed for an occasional alternative, in centipawns. */
   weakerMoveMaxLossCp: number;
-  /** Automatically submit Vektra's final move choice during live games. */
+  /** Automatically submit Vektra's final move choice during bot games. */
   autoPlay: boolean;
   /** Minimum and maximum pause before submitting an automatic move, in seconds. */
   autoPlayMinDelaySec: number;
