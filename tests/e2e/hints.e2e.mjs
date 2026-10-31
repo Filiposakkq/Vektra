@@ -627,7 +627,9 @@ if (runSuite('settings')) {
   });
   await autoplay.check();
   const stopAutoplay = game.locator('#vektra-floating-settings button[aria-label="Stop autoplay"]');
-  check(await stopAutoplay.isVisible(), 'autoplay: visible stop control when enabled');
+  // The stop control appears once the saved setting reaches the page, so wait for it.
+  const stopShown = await stopAutoplay.waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false);
+  check(stopShown, 'autoplay: visible stop control when enabled');
   check(
     (await game
       .locator('wc-chess-board .vektra-autoplay-control')
