@@ -109,6 +109,31 @@ describe('settings popup', () => {
     expect(fake.sync.data.settings).toMatchObject({ hintMode: 'hotkey', analysisDepth: 16 });
   });
 
+  it('keeps a change that is still saving when an older storage change arrives', async () => {
+    await openPopup();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const send = fake.runtime.sendMessage.getMockImplementation()!;
+    fake.runtime.sendMessage.mockImplementationOnce(async (msg) => {
+      await held;
+      return send(msg);
+    });
+    input('liveRatings').checked = false;
+    input('liveRatings').dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(savedPatches()).toEqual([{ liveRatings: false }]));
+
+    // Another context's earlier save lands while ours is still on its way.
+    fake.onChanged.emit({ settings: { newValue: { ...DEFAULT_SETTINGS, analysisDepth: 14 } } }, 'sync');
+    expect(input('liveRatings').checked).toBe(false);
+    expect(input('analysisDepth').value).toBe('14');
+
+    release();
+    await vi.waitFor(() => expect(fake.sync.data.settings).toMatchObject({ liveRatings: false }));
+    // Once confirmed, storage is followed again.
+    fake.onChanged.emit({ settings: { newValue: { ...DEFAULT_SETTINGS, liveRatings: true } } }, 'sync');
+    expect(input('liveRatings').checked).toBe(true);
+  });
+
   it('shows an error when a save fails', async () => {
     await openPopup();
     vi.spyOn(console, 'error').mockImplementation(() => {});

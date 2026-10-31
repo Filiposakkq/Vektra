@@ -23,6 +23,9 @@ import {
 type Key = keyof Settings;
 let settings: Settings = DEFAULT_SETTINGS;
 let pendingSettings: Partial<Settings> = {};
+// Changes made here that storage hasn't confirmed yet. A storage change that
+// arrives in the meantime (e.g. an earlier save landing) must not undo them.
+let unconfirmedSettings: Partial<Settings> = {};
 let settingsSaveTimer: number | null = null;
 let settingsSaveQueue: Promise<void> = Promise.resolve();
 let settingsSaveError: string | null = null;
@@ -106,13 +109,21 @@ function flushSettings(): Promise<void> {
     settingsSaveError = 'Settings could not be saved';
     console.error('[Vektra] Could not save settings:', error);
     render();
-  });
+  }).finally(() => confirmSettings(patch));
   return settingsSaveQueue;
+}
+
+/** Stop protecting the keys of `patch` unless a newer change has replaced them. */
+function confirmSettings(patch: Partial<Settings>) {
+  for (const key of Object.keys(patch) as Key[]) {
+    if (unconfirmedSettings[key] === patch[key]) delete unconfirmedSettings[key];
+  }
 }
 
 function save(patch: Partial<Settings>, debounce = false): Promise<void> {
   settings = sanitizeSettings({ ...settings, ...patch });
   pendingSettings = { ...pendingSettings, ...patch };
+  unconfirmedSettings = { ...unconfirmedSettings, ...patch };
   render();
   if (debounce) {
     if (settingsSaveTimer !== null) window.clearTimeout(settingsSaveTimer);
@@ -242,7 +253,7 @@ async function startDownload() {
 async function initializePopup() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'sync' || !('settings' in changes)) return;
-    settings = sanitizeSettings(changes.settings.newValue);
+    settings = sanitizeSettings({ ...(changes.settings.newValue as Partial<Settings>), ...unconfirmedSettings });
     render();
   });
   document.getElementById('engine-download')!.addEventListener('click', () => void startDownload());
