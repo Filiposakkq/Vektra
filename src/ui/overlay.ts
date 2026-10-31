@@ -31,16 +31,41 @@ export interface Arrow {
   threat?: boolean;
 }
 
-/** Connector colour and visibility by rank. Colours come from settings. */
+/** Connector width and visibility by rank. */
 export const ARROW_STYLES = [
-  { width: 0.09, opacity: 0.92 },
-  { width: 0.075, opacity: 0.76 },
-  { width: 0.06, opacity: 0.62 },
+  { width: 0.1, opacity: 0.95 },
+  { width: 0.08, opacity: 0.82 },
+  { width: 0.065, opacity: 0.7 },
 ] as const;
 
-export const DEFAULT_ARROW_COLORS = ['#2fb35a', '#3b8fd9', '#e8a33a'] as const;
-export const WEAKER_ARROW_COLOR = '#c65ad9';
-export const THREAT_ARROW_COLOR = '#d9483b';
+/**
+ * Colours drawn on the board. They are picked to stay clear on chess.com's
+ * green and cream squares and on its pieces: no green, which vanishes on the
+ * dark squares, and a muted third choice so the first two lead.
+ */
+export const BOARD_COLORS = {
+  /** The best move, and anything active. */
+  lapis: '#2f6fe4',
+  saffron: '#f2a516',
+  slate: '#6f8196',
+  /** A deliberately weaker move. */
+  violet: '#9a5cf0',
+  /** The opponent's threat. */
+  vermilion: '#e5432f',
+  /** Dark text on light fills, and arrow halos. */
+  ink: '#14202c',
+} as const;
+
+export const DEFAULT_ARROW_COLORS = [BOARD_COLORS.lapis, BOARD_COLORS.saffron, BOARD_COLORS.slate] as const;
+export const WEAKER_ARROW_COLOR = BOARD_COLORS.violet;
+export const THREAT_ARROW_COLOR = BOARD_COLORS.vermilion;
+
+/** Text colour that reads on a filled label of this colour. */
+export function labelTextColor(fill: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(fill.slice(i, i + 2), 16) / 255);
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.55 ? BOARD_COLORS.ink : '#fff';
+}
 
 /** Win-chance loss at which an alternative is drawn at its faintest. */
 export const FADE_FULL_WIN_LOSS = 10;
@@ -114,7 +139,64 @@ export interface SquareBadge {
 }
 
 const SHADOW_ID = 'vektra-arrow-shadow';
-const LABEL_FONT = { 'font-size': 0.2, 'font-weight': 700, 'font-family': 'system-ui, -apple-system, "Segoe UI", sans-serif' };
+const LABEL_FONT = {
+  'font-size': 0.2,
+  'font-weight': 700,
+  'font-family': 'system-ui, -apple-system, "Segoe UI", sans-serif',
+  'font-variant-numeric': 'tabular-nums',
+};
+
+/** Four corner brackets just inside a square, framing it without covering the piece. */
+function squareCorners(center: [number, number], color: string, width = 0.055): SVGPathElement {
+  const inset = 0.06;
+  const arm = 0.24;
+  const [l, t] = [center[0] - 0.5 + inset, center[1] - 0.5 + inset];
+  const [r, b] = [center[0] + 0.5 - inset, center[1] + 0.5 - inset];
+  const p = (x: number, y: number) => `${x.toFixed(3)},${y.toFixed(3)}`;
+  const d = [
+    `M${p(l, t + arm)} L${p(l, t)} L${p(l + arm, t)}`,
+    `M${p(r - arm, t)} L${p(r, t)} L${p(r, t + arm)}`,
+    `M${p(r, b - arm)} L${p(r, b)} L${p(r - arm, b)}`,
+    `M${p(l + arm, b)} L${p(l, b)} L${p(l, b - arm)}`,
+  ].join(' ');
+  const path = document.createElementNS(SVG_NS, 'path');
+  for (const [k, v] of Object.entries({
+    d,
+    fill: color,
+    'fill-opacity': 0,
+    stroke: color,
+    'stroke-width': width,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+  })) path.setAttribute(k, String(v));
+  return path;
+}
+
+/** The piece a promoting move promotes to, as a letter tile in the target square's top-left corner. */
+function promotionMarker(piece: string, to: [number, number], color: string): SVGGElement {
+  const size = 0.3;
+  const x = to[0] - 0.5 + 0.05;
+  const y = to[1] - 0.5 + 0.05;
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.classList.add('vektra-promotion-marker');
+  g.dataset.piece = piece;
+  const tile = document.createElementNS(SVG_NS, 'rect');
+  for (const [k, v] of Object.entries({ x, y, width: size, height: size, rx: 0.06, fill: color, stroke: '#fff', 'stroke-width': 0.02 })) {
+    tile.setAttribute(k, String(v));
+  }
+  const label = document.createElementNS(SVG_NS, 'text');
+  for (const [k, v] of Object.entries({
+    x: x + size / 2,
+    y: y + size / 2,
+    fill: labelTextColor(color),
+    'text-anchor': 'middle',
+    'dominant-baseline': 'central',
+  })) label.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries(LABEL_FONT)) label.setAttribute(k, String(v));
+  label.textContent = piece.toUpperCase();
+  g.append(tile, label);
+  return g;
+}
 
 /**
  * A score pill in the bottom-right corner of the arrow's target square. When
@@ -129,14 +211,24 @@ function scoreLabel(text: string, to: [number, number], color: string, opacity: 
   const x = to[0] + 0.5 - width - 0.03;
   const y = to[1] + 0.5 - height - 0.03 - slot * (height + 0.03);
   const pill = document.createElementNS(SVG_NS, 'rect');
-  for (const [k, v] of Object.entries({ x, y, width, height, rx: height / 2, fill: color })) {
+  for (const [k, v] of Object.entries({
+    x,
+    y,
+    width,
+    height,
+    rx: height / 2,
+    fill: color,
+    stroke: BOARD_COLORS.ink,
+    'stroke-opacity': 0.35,
+    'stroke-width': 0.015,
+  })) {
     pill.setAttribute(k, String(v));
   }
   const label = document.createElementNS(SVG_NS, 'text');
   for (const [k, v] of Object.entries({
     x: x + width / 2,
     y: y + height / 2,
-    fill: '#fff',
+    fill: labelTextColor(color),
     'text-anchor': 'middle',
     'dominant-baseline': 'central',
   })) label.setAttribute(k, String(v));
@@ -158,7 +250,7 @@ function stepMarker(step: number, from: [number, number], toward: [number, numbe
     circle.setAttribute(k, String(v));
   }
   const label = document.createElementNS(SVG_NS, 'text');
-  for (const [k, v] of Object.entries({ x: cx, y: cy, fill: '#fff', 'text-anchor': 'middle', 'dominant-baseline': 'central' })) {
+  for (const [k, v] of Object.entries({ x: cx, y: cy, fill: labelTextColor(color), 'text-anchor': 'middle', 'dominant-baseline': 'central' })) {
     label.setAttribute(k, String(v));
   }
   for (const [k, v] of Object.entries(LABEL_FONT)) label.setAttribute(k, String(v));
@@ -233,24 +325,22 @@ export class BoardOverlay {
       g.setAttribute('opacity', String(opacity));
       if (provisional) g.dataset.provisional = 'true';
       if (rank === 0 && !threat) {
-        for (const [square, center, role] of [
-          [move.slice(0, 2), from, 'from'],
-          [move.slice(2, 4), to, 'to'],
-        ] as const) {
-          const highlight = document.createElementNS(SVG_NS, 'rect');
-          highlight.classList.add('vektra-square-highlight', `vektra-square-highlight-${role}`);
-          highlight.dataset.square = square;
-          highlight.setAttribute('x', String(center[0] - 0.5));
-          highlight.setAttribute('y', String(center[1] - 0.5));
-          highlight.setAttribute('width', '1');
-          highlight.setAttribute('height', '1');
-          highlight.setAttribute('fill', style.color);
-          highlight.setAttribute('fill-opacity', '0.18');
-          highlight.setAttribute('stroke', style.color);
-          highlight.setAttribute('stroke-opacity', '0.6');
-          highlight.setAttribute('stroke-width', '0.025');
-          g.appendChild(highlight);
-        }
+        // The piece's square is tinted; the target square is framed in corners.
+        const fromHighlight = document.createElementNS(SVG_NS, 'rect');
+        fromHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-from');
+        fromHighlight.dataset.square = move.slice(0, 2);
+        for (const [k, v] of Object.entries({
+          x: from[0] - 0.5,
+          y: from[1] - 0.5,
+          width: 1,
+          height: 1,
+          fill: style.color,
+          'fill-opacity': 0.2,
+        })) fromHighlight.setAttribute(k, String(v));
+        const toHighlight = squareCorners(to, style.color);
+        toHighlight.classList.add('vektra-square-highlight', 'vektra-square-highlight-to');
+        toHighlight.dataset.square = move.slice(2, 4);
+        g.append(fromHighlight, toHighlight);
       }
       g.setAttribute('filter', `url(#${SHADOW_ID})`);
       const shaft = document.createElementNS(SVG_NS, 'path');
@@ -261,7 +351,8 @@ export class BoardOverlay {
       shaft.setAttribute('stroke-width', String(style.width));
       shaft.setAttribute('stroke-linecap', 'round');
       shaft.setAttribute('stroke-linejoin', 'round');
-      shaft.setAttribute('stroke-dasharray', '0.07 0.09');
+      // Dashed while the engine may still change its mind; solid once final.
+      if (provisional) shaft.setAttribute('stroke-dasharray', `${style.width * 0.9} ${style.width * 1.1}`);
       if (corner) shaft.classList.add('vektra-knight-leg');
       const head = document.createElementNS(SVG_NS, 'polygon');
       head.setAttribute('points', shape.head);
@@ -273,6 +364,7 @@ export class BoardOverlay {
       head.dataset.rank = String(rank);
       g.append(shaft, head);
       if (step) g.appendChild(stepMarker(step, from, corner ?? to, style.color));
+      if (move.length === 5 && !threat) g.appendChild(promotionMarker(move[4], to, style.color));
       this.svg.appendChild(g);
       const { label } = arrow;
       if (label) {
@@ -292,27 +384,26 @@ export class BoardOverlay {
     }
   }
 
-  /** Highlight only the square of the piece to move (the first step of a hint). */
+  /** Frame only the square of the piece to move (the first step of a hint). */
   drawPieceHint(board: HTMLElement, square: string, flipped: boolean): void {
     this.attach(board);
-    const [cx, cy] = squareCenter(square, flipped);
+    const center = squareCenter(square, flipped);
     const color = this.colors[0] ?? DEFAULT_ARROW_COLORS[0];
-    const rect = document.createElementNS(SVG_NS, 'rect');
-    rect.classList.add('vektra-piece-hint');
-    rect.dataset.square = square;
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.classList.add('vektra-piece-hint');
+    g.dataset.square = square;
+    const tint = document.createElementNS(SVG_NS, 'rect');
     for (const [k, v] of Object.entries({
-      x: cx - 0.5 + 0.03,
-      y: cy - 0.5 + 0.03,
-      width: 0.94,
-      height: 0.94,
-      rx: 0.08,
+      x: center[0] - 0.5,
+      y: center[1] - 0.5,
+      width: 1,
+      height: 1,
       fill: color,
-      'fill-opacity': 0.28,
-      stroke: color,
-      'stroke-opacity': 0.9,
-      'stroke-width': 0.06,
-    })) rect.setAttribute(k, String(v));
-    this.svg.appendChild(rect);
+      'fill-opacity': 0.24,
+    })) tint.setAttribute(k, String(v));
+    g.append(tint, squareCorners(center, color, 0.07));
+    g.setAttribute('filter', `url(#${SHADOW_ID})`);
+    this.svg.appendChild(g);
   }
 
   /** A soft shadow under the arrows so they stand out on light and dark squares. */
@@ -322,7 +413,9 @@ export class BoardOverlay {
     filter.id = SHADOW_ID;
     for (const [k, v] of Object.entries({ x: '-20%', y: '-20%', width: '140%', height: '140%' })) filter.setAttribute(k, v);
     const shadow = document.createElementNS(SVG_NS, 'feDropShadow');
-    for (const [k, v] of Object.entries({ dx: '0', dy: '0.025', stdDeviation: '0.025', 'flood-color': '#000', 'flood-opacity': '0.35' })) {
+    // A tight, dark edge rather than a soft shadow: it keeps light colours
+    // readable on cream squares and white pieces.
+    for (const [k, v] of Object.entries({ dx: '0', dy: '0.012', stdDeviation: '0.016', 'flood-color': BOARD_COLORS.ink, 'flood-opacity': '0.55' })) {
       shadow.setAttribute(k, v);
     }
     filter.appendChild(shadow);

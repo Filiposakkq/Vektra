@@ -44,11 +44,11 @@ guarantees of playing strength, or a substitute for your own review.
    unpacked** and choose the `dist` folder.
 4. Open a supported Chess.com game, review, or analysis page. Click the Vektra
    toolbar icon to open settings. In games, the board can show up to three
-   normal engine arrows (green, blue, and orange), an evaluation bar, and
-   controls for autoplay and weaker alternatives. With autoplay off, an
-   eligible weaker alternative is shown as a dim second arrow while the best
-   move stays visible. If autoplay selects that alternative, it is shown in
-   magenta. Hints in bot games appear only on the bottom-side player's turn.
+   normal engine arrows (blue for the best move, then saffron and slate), an
+   evaluation bar, and controls for autoplay and weaker alternatives. With
+   autoplay off, an eligible weaker alternative is shown as a dim violet second
+   arrow while the best move stays visible. If autoplay selects that
+   alternative, it is shown in violet. Hints in bot games appear only on the bottom-side player's turn.
    When live ratings are enabled, your moves receive estimated classifications;
    hover a badge for details.
 
@@ -76,7 +76,7 @@ if `dist` is missing that file or was built from different sources (including
   position reconstruction. Autoplay checks legality and turn/position state,
   but it cannot guarantee a good move or protect against every site UI change.
   Autoplay is off by default; supervise it and turn it off if behavior is
-  unexpected. Promotions are not played automatically.
+  unexpected. Promotions use Chess.com's promotion picker (see Autoplay below).
 - **No official ratings:** Move labels, accuracy, win chances, opening names,
   and Elo values are Vektra estimates. They can differ from Chess.com's Game
   Review and are not official ratings or guaranteed results.
@@ -119,7 +119,7 @@ options are grouped under clearly labeled expandable sections.
   maximum evaluation loss of 2.00 pawns. Positions without a suitable legal
   alternative keep the engine's first choice. With autoplay off, the engine's
   best move stays first and an eligible weaker alternative is always shown as
-  the second, dim purple arrow; the chance setting does not hide this preview.
+  the second, dim violet arrow; the chance setting does not hide this preview.
   With autoplay on, the chance setting controls whether the weaker alternative
   is played automatically. The board control and settings toggle stay synchronized.
 - **Search**: fixed depth (1-30) or a time per move.
@@ -130,6 +130,11 @@ options are grouped under clearly labeled expandable sections.
   ones that give up more than 10 points are not drawn (unless **Show
   additional candidate moves** is on). Arrows stay dim until the search
   finishes, and the eval bar shows the search depth (for example `d14`).
+- **Board look**: arrows are solid once the engine has finished and dashed
+  while it is still searching. The best move's square is tinted and its
+  target framed with corner marks. A suggested promotion shows the piece's
+  letter (Q, R, B, N) in the corner of the target square. Move badges are
+  rounded square tiles in the usual category colours.
 - **Analysed positions**: the engine's line is drawn as numbered steps in one
   colour (1 = the move now, 2 = the reply, 3 = the next move), not as
   alternatives.
@@ -142,12 +147,18 @@ options are grouped under clearly labeled expandable sections.
   you passed, when allowing it would cost at least 12 points of win chance.
   It comes from a second, shorter search (up to depth 12 or 0.5 s) after the
   main one. Turn it off with **Show the bot's threats**.
-- **Autoplay**: off by default and available only in games against bots. The board control shows an Auto on/off state, engine think time, and
-  the selected delay before a move is submitted. Set minimum and maximum
+- **Autoplay**: off by default and available only in games against bots. The
+  board control in the top-left corner has Autoplay and Weaker moves switches
+  and a Details section with engine think time, the selected delay before a
+  move is submitted, and the chosen move. It stays faint over the board until
+  you point at it, open Details, or turn autoplay on. Set minimum and maximum
   delays in the popup; Vektra picks a delay in that range after choosing a move. The
   existing Skill Level/Elo controls determine move strength. Vektra checks the
   turn and position, submits at most one move per position, stops after the
-  game ends, and leaves promotions for you to handle manually. A **Stop
+  game ends. For a promotion it moves the pawn, then clicks the engine's piece
+  in Chess.com's promotion picker; if the picker does not appear (for example
+  with Chess.com's "always promote to queen" setting), Chess.com promotes to a
+  queen and Vektra logs a warning when it wanted another piece. A **Stop
   autoplay** button is available in the floating settings window.
 - **Quick setups**: Study (three candidate moves at depth 18), Coach (one move
   at an approximate 1500 Elo), Fast (one move with a 500 ms search), or On
@@ -346,8 +357,8 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
 - In Elo or reduced-skill mode a provisional best line appears during search;
   the final weakened move replaces it when the search finishes.
 - With autoplay off, an eligible weaker alternative appears as the second,
-  dim purple arrow alongside the best move. When autoplay chooses a weaker
-  move, that selected move is highlighted in magenta; enabling additional
+  dim violet arrow alongside the best move. When autoplay chooses a weaker
+  move, that selected move is highlighted in violet; enabling additional
   candidate moves also shows the other engine lines.
 
 ## Third-party licenses

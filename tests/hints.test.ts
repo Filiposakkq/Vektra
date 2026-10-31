@@ -158,7 +158,7 @@ describe('overlay geometry', () => {
     expect(shaft).toContain('L6.500,5.500');
   });
 
-  it('highlights the primary move squares and draws a dashed connector', () => {
+  it('highlights the primary move squares and draws a solid connector once final', () => {
     const board = document.createElement('wc-chess-board');
     document.body.append(board);
     const overlay = new BoardOverlay(board);
@@ -168,9 +168,13 @@ describe('overlay geometry', () => {
     expect(
       [...board.querySelectorAll('.vektra-square-highlight')].map((square) => square.getAttribute('data-square')),
     ).toEqual(['e2', 'e4']);
-    const line = board.querySelector<SVGPathElement>('.vektra-move[data-move="e2e4"] .vektra-arrow-line');
-    expect(line?.getAttribute('stroke-dasharray')).toBe('0.07 0.09');
+    const line = () => board.querySelector<SVGPathElement>('.vektra-move[data-move="e2e4"] .vektra-arrow-line');
+    expect(line()?.hasAttribute('stroke-dasharray')).toBe(false);
     expect(board.querySelectorAll('.vektra-square-highlight')).toHaveLength(2);
+
+    // While the search runs, the connector is dashed.
+    overlay.draw(board, [{ move: 'e2e4', rank: 0, provisional: true }], false);
+    expect(line()?.getAttribute('stroke-dasharray')).toBeTruthy();
     overlay.destroy();
     board.remove();
   });

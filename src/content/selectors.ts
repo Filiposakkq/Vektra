@@ -23,6 +23,14 @@ export const SELECTORS = {
    */
   botBoard: ['#board-play-computer'],
 
+  /**
+   * The promotion picker shown after a pawn reaches the last rank, and its
+   * choices, e.g. <div class="promotion-piece wq">. Not in the captured
+   * markup yet; autoplay only clicks a choice it finds. UNCONFIRMED
+   */
+  promotionWindow: ['.promotion-window'],
+  promotionPiece: '.promotion-piece',
+
   /** Class on the board element when it is shown from Black's side. CONFIRMED */
   boardFlippedClass: 'flipped',
 

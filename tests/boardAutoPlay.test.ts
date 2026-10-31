@@ -15,13 +15,14 @@ describe('board autoplay control', () => {
     const root = board.querySelector('div')?.shadowRoot;
     const button = root?.querySelector<HTMLButtonElement>('button');
 
-    expect(button?.textContent).toBe('AUTO · OFF');
+    expect(button?.textContent).toBe('Autoplay');
+    expect(button?.getAttribute('aria-label')).toBe('Autoplay off');
     expect(button?.getAttribute('aria-pressed')).toBe('false');
     button?.click();
     expect(onToggle).toHaveBeenCalledWith(true);
 
     control.update(board, true, false);
-    expect(button?.textContent).toBe('AUTO · ON');
+    expect(button?.getAttribute('aria-label')).toBe('Autoplay on');
     expect(button?.getAttribute('aria-pressed')).toBe('true');
     control.destroy();
     expect(board.querySelector('.vektra-autoplay-control')).toBeNull();
@@ -37,13 +38,13 @@ describe('board autoplay control', () => {
       .querySelector('div')
       ?.shadowRoot?.querySelectorAll<HTMLButtonElement>('button')[1];
 
-    expect(button?.textContent).toBe('WEAKER · OFF');
+    expect(button?.textContent).toBe('Weaker moves');
     expect(button?.getAttribute('aria-pressed')).toBe('false');
     button?.click();
     expect(onWeakerToggle).toHaveBeenCalledWith(true);
 
     control.update(board, false, true);
-    expect(button?.textContent).toBe('WEAKER · ON');
+    expect(button?.getAttribute('aria-label')).toBe('Occasional weaker moves on');
     expect(button?.getAttribute('aria-pressed')).toBe('true');
     button?.click();
     expect(onWeakerToggle).toHaveBeenLastCalledWith(false);

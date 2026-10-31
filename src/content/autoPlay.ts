@@ -5,6 +5,7 @@ import type { PageKind, Scope } from './pageScope';
 import { isGameOver } from './pageScope';
 import { shouldHint } from './hints';
 import { squareCenter } from '../ui/overlay';
+import { SELECTORS, queryFirst } from './selectors';
 
 const UCI_MOVE = /^([a-h][1-8])([a-h][1-8])([qrbn])?$/;
 
@@ -25,13 +26,16 @@ export function canAutoPlay(
   );
 }
 
-/** Submit a legal move through the board's pointer and click input handlers. */
+/**
+ * Submit a legal move through the board's pointer and click input handlers.
+ * For a promotion this only moves the pawn; choosePromotion picks the piece.
+ */
 export function playUciMove(state: BoardState, uci: string): boolean {
   const match = UCI_MOVE.exec(uci);
-  if (!match || match[3]) return false;
+  if (!match) return false;
 
   try {
-    new Chess(state.fen).move({ from: match[1], to: match[2] });
+    new Chess(state.fen).move({ from: match[1], to: match[2], ...(match[3] ? { promotion: match[3] } : {}) });
   } catch {
     return false;
   }
@@ -85,6 +89,43 @@ export function playUciMove(state: BoardState, uci: string): boolean {
   dispatchMouse('mouseup', destination, match[2]);
   dispatchMouse('click', destination, match[2]);
   return true;
+}
+
+/** Click an element at its centre, through pointer and mouse events. */
+function pressElement(target: HTMLElement): void {
+  const rect = target.getBoundingClientRect();
+  const at = { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
+  const base = { bubbles: true, cancelable: true, composed: true, button: 0, ...at };
+  const pointer = { ...base, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+  target.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, buttons: 1 }));
+  target.dispatchEvent(new MouseEvent('mousedown', { ...base, buttons: 1 }));
+  target.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0 }));
+  target.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0 }));
+  target.dispatchEvent(new MouseEvent('click', { ...base, buttons: 0, detail: 1 }));
+}
+
+/**
+ * After a promoting pawn move, wait for chess.com's promotion picker and
+ * click the chosen piece. False when no picker with that piece appears in
+ * time, e.g. when chess.com is set to always promote to a queen.
+ */
+export async function choosePromotion(
+  piece: string,
+  color: 'w' | 'b',
+  root: ParentNode = document,
+  timeoutMs = 2000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const picker = queryFirst(root, SELECTORS.promotionWindow);
+    const choice = picker?.querySelector<HTMLElement>(`${SELECTORS.promotionPiece}.${color}${piece}`);
+    if (choice) {
+      pressElement(choice);
+      return true;
+    }
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 }
 
 export class AutoPlayScheduler {
@@ -152,6 +193,15 @@ export class AutoPlayScheduler {
       ) return;
       if (playUciMove(current, move)) {
         this.lastMoveKey = key;
+        if (move.length === 5) {
+          const color = current.fen.split(' ')[1] as 'w' | 'b';
+          void choosePromotion(move[4], color).then((picked) => {
+            // Without a picker chess.com promotes to a queen on its own.
+            if (!picked && move[4] !== 'q') {
+              console.warn('[Vektra] The promotion picker did not appear; check the promoted piece:', move);
+            }
+          });
+        }
       } else {
         console.warn('[Vektra] Could not safely submit the engine move:', move);
       }

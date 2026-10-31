@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { canAutoPlay, playUciMove } from '../src/content/autoPlay';
+import { canAutoPlay, choosePromotion, playUciMove } from '../src/content/autoPlay';
 import type { BoardState } from '../src/content/boardReader';
 
 const startFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -38,7 +38,7 @@ describe('autoplay safety', () => {
     ).toBe(false);
   });
 
-  it('submits only legal non-promotion moves through square clicks', () => {
+  it('submits only legal moves through square clicks', () => {
     const state = gameState();
     const events: Event[] = [];
     for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
@@ -83,5 +83,51 @@ describe('autoplay safety', () => {
 
     expect(playUciMove(state, 'd2d4')).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('promotions', () => {
+  const PROMOTION_FEN = '8/4P3/8/8/8/8/k7/4K3 w - - 0 1';
+  const promotionState = () => {
+    const board = document.createElement('wc-chess-board');
+    board.innerHTML = '<div class="piece wp square-57"></div>';
+    board.getBoundingClientRect = () => new DOMRect(0, 0, 800, 800);
+    return { ...gameState(), fen: PROMOTION_FEN, board } as BoardState;
+  };
+
+  it('moves the pawn for a legal promotion and refuses an illegal one', () => {
+    const state = promotionState();
+    const pressed: string[] = [];
+    state.board.addEventListener('pointerdown', () => pressed.push('down'));
+    expect(playUciMove(state, 'e7e8n')).toBe(true);
+    expect(pressed).toEqual(['down']);
+    expect(playUciMove(state, 'e7e8k')).toBe(false);
+  });
+
+  it('clicks the chosen piece in the promotion picker', async () => {
+    document.body.innerHTML =
+      '<div class="promotion-window"><div class="promotion-piece wq"></div><div class="promotion-piece wn"></div></div>';
+    const knight = document.querySelector<HTMLElement>('.promotion-piece.wn')!;
+    const queen = document.querySelector<HTMLElement>('.promotion-piece.wq')!;
+    const onKnight = vi.fn();
+    const onQueen = vi.fn();
+    knight.addEventListener('click', onKnight);
+    queen.addEventListener('click', onQueen);
+    await expect(choosePromotion('n', 'w', document, 200)).resolves.toBe(true);
+    expect(onKnight).toHaveBeenCalledOnce();
+    expect(onQueen).not.toHaveBeenCalled();
+  });
+
+  it('waits for the picker to appear', async () => {
+    document.body.innerHTML = '';
+    setTimeout(() => {
+      document.body.innerHTML = '<div class="promotion-window"><div class="promotion-piece bq"></div></div>';
+    }, 60);
+    await expect(choosePromotion('q', 'b', document, 1000)).resolves.toBe(true);
+  });
+
+  it('gives up when no picker appears', async () => {
+    document.body.innerHTML = '';
+    await expect(choosePromotion('r', 'w', document, 120)).resolves.toBe(false);
   });
 });

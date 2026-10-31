@@ -84,7 +84,7 @@ if (runSuite('board')) for (const [url, name] of [
   if (name === 'computer') {
     const autoplayOff = await p.$eval(
       'wc-chess-board .vektra-autoplay-control',
-      (host) => host.shadowRoot?.querySelector('button')?.textContent === 'AUTO · OFF',
+      (host) => host.shadowRoot?.querySelector('button')?.getAttribute('aria-pressed') === 'false',
     );
     check(autoplayOff, 'computer: arrows are shown while autoplay is off');
     const weakerToggle = p.locator('wc-chess-board .vektra-autoplay-control').locator('button').nth(1);
@@ -119,10 +119,17 @@ if (runSuite('board')) for (const [url, name] of [
       highlights.length === 2 && !!from && !!to && highlights.includes(from) && highlights.includes(to),
       `computer: primary move squares are highlighted (${highlights.join(', ')})`,
     );
-    const dashedLine = await p.$eval('.vektra-move[data-rank="0"] .vektra-arrow-line', (el) =>
-      el.getAttribute('stroke-dasharray'),
-    );
-    check(!!dashedLine, 'computer: primary move uses a dashed connector');
+    const solidWhenFinal = await p
+      .waitForFunction(
+        () => {
+          const line = document.querySelector('.vektra-move[data-rank="0"]:not([data-provisional]) .vektra-arrow-line');
+          return line && !line.hasAttribute('stroke-dasharray');
+        },
+        null,
+        { timeout: 30000 },
+      )
+      .then(() => true, () => false);
+    check(solidWhenFinal, 'computer: the final best move is drawn solid');
     const scoreLabels = await p.$$eval('svg.vektra-overlay .vektra-score-label', (els) => els.map((e) => e.textContent));
     check(
       scoreLabels.length >= 1 && scoreLabels.every((t) => /^(-?M\d+|[+-]?\d+\.\d)$/.test(t)),
@@ -323,11 +330,11 @@ if (runSuite('settings')) {
   await game.waitForFunction(() => document.querySelectorAll('svg.vektra-overlay polygon').length >= 3, null, { timeout: 30000 });
   const boardControls = game.locator('wc-chess-board .vektra-autoplay-control');
   const weakerToggle = boardControls.locator('button').nth(1);
-  check((await weakerToggle.textContent()) === 'WEAKER · OFF', 'weaker moves: board toggle starts off');
+  check((await weakerToggle.getAttribute('aria-pressed')) === 'false', 'weaker moves: board toggle starts off');
   await weakerToggle.click();
   check(
     await game.waitForFunction(
-      () => document.querySelector('wc-chess-board .vektra-autoplay-control')?.shadowRoot?.querySelectorAll('button')[1]?.textContent === 'WEAKER · ON',
+      () => document.querySelector('wc-chess-board .vektra-autoplay-control')?.shadowRoot?.querySelectorAll('button')[1]?.getAttribute('aria-pressed') === 'true',
       null,
       { timeout: 5000 },
     ),
@@ -610,7 +617,7 @@ if (runSuite('settings')) {
   await weakerMoves.uncheck();
   check(
     await game.waitForFunction(
-      () => document.querySelector('wc-chess-board .vektra-autoplay-control')?.shadowRoot?.querySelectorAll('button')[1]?.textContent === 'WEAKER · OFF',
+      () => document.querySelector('wc-chess-board .vektra-autoplay-control')?.shadowRoot?.querySelectorAll('button')[1]?.getAttribute('aria-pressed') === 'false',
       null,
       { timeout: 5000 },
     ),
@@ -659,7 +666,7 @@ if (runSuite('settings')) {
   check(
     (await game
       .locator('wc-chess-board .vektra-autoplay-control')
-      .evaluate((host) => host.shadowRoot?.querySelector('button')?.textContent)) === 'AUTO · OFF',
+      .evaluate((host) => host.shadowRoot?.querySelector('button')?.getAttribute('aria-pressed'))) === 'false',
     'autoplay: clear board control starts off',
   );
   await game.evaluate(() => {
@@ -680,7 +687,7 @@ if (runSuite('settings')) {
     .waitForFunction(
       () =>
         document.querySelector('wc-chess-board .vektra-autoplay-control')?.shadowRoot?.querySelector('button')
-          ?.textContent === 'AUTO · ON',
+          ?.getAttribute('aria-pressed') === 'true',
       null,
       { timeout: 10000 },
     )

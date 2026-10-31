@@ -48,6 +48,7 @@ export class EvalBar {
       position: 'absolute',
       left: '0',
       right: '0',
+      zIndex: '1',
       font: '700 10px/1 system-ui, -apple-system, "Segoe UI", sans-serif',
       letterSpacing: '-0.03em',
       textAlign: 'center',
@@ -58,11 +59,22 @@ export class EvalBar {
       position: 'absolute',
       left: '0',
       right: '0',
+      zIndex: '1',
       font: '600 8px/1 system-ui, -apple-system, "Segoe UI", sans-serif',
       textAlign: 'center',
       opacity: '0.75',
     });
-    this.root.append(this.white, this.label, this.depth);
+    // A tick at the middle, so a small edge is easy to read.
+    const middle = document.createElement('div');
+    Object.assign(middle.style, {
+      position: 'absolute',
+      left: '0',
+      right: '0',
+      top: 'calc(50% - 0.5px)',
+      height: '1px',
+      background: 'rgba(128, 140, 155, 0.6)',
+    });
+    this.root.append(this.white, this.label, this.depth, middle);
   }
 
   /** score must be from White's point of view; depth is the search depth, when known. */

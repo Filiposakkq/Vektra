@@ -1,62 +1,118 @@
+import { BOARD_COLORS } from './overlay';
+
 const HOST_CLASS = 'vektra-autoplay-control';
 
+/*
+ * A small bar in the board's top-left corner. It sits over the top rank, so it
+ * stays faint until the pointer or keyboard is on it, or autoplay is running.
+ */
 const css = `
   :host {
     position: absolute;
     z-index: 1000;
-    top: 10px;
-    left: 10px;
-    color: #e7eef6;
-    font: 600 11px/1.25 system-ui, sans-serif;
+    top: 6px;
+    left: 6px;
+    color: #eef2f7;
+    font: 600 11px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   .control {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 7px;
-    padding: 7px;
-    border: 1px solid rgba(104, 223, 194, .3);
-    border-radius: 12px;
-    background: rgba(17, 24, 32, .96);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .38);
-    backdrop-filter: blur(8px);
+    gap: 2px;
+    width: max-content;
+    max-width: 320px;
+    padding: 3px;
+    border-radius: 9px;
+    background: rgba(24, 33, 44, .86);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .32);
+    opacity: .5;
+    transition: opacity 140ms ease;
   }
+  :host(:hover) .control,
+  .control:focus-within,
+  :host([data-autoplay="true"]) .control,
+  :host([data-open="true"]) .control { opacity: 1; }
   button {
-    min-height: 28px;
-    padding: 5px 8px;
-    border: 1px solid #344354;
-    border-radius: 7px;
-    background: #202c38;
-    color: #e7eef6;
-    font: 700 10px/1 system-ui, sans-serif;
-    letter-spacing: .03em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
     cursor: pointer;
   }
-  button:hover { border-color: #68dfc2; }
-  button[aria-pressed="true"] {
-    border-color: #68dfc2;
-    background: #68dfc2;
-    color: #10211f;
+  button:hover { background: rgba(255, 255, 255, .09); }
+  button:focus-visible { outline: 2px solid #9dbcff; outline-offset: 1px; }
+  .switch {
+    position: relative;
+    flex: none;
+    width: 20px;
+    height: 12px;
+    border-radius: 6px;
+    background: #4a5a6c;
+    transition: background 140ms ease;
   }
-  button:nth-child(2)[aria-pressed="true"] {
-    border-color: #c084fc;
-    background: #c084fc;
-    color: #211331;
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #eef2f7;
+    transition: transform 140ms ease;
   }
-  button:focus-visible { outline: 2px solid #68dfc2; outline-offset: 2px; }
-  .times { display: grid; gap: 3px; color: #9aaabd; font-variant-numeric: tabular-nums; }
-  .time { min-width: 112px; white-space: nowrap; }
-  .suggestion { color: #e7eef6; }
-  .details-toggle {
-    min-width: 52px;
-    padding-inline: 8px;
-    color: #9aaabd;
+  button[aria-pressed="true"] .switch { background: ${BOARD_COLORS.lapis}; }
+  button.weaker[aria-pressed="true"] .switch { background: ${BOARD_COLORS.violet}; }
+  button[aria-pressed="true"] .switch::after { transform: translateX(8px); }
+  .chevron {
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 140ms ease;
   }
-  .details-toggle[aria-expanded="true"] { color: #68dfc2; }
+  .details-toggle { color: #b5c1cf; }
+  .details-toggle[aria-expanded="true"] { color: #eef2f7; }
+  .details-toggle[aria-expanded="true"] .chevron { transform: translateY(1px) rotate(225deg); }
+  .times {
+    flex-basis: 100%;
+    display: grid;
+    gap: 2px;
+    padding: 5px 7px 4px;
+    border-top: 1px solid rgba(255, 255, 255, .1);
+    color: #b5c1cf;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggestion { color: #eef2f7; }
   [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .control, .switch, .switch::after, .chevron { transition: none; }
+  }
 `;
 
 function seconds(milliseconds: number | null): string {
   return milliseconds === null ? '—' : `${(milliseconds / 1000).toFixed(2)} s`;
+}
+
+function switchButton(label: string, className: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  const track = document.createElement('span');
+  track.className = 'switch';
+  track.setAttribute('aria-hidden', 'true');
+  button.append(track, label);
+  return button;
 }
 
 export class BoardAutoPlayControl {
@@ -81,18 +137,19 @@ export class BoardAutoPlayControl {
     style.textContent = css;
     const control = document.createElement('div');
     control.className = 'control';
-    this.toggle = document.createElement('button');
-    this.toggle.type = 'button';
+    this.toggle = switchButton('Autoplay', 'autoplay');
     this.toggle.addEventListener('click', () => this.onToggle(this.toggle.getAttribute('aria-pressed') !== 'true'));
-    this.weakerToggle = document.createElement('button');
-    this.weakerToggle.type = 'button';
+    this.weakerToggle = switchButton('Weaker moves', 'weaker');
     this.weakerToggle.addEventListener('click', () =>
       this.onWeakerToggle(this.weakerToggle.getAttribute('aria-pressed') !== 'true'),
     );
     this.detailsToggle = document.createElement('button');
     this.detailsToggle.type = 'button';
     this.detailsToggle.className = 'details-toggle';
-    this.detailsToggle.textContent = 'Details';
+    const chevron = document.createElement('span');
+    chevron.className = 'chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    this.detailsToggle.append('Details', chevron);
     this.detailsToggle.setAttribute('aria-label', 'Show move details');
     this.detailsToggle.setAttribute('aria-expanded', 'false');
     this.details = document.createElement('div');
@@ -103,19 +160,20 @@ export class BoardAutoPlayControl {
     this.detailsToggle.addEventListener('click', () => {
       const expanded = this.detailsToggle.getAttribute('aria-expanded') !== 'true';
       this.details.hidden = !expanded;
+      this.host.dataset.open = String(expanded);
       this.detailsToggle.setAttribute('aria-expanded', String(expanded));
       this.detailsToggle.setAttribute('aria-label', `${expanded ? 'Hide' : 'Show'} move details`);
     });
-    this.thinkTime = document.createElement('span');
-    this.thinkTime.className = 'time think-time';
-    this.thinkTime.textContent = 'Think: —';
+    const row = (className: string, text: string) => {
+      const span = document.createElement('span');
+      span.className = `time ${className}`;
+      span.textContent = text;
+      return span;
+    };
+    this.thinkTime = row('think-time', 'Think: —');
     this.thinkTime.setAttribute('aria-live', 'polite');
-    this.moveDelay = document.createElement('span');
-    this.moveDelay.className = 'time move-delay';
-    this.moveDelay.textContent = 'Delay: —';
-    this.suggestion = document.createElement('span');
-    this.suggestion.className = 'time suggestion';
-    this.suggestion.textContent = 'Pick: —';
+    this.moveDelay = row('move-delay', 'Delay: —');
+    this.suggestion = row('suggestion', 'Pick: —');
     this.details.append(this.thinkTime, this.moveDelay, this.suggestion);
     control.append(this.toggle, this.weakerToggle, this.detailsToggle, this.details);
     root.append(style, control);
@@ -131,10 +189,9 @@ export class BoardAutoPlayControl {
       this.board = board;
       board.append(this.host);
     }
-    this.toggle.textContent = enabled ? 'AUTO · ON' : 'AUTO · OFF';
+    this.host.dataset.autoplay = String(enabled);
     this.toggle.setAttribute('aria-pressed', String(enabled));
     this.toggle.setAttribute('aria-label', `Autoplay ${enabled ? 'on' : 'off'}`);
-    this.weakerToggle.textContent = weakerMovesEnabled ? 'WEAKER · ON' : 'WEAKER · OFF';
     this.weakerToggle.setAttribute('aria-pressed', String(weakerMovesEnabled));
     this.weakerToggle.setAttribute('aria-label', `Occasional weaker moves ${weakerMovesEnabled ? 'on' : 'off'}`);
   }

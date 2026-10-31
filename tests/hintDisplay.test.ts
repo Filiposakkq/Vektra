@@ -6,7 +6,7 @@ import {
   scoreArrows,
 } from '../src/content/hints';
 import type { PvLine } from '../src/engine/uci';
-import { BoardOverlay, lossFade, THREAT_ARROW_COLOR } from '../src/ui/overlay';
+import { BOARD_COLORS, BoardOverlay, labelTextColor, lossFade, THREAT_ARROW_COLOR } from '../src/ui/overlay';
 
 const line = (move: string, multipv: number, value: number): PvLine => ({
   multipv,
@@ -177,5 +177,31 @@ describe('overlay drawing', () => {
       expect(board.querySelector('.vektra-piece-hint')?.getAttribute('data-square')).toBe('g1');
       expect(board.querySelectorAll('polygon')).toHaveLength(0);
     });
+  });
+});
+
+describe('board visuals', () => {
+  it('marks the piece a suggested promotion makes', () => {
+    withBoard((board, overlay) => {
+      overlay.draw(board, [{ move: 'e7e8n', rank: 0 }], false);
+      const marker = board.querySelector<SVGGElement>('.vektra-promotion-marker');
+      expect(marker?.dataset.piece).toBe('n');
+      expect(marker?.textContent).toBe('N');
+    });
+  });
+
+  it('frames the target square with corners and tints the piece square', () => {
+    withBoard((board, overlay) => {
+      overlay.draw(board, [{ move: 'g1f3', rank: 0 }], false);
+      expect(board.querySelector('.vektra-square-highlight-from')?.tagName).toBe('rect');
+      const corners = board.querySelector('.vektra-square-highlight-to');
+      expect(corners?.tagName).toBe('path');
+      expect(corners?.getAttribute('d')?.match(/M/g)).toHaveLength(4);
+    });
+  });
+
+  it('uses dark text on light label colours', () => {
+    expect(labelTextColor(BOARD_COLORS.saffron)).toBe(BOARD_COLORS.ink);
+    expect(labelTextColor(BOARD_COLORS.lapis)).toBe('#fff');
   });
 });

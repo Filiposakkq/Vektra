@@ -70,16 +70,21 @@ function glyph(category: Category): SVGElement {
 }
 
 /**
- * The round category icon in chess.com's style: a coloured disc with a
- * slightly darker lower edge and a white glyph. Returned as a 20 × 20 group
- * for placing inside any SVG; `outline` adds the white ring used on the board.
+ * The category icon: a rounded-square tile in the category's colour with a
+ * darker lower edge, a faint top sheen and a white glyph. The colours keep
+ * the meanings players know from Game Review; the tile shape is Vektra's.
+ * Returned as a 20 × 20 group for placing inside any SVG; `outline` adds the
+ * white rim used on the board.
  */
 export function categoryIconGroup(category: Category, outline = false): SVGGElement {
   const { color } = CATEGORY_STYLE[category];
   const g = svgEl('g', {});
+  g.dataset.category = category;
+  const tile = { x: 1, y: 1, width: 18, height: 18, rx: 5.2 };
   g.append(
-    svgEl('circle', { cx: 10, cy: 10.7, r: 9.3, fill: '#000', 'fill-opacity': 0.28 }),
-    svgEl('circle', { cx: 10, cy: 10, r: 9.3, fill: color, ...(outline ? { stroke: '#fff', 'stroke-width': 1.2 } : {}) }),
+    svgEl('rect', { ...tile, y: 2.2, fill: '#000', 'fill-opacity': 0.32 }),
+    svgEl('rect', { ...tile, fill: color, ...(outline ? { stroke: '#fff', 'stroke-width': 1.4 } : {}) }),
+    svgEl('rect', { x: 3, y: 2.4, width: 14, height: 6, rx: 3, fill: '#fff', 'fill-opacity': 0.14 }),
     glyph(category),
   );
   return g;
