@@ -174,8 +174,11 @@ options are grouped under clearly labeled expandable sections.
   so it shows within moments. Turn it off with **Show the bot's threats**.
 - **Autoplay**: off by default and available only in games against bots. The
   board control in the top-left corner has Autoplay and Weaker moves switches
-  and a Details section with engine think time, the selected delay before a
-  move is submitted, and the chosen move. It stays faint over the board until
+  and a Details section with the chosen move, engine think time and the
+  delay before it is played, which stay until the next pick, plus your last
+  six picks with their think times and delays. If the hints for a position
+  are worked out again before autoplay moves, it plays the newest choice,
+  the one on the board. It stays faint over the board until
   you point at it, open Details, or turn autoplay on. Set minimum and maximum
   delays in the popup; Vektra picks a delay in that range after choosing a move. The
   existing Skill Level/Elo controls determine move strength. Vektra checks the

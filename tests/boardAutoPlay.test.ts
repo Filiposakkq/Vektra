@@ -87,3 +87,36 @@ describe('board autoplay control', () => {
     control.destroy();
   });
 });
+
+describe('details history', () => {
+  it('keeps recent picks readable after the move, newest first', () => {
+    const control = new BoardAutoPlayControl(vi.fn(), vi.fn());
+    const board = document.createElement('wc-chess-board');
+    control.update(board, true, false);
+    const root = board.querySelector('.vektra-autoplay-control')?.shadowRoot;
+    const rows = () => [...(root?.querySelectorAll('.history-row:not(.history-head)') ?? [])].map((r) => r.textContent);
+
+    control.recordPick('12.', 'Nf3', 830, 0);
+    control.setMoveDelay(1750);
+    // Clearing a delay that was already used (the move was played) keeps the history.
+    control.recordPick('13.', 'O-O', 1200, 42);
+    expect(rows()).toEqual(['13. O-O (−0.42)1.20 s—', '12. Nf30.83 s1.75 s']);
+    // A new pick's delay is unknown until autoplay plans it.
+    expect(root?.querySelector('.move-delay')?.textContent).toBe('Delay: —');
+    control.setMoveDelay(900);
+    // The summary lines show the latest pick until the next one.
+    expect(root?.querySelector('.suggestion')?.textContent).toBe('Pick: O-O (−0.42)');
+    expect(root?.querySelector('.think-time')?.textContent).toBe('Think: 1.20 s');
+
+    // Worked out again for the same move: replaced, not added.
+    control.recordPick('13.', 'Re1', 400, 0);
+    expect(rows()[0]).toBe('13. Re10.40 s0.90 s');
+    expect(rows()).toHaveLength(2);
+    control.setPlannedMove('13.', 'Bd3');
+    expect(rows()[0]).toBe('13. Bd30.40 s0.90 s');
+
+    control.resetHistory();
+    expect(rows()).toEqual([]);
+    control.destroy();
+  });
+});

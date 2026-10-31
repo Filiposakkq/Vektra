@@ -110,11 +110,26 @@ const css = `
   }
   .time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .suggestion { color: #eef2f7; }
+  /* Your recent picks, newest first, so they can be read after the move. */
+  .history { display: grid; gap: 1px; margin-top: 4px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .08); }
+  .history:empty { display: none; }
+  .history-row {
+    display: grid;
+    grid-template-columns: 1fr 52px 52px;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .history-row span:not(:first-child) { text-align: right; }
+  .history-head { color: #8593a3; font-size: 10px; }
+  .history-row:nth-child(2) { color: #eef2f7; }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) {
     .control, .switch, .switch::after, .chevron, .label { transition: none; }
   }
 `;
+
+/** Picks kept in the Details history. */
+const HISTORY_LENGTH = 6;
 
 function seconds(milliseconds: number | null): string {
   return milliseconds === null ? '—' : `${(milliseconds / 1000).toFixed(2)} s`;
@@ -148,6 +163,9 @@ export class BoardAutoPlayControl {
   private readonly thinkTime: HTMLSpanElement;
   private readonly moveDelay: HTMLSpanElement;
   private readonly suggestion: HTMLSpanElement;
+  private readonly history: HTMLDivElement;
+  /** Your recent picks, newest first. */
+  private picks: { label: string; move: string; think: string; delay: string }[] = [];
   private board: HTMLElement | null = null;
 
   constructor(
@@ -198,7 +216,9 @@ export class BoardAutoPlayControl {
     this.thinkTime.setAttribute('aria-live', 'polite');
     this.moveDelay = row('move-delay', 'Delay: —');
     this.suggestion = row('suggestion', 'Pick: —');
-    this.details.append(this.thinkTime, this.moveDelay, this.suggestion);
+    this.history = document.createElement('div');
+    this.history.className = 'history';
+    this.details.append(this.suggestion, this.thinkTime, this.moveDelay, this.history);
     control.append(this.toggle, this.weakerToggle, this.detailsToggle, this.details);
     root.append(style, control);
 
@@ -226,6 +246,11 @@ export class BoardAutoPlayControl {
 
   setMoveDelay(milliseconds: number | null): void {
     this.moveDelay.textContent = `Delay: ${seconds(milliseconds)}`;
+    // A planned move's delay belongs to the latest pick.
+    if (milliseconds !== null && this.picks[0]) {
+      this.picks[0].delay = seconds(milliseconds);
+      this.renderHistory();
+    }
   }
 
   setSuggestion(san: string | null, lossCp: number): void {
@@ -235,6 +260,65 @@ export class BoardAutoPlayControl {
     }
     const loss = lossCp > 0 ? ` (−${(lossCp / 100).toFixed(2)})` : '';
     this.suggestion.textContent = `Pick: ${san}${loss}`;
+  }
+
+  /**
+   * A new pick for your move: it shows in the lines above and starts a row in
+   * the history. The values stay until the next pick, so they can be read
+   * after the move is made.
+   */
+  recordPick(label: string, san: string | null, thinkMs: number, lossCp: number): void {
+    this.setSuggestion(san, lossCp);
+    this.setThinkTime(thinkMs);
+    const loss = lossCp > 0 ? ` (−${(lossCp / 100).toFixed(2)})` : '';
+    const pick = { label, move: `${label} ${san ?? '?'}${loss}`, think: seconds(thinkMs), delay: '—' };
+    if (this.picks[0]?.label === label) {
+      // Worked out again for the same move (e.g. after a settings change):
+      // replace it, keeping the delay of the move already planned.
+      pick.delay = this.picks[0].delay;
+      this.picks[0] = pick;
+    } else {
+      // A new move: its delay is unknown until autoplay plans it.
+      this.picks.unshift(pick);
+      this.moveDelay.textContent = 'Delay: —';
+    }
+    this.picks.length = Math.min(this.picks.length, HISTORY_LENGTH);
+    this.renderHistory();
+  }
+
+  /** The move autoplay will play changed (a newer choice for the same position). */
+  setPlannedMove(label: string, san: string | null): void {
+    if (!san) return;
+    this.suggestion.textContent = `Pick: ${san}`;
+    if (this.picks[0]) this.picks[0].move = `${label} ${san}`;
+    this.renderHistory();
+  }
+
+  /** Start a new history, e.g. for a new game. */
+  resetHistory(): void {
+    this.picks = [];
+    this.renderHistory();
+  }
+
+  private renderHistory(): void {
+    if (!this.picks.length) {
+      this.history.replaceChildren();
+      return;
+    }
+    const line = (cells: string[], className = 'history-row') => {
+      const div = document.createElement('div');
+      div.className = className;
+      for (const text of cells) {
+        const span = document.createElement('span');
+        span.textContent = text;
+        div.append(span);
+      }
+      return div;
+    };
+    this.history.replaceChildren(
+      line(['Recent picks', 'Think', 'Delay'], 'history-row history-head'),
+      ...this.picks.map((pick) => line([pick.move, pick.think, pick.delay])),
+    );
   }
 
   destroy(): void {

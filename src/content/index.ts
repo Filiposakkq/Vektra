@@ -43,7 +43,17 @@ const autoPlay = new AutoPlayScheduler(
   () => resolveScope(location.pathname, document),
   readBoardState,
   (delay) => boardAutoPlay?.setMoveDelay(delay),
+  (move) => {
+    const state = readBoardState();
+    if (state) boardAutoPlay?.setPlannedMove(moveLabel(state.fen), uciToSan(state.fen, move));
+  },
 );
+
+/** "12." for White's move, "12..." for Black's, from the position before it. */
+function moveLabel(fen: string): string {
+  const [, turn, , , , fullmove] = fen.split(' ');
+  return `${fullmove ?? '?'}${turn === 'b' ? '...' : '.'}`;
+}
 
 function needsAnalysis(scope: Scope): boolean {
   return scope.status === 'enabled' &&
@@ -126,7 +136,8 @@ function onPosition(state: BoardState | null) {
     evaluate();
     return;
   }
-  if (state?.board !== lastBoard) {
+  const boardChanged = state?.board !== lastBoard;
+  if (boardChanged) {
     lastBoard = state?.board ?? null;
     autoPlay.resetPosition();
   }
@@ -136,10 +147,11 @@ function onPosition(state: BoardState | null) {
     currentScope.kind === 'game'
   ) {
     boardAutoPlay ??= new BoardAutoPlayControl(updateAutoPlaySetting, updateWeakerMoveSetting);
+    // A new board is a new game: start the pick history again. Otherwise the
+    // details keep showing the last pick until the next one, rather than
+    // blanking on every move.
+    if (boardChanged) boardAutoPlay.resetHistory();
     boardAutoPlay.update(state.board, settings.autoPlay, settings.occasionalWeakerMoves);
-    boardAutoPlay.setThinkTime(null);
-    boardAutoPlay.setMoveDelay(null);
-    boardAutoPlay.setSuggestion(null, 0);
   } else {
     boardAutoPlay?.destroy();
     boardAutoPlay = null;
@@ -169,8 +181,7 @@ function applyScope(scope: Scope) {
       hints.onEngineError = (message) => engineErrorNotice.show(message, () => hints?.refresh());
       hints.onEngineReady = () => engineErrorNotice.clear();
       hints.onMoveChosen = (state, move, searchTimeMs, lossCp) => {
-        boardAutoPlay?.setThinkTime(searchTimeMs);
-        boardAutoPlay?.setSuggestion(uciToSan(state.fen, move), lossCp);
+        boardAutoPlay?.recordPick(moveLabel(state.fen), uciToSan(state.fen, move), searchTimeMs, lossCp);
       };
     }
     loadAnalysisController();

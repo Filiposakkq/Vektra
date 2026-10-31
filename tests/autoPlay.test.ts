@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { canAutoPlay, choosePromotion, playUciMove } from '../src/content/autoPlay';
 import type { BoardState } from '../src/content/boardReader';
+import { DEFAULT_SETTINGS } from '../src/shared/settings';
 
 const startFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -129,5 +130,40 @@ describe('promotions', () => {
   it('gives up when no picker appears', async () => {
     document.body.innerHTML = '';
     await expect(choosePromotion('r', 'w', document, 120)).resolves.toBe(false);
+  });
+});
+
+describe('autoplay plans', () => {
+  it('plays the newest choice for a position, keeping the delay already running', async () => {
+    vi.useFakeTimers();
+    try {
+      const { AutoPlayScheduler } = await import('../src/content/autoPlay');
+      const state = gameState();
+      state.board.innerHTML = '<div class="piece wp square-52"></div><div class="piece wp square-42"></div>';
+      const pressed: string[] = [];
+      state.board.addEventListener('pointerdown', (e) => pressed.push((e.target as HTMLElement).className));
+      const delays: (number | null)[] = [];
+      const plans: string[] = [];
+      const scheduler = new AutoPlayScheduler(
+        () => ({ ...DEFAULT_SETTINGS, autoPlay: true, autoPlayMinDelaySec: 1, autoPlayMaxDelaySec: 1 }),
+        () => ({ status: 'enabled', kind: 'game' }),
+        () => state,
+        (ms) => delays.push(ms),
+        (move) => plans.push(move),
+      );
+      scheduler.schedule(state, 'e2e4');
+      vi.advanceTimersByTime(500);
+      // The hints were worked out again and now show d2-d4.
+      scheduler.schedule(state, 'd2d4');
+      expect(plans).toEqual(['e2e4', 'd2d4']);
+      expect(delays).toEqual([1000]);
+      vi.advanceTimersByTime(600);
+      expect(pressed).toEqual(['piece wp square-42']);
+      // Playing the move doesn't blank the delay; only cancelling does.
+      scheduler.clear();
+      expect(delays).toEqual([1000]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

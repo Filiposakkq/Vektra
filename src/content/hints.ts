@@ -564,7 +564,7 @@ export class HintController {
           : null;
         this.weakerPending = false;
         this.redraw();
-        this.autoPlayCurrent();
+        // Report the choice before autoplay plans it, so its delay belongs to it.
         if (kind === 'game' && shouldHint(state, kind) && bestmove) {
           this.onMoveChosen?.(
             state,
@@ -573,6 +573,7 @@ export class HintController {
             this.moveChoice?.lossCp ?? 0,
           );
         }
+        this.autoPlayCurrent();
         // On the bot's turn, get the user's next position ready for its two
         // most likely replies.
         if (kind === 'game' && !shouldHint(state, kind)) {

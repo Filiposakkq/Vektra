@@ -130,24 +130,26 @@ export async function choosePromotion(
 
 export class AutoPlayScheduler {
   private lastMoveKey = '';
-  private pending: { key: string; timer: ReturnType<typeof setTimeout> } | null = null;
+  private pending: { key: string; move: string; timer: ReturnType<typeof setTimeout> } | null = null;
 
   constructor(
     private readonly getSettings: () => Settings,
     private readonly getScope: () => Scope | null,
     private readonly getState: () => BoardState | null,
     private readonly onDelay: (milliseconds: number | null) => void,
+    /** Told which move is planned, including when a newer choice replaces it. */
+    private readonly onPlan?: (move: string) => void,
   ) {}
 
   resetPosition(): void {
     this.lastMoveKey = '';
   }
 
+  /** Cancel the planned move, if there is one; its delay is then shown as gone. */
   clear(): void {
-    if (this.pending) {
-      clearTimeout(this.pending.timer);
-      this.pending = null;
-    }
+    if (!this.pending) return;
+    clearTimeout(this.pending.timer);
+    this.pending = null;
     this.onDelay(null);
   }
 
@@ -167,11 +169,21 @@ export class AutoPlayScheduler {
     ) return;
 
     const key = `${location.pathname}|${state.fen}|${state.ply}|${state.sans.join(' ')}`;
-    if (key === this.lastMoveKey || this.pending?.key === key) return;
+    if (key === this.lastMoveKey) return;
+    if (this.pending?.key === key) {
+      // The hints for this position were worked out again (a settings
+      // change, the engine retrying) and may show another move now; play the
+      // one on the board, keeping the delay already running.
+      this.pending.move = move;
+      this.onPlan?.(move);
+      return;
+    }
     this.clear();
     const delay = autoPlayDelayMs(settings);
     this.onDelay(delay);
+    this.onPlan?.(move);
     const timer = setTimeout(() => {
+      const planned = this.pending?.move ?? move;
       this.pending = null;
       const currentScope = this.getScope();
       const current = this.getState();
@@ -191,21 +203,21 @@ export class AutoPlayScheduler {
           document,
         )
       ) return;
-      if (playUciMove(current, move)) {
+      if (playUciMove(current, planned)) {
         this.lastMoveKey = key;
-        if (move.length === 5) {
+        if (planned.length === 5) {
           const color = current.fen.split(' ')[1] as 'w' | 'b';
-          void choosePromotion(move[4], color).then((picked) => {
+          void choosePromotion(planned[4], color).then((picked) => {
             // Without a picker chess.com promotes to a queen on its own.
-            if (!picked && move[4] !== 'q') {
-              console.warn('[Vektra] The promotion picker did not appear; check the promoted piece:', move);
+            if (!picked && planned[4] !== 'q') {
+              console.warn('[Vektra] The promotion picker did not appear; check the promoted piece:', planned);
             }
           });
         }
       } else {
-        console.warn('[Vektra] Could not safely submit the engine move:', move);
+        console.warn('[Vektra] Could not safely submit the engine move:', planned);
       }
     }, delay);
-    this.pending = { key, timer };
+    this.pending = { key, move, timer };
   }
 }
