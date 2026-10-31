@@ -16,16 +16,21 @@
 * { box-sizing: border-box; }
 
 html {
-  height: 100%;
-  overflow: hidden;
   overscroll-behavior-y: contain;
 }
 
+/*
+ * Chrome sizes the toolbar popup from the page's content. A height relative
+ * to the viewport (100%) is circular there: if Chrome measured before the
+ * content was laid out, the popup opened as a tiny box with a scrollbar. A
+ * fixed height (Chrome's popup maximum) always opens it full size; the
+ * content scrolls inside. The floating window overrides this below.
+ */
 body {
   margin: 0;
   width: 420px;
   max-width: 100vw;
-  height: 100%;
+  height: 600px;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   background:
