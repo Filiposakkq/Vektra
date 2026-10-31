@@ -123,6 +123,13 @@ if (runSuite('board')) for (const [url, name] of [
       el.getAttribute('stroke-dasharray'),
     );
     check(!!dashedLine, 'computer: primary move uses a dashed connector');
+    const scoreLabels = await p.$$eval('svg.vektra-overlay .vektra-score-label', (els) => els.map((e) => e.textContent));
+    check(
+      scoreLabels.length >= 1 && scoreLabels.every((t) => /^(-?M\d+|[+-]?\d+\.\d)$/.test(t)),
+      `computer: arrows carry scores (${scoreLabels.join(', ')})`,
+    );
+    const depth = await p.$eval('.vektra-evalbar-depth', (e) => e.textContent).catch(() => '');
+    check(/^d\d+$/.test(depth), `computer: eval bar shows the search depth (${depth})`);
     const panelShown = await p.$eval('#vektra-analysis-panel', (e) => e.style.display !== 'none').catch(() => false);
     check(!panelShown, 'computer: analysis panel hidden while the bot game is in progress');
     const legs = (await p.$$('svg.vektra-overlay path.vektra-knight-leg')).length;
@@ -560,10 +567,22 @@ if (runSuite('settings')) {
   check(hidden, 'floating settings: hotkey mode hides hints until the shortcut');
 
   // What the background worker does when the "show hint" shortcut is pressed.
-  await sw.evaluate(async () => {
+  const pressShowHint = () => sw.evaluate(async () => {
     const [tab] = await chrome.tabs.query({ url: 'https://www.chess.com/play/computer' });
     await chrome.tabs.sendMessage(tab.id, { type: 'vektra:show-hint' });
   });
+  await pressShowHint();
+  const pieceOnly = await game
+    .waitForFunction(
+      () =>
+        document.querySelector('svg.vektra-overlay .vektra-piece-hint') &&
+        !document.querySelector('svg.vektra-overlay .vektra-move'),
+      null,
+      { timeout: 30000 },
+    )
+    .then(() => true, () => false);
+  check(pieceOnly, 'show-hint shortcut: the first press highlights only the piece to move');
+  await pressShowHint();
   const shown = await game
     .waitForFunction(
       () =>

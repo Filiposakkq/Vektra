@@ -124,10 +124,24 @@ options are grouped under clearly labeled expandable sections.
   is played automatically. The board control and settings toggle stay synchronized.
 - **Search**: fixed depth (1-30) or a time per move.
 - **Board display**: move arrows use consistent colours, alongside the
-  evaluation bar; there are no separate display controls.
+  evaluation bar. Each arrow shows its score (White's point of view) at its
+  target square; turn this off with **Show scores on arrows**. Alternatives
+  get fainter the more win chance they give up against the best move, and
+  ones that give up more than 10 points are not drawn (unless **Show
+  additional candidate moves** is on). Arrows stay dim until the search
+  finishes, and the eval bar shows the search depth (for example `d14`).
+- **Analysed positions**: the engine's line is drawn as numbered steps in one
+  colour (1 = the move now, 2 = the reply, 3 = the next move), not as
+  alternatives.
 - **Hints in bot games**: show recommendations immediately (default) or only
-  when you press the "show hint" shortcut. Analysis and review pages always
-  show hints immediately.
+  when you press the "show hint" shortcut. With **Show the piece first** (on by
+  default), the first press highlights only the piece to move and the second
+  shows the move; with autoplay on, one press shows the move. Analysis and
+  review pages always show hints immediately.
+- **Bot threats**: on your turn, a red arrow shows what the bot would play if
+  you passed, when allowing it would cost at least 12 points of win chance.
+  It comes from a second, shorter search (up to depth 12 or 0.5 s) after the
+  main one. Turn it off with **Show the bot's threats**.
 - **Autoplay**: off by default and available only in games against bots. The board control shows an Auto on/off state, engine think time, and
   the selected delay before a move is submitted. Set minimum and maximum
   delays in the popup; Vektra picks a delay in that range after choosing a move. The

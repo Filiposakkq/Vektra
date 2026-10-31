@@ -1,6 +1,8 @@
+import { Chess } from 'chess.js';
 import { EngineClient } from '../engine/client';
 import type { AnalyzeRequest } from '../engine/protocol';
-import { scoreToCp, whitePov, type PvLine } from '../engine/uci';
+import { scoreToCp, whitePov, type PvLine, type Score } from '../engine/uci';
+import { winPercent } from '../analysis/winProbability';
 import { DEFAULT_SETTINGS, WEAKER_MOVE_MULTIPV, type Settings } from '../shared/settings';
 import { EvalBar } from '../ui/evalBar';
 import { BoardOverlay, type Arrow } from '../ui/overlay';
@@ -23,6 +25,71 @@ const MIN_DRAW_DEPTH = 8;
 const LIMITED_DRAW_DEPTH = 4;
 /** Search depth at which a provisional live move rating is useful. */
 const EARLY_RATING_DEPTH = 4;
+/** Normal alternatives losing more win chance than this (0-100) are not drawn. */
+export const MAX_ALTERNATIVE_WIN_LOSS = 10;
+/** A threat is shown only when letting the bot play it would cost this much win chance. */
+export const THREAT_MIN_WIN_LOSS = 12;
+/** Limits for the threat search, which runs after the main one. */
+const THREAT_DEPTH = 12;
+const THREAT_MOVETIME_MS = 500;
+
+/** Short score for an arrow, from White's point of view: "+0.8", "-1.3", "M3", "-M2". */
+export function arrowScoreLabel(score: Score): string {
+  if (score.type === 'mate') return `${score.value < 0 ? '-' : ''}M${Math.abs(score.value)}`;
+  const v = score.value / 100;
+  return `${v > 0.05 ? '+' : ''}${(Math.abs(v) < 0.05 ? 0 : v).toFixed(1)}`;
+}
+
+/**
+ * Add scores to arrows from their engine lines, fade alternatives by how much
+ * win chance they give up against the best line, and drop alternatives that
+ * give up too much (unless every candidate line was asked for).
+ */
+export function scoreArrows(
+  arrows: Arrow[],
+  lines: PvLine[],
+  sideToMove: 'w' | 'b',
+  { showScores, hideWorse }: { showScores: boolean; hideWorse: boolean },
+): Arrow[] {
+  const best = [...lines].sort((a, b) => a.multipv - b.multipv)[0];
+  if (!best) return arrows;
+  const bestWin = winPercent(best.score);
+  const scored: Arrow[] = [];
+  for (const arrow of arrows) {
+    const line = lines.find((l) => l.pv[0] === arrow.move);
+    if (!line) {
+      scored.push(arrow);
+      continue;
+    }
+    const alternative = arrow.rank > 0 && !arrow.weaker;
+    const winLoss = Math.max(0, bestWin - winPercent(line.score));
+    if (alternative && hideWorse && winLoss > MAX_ALTERNATIVE_WIN_LOSS) continue;
+    scored.push({
+      ...arrow,
+      ...(showScores ? { label: arrowScoreLabel(whitePov(line.score, sideToMove)) } : {}),
+      ...(alternative && winLoss > 0 ? { winLoss } : {}),
+    });
+  }
+  return scored;
+}
+
+/**
+ * The position with the other side to move and no en passant square, as if
+ * the side to move had passed. Null when it is in check, where passing isn't
+ * possible.
+ */
+export function nullMoveFen(fen: string): string | null {
+  try {
+    if (new Chess(fen).inCheck()) return null;
+  } catch {
+    return null;
+  }
+  const parts = fen.split(' ');
+  if (parts.length < 4) return null;
+  parts[1] = parts[1] === 'w' ? 'b' : 'w';
+  parts[3] = '-';
+  return parts.join(' ');
+}
 
 export function buildRequest(fen: string, s: Settings): AnalyzeRequest {
   return {
@@ -177,7 +244,10 @@ export class HintController {
   /** undefined while searching; null when the side to move has no moves. */
   private bestmove: string | null | undefined;
   private moveChoice: MoveChoice | null = null;
-  private revealed = false;
+  /** 0: hidden (on demand), 1: only the piece to move, 2: the full hint. */
+  private revealStage: 0 | 1 | 2 = 0;
+  /** The bot's threat in this position, when it is worth showing. */
+  private threat: string | null = null;
 
   /** Final engine evaluations of recent positions, for live move ratings. */
   private evals = new Map<string, PositionEval>();
@@ -214,7 +284,9 @@ export class HintController {
   /** The "show hint" shortcut: reveal the hint for the current position now. */
   showHint(): void {
     if (!this.current || !this.settings.enabled) return;
-    this.revealed = true;
+    // Step by step unless autoplay is on: then the press is to play the move.
+    const stepped = this.settings.hintSteps && !this.settings.autoPlay;
+    this.revealStage = stepped && this.revealStage === 0 ? 1 : 2;
     this.redraw();
     this.autoPlayCurrent();
   }
@@ -224,6 +296,7 @@ export class HintController {
     this.lines = [];
     this.bestmove = undefined;
     this.moveChoice = null;
+    this.threat = null;
     this.overlay ??= new BoardOverlay(state.board);
     this.overlay.clear();
 
@@ -239,9 +312,15 @@ export class HintController {
     const analysed = this.analysisLookup?.(state);
     if (analysed) {
       this.engine.stop();
-      this.evalBar?.update(state.board, analysed.score, state.flipped);
+      this.evalBar?.update(state.board, analysed.score, state.flipped, analysed.lines[0]?.depth);
+      // One line of play (move, reply, next move), numbered, not alternatives.
       const line = analysed.lines[0]?.pv.slice(0, 3) ?? [];
-      this.overlay.draw(state.board, line.map((move, rank) => ({ move, rank })), state.flipped);
+      const label = this.settings.arrowScores ? arrowScoreLabel(analysed.score) : undefined;
+      this.overlay.draw(
+        state.board,
+        line.map((move, i) => ({ move, rank: i, step: i + 1, ...(i === 0 && label ? { label } : {}) })),
+        state.flipped,
+      );
       const played = this.analysedMove?.(state);
       if (played) {
         this.overlay.drawBadge(
@@ -270,7 +349,7 @@ export class HintController {
         });
     }
 
-    this.revealed = kind !== 'game' || this.settings.hintMode === 'instant';
+    this.revealStage = kind !== 'game' || this.settings.hintMode === 'instant' ? 2 : 0;
 
     const minDepth = Math.min(
       isStrengthLimited(this.settings) ? LIMITED_DRAW_DEPTH : MIN_DRAW_DEPTH,
@@ -299,6 +378,9 @@ export class HintController {
         this.rateMove(state, true);
         this.redraw();
         this.autoPlayCurrent();
+        if (kind === 'game' && this.settings.showThreats && shouldHint(state, kind)) {
+          this.searchThreat(state, result.lines);
+        }
         if (kind === 'game' && shouldHint(state, kind) && result.bestmove) {
           this.onMoveChosen?.(
             state,
@@ -310,8 +392,38 @@ export class HintController {
       });
   }
 
+  /**
+   * Search the position as if the user passed. The bot's best move there is
+   * its threat; it is kept only when allowing it would cost the user a lot.
+   */
+  private searchThreat(state: BoardState, lines: PvLine[]): void {
+    const best = [...lines].sort((a, b) => a.multipv - b.multipv)[0];
+    const fen = nullMoveFen(state.fen);
+    if (!best || !fen) return;
+    const s = this.settings;
+    void this.engine
+      .analyze({
+        fen,
+        multipv: 1,
+        limit: s.searchMode === 'depth'
+          ? { depth: Math.min(s.depth, THREAT_DEPTH) }
+          : { movetimeMs: Math.min(s.movetimeMs, THREAT_MOVETIME_MS) },
+        strength: { skillLevel: 20, limitStrength: false, elo: s.elo },
+      })
+      .then((result) => {
+        if (!result?.bestmove || this.current?.state !== state) return;
+        const line = result.lines[0];
+        if (!line) return;
+        // The user's win chance now, against after the bot's free move.
+        const loss = winPercent(best.score) - (100 - winPercent(line.score));
+        if (loss < THREAT_MIN_WIN_LOSS) return;
+        this.threat = result.bestmove;
+        this.redraw();
+      });
+  }
+
   private autoPlayCurrent(): void {
-    if (!this.settings.autoPlay || !this.revealed || !this.bestmove || !this.current) return;
+    if (!this.settings.autoPlay || this.revealStage < 2 || !this.bestmove || !this.current) return;
     const { state, kind } = this.current;
     if (kind === 'game' && shouldHint(state, kind)) {
       this.onBestMove?.(state, this.moveChoice?.move ?? this.bestmove);
@@ -366,14 +478,35 @@ export class HintController {
     const { state, kind } = this.current;
     const turn = state.fen.split(' ')[1] as 'w' | 'b';
 
-    if (this.lines.length) this.evalBar?.update(state.board, whitePov(this.lines[0].score, turn), state.flipped);
+    if (this.lines.length) {
+      this.evalBar?.update(state.board, whitePov(this.lines[0].score, turn), state.flipped, this.lines[0].depth);
+    }
 
     this.overlay.draw(state.board, this.arrowsFor(state, kind), state.flipped);
+    // First step of an on-demand hint: only the piece to move.
+    if (this.revealStage === 1 && shouldHint(state, kind)) {
+      const primary = this.moveArrows(state, kind).find((arrow) => arrow.rank === 0);
+      if (primary) this.overlay.drawPieceHint(state.board, primary.move.slice(0, 2), state.flipped);
+    }
     this.drawRating(state);
   }
 
   private arrowsFor(state: BoardState, kind: PageKind): Arrow[] {
-    if (!this.revealed || !shouldHint(state, kind) || this.bestmove === null) return [];
+    if (this.revealStage === 0 || !shouldHint(state, kind)) return [];
+    const threat: Arrow[] = this.threat ? [{ move: this.threat, rank: 0, threat: true }] : [];
+    if (this.revealStage < 2) return threat;
+    const turn = state.fen.split(' ')[1] as 'w' | 'b';
+    const searching = this.bestmove === undefined;
+    const moves = scoreArrows(this.moveArrows(state, kind), this.lines, turn, {
+      showScores: this.settings.arrowScores,
+      hideWorse: !this.settings.weakenedShowsTopMoves,
+    }).map((arrow) => (searching ? { ...arrow, provisional: true } : arrow));
+    return [...threat, ...moves];
+  }
+
+  /** The move arrows for the position, before scores are added. */
+  private moveArrows(state: BoardState, kind: PageKind): Arrow[] {
+    if (!shouldHint(state, kind) || this.bestmove === null) return [];
     if (
       kind === 'game' &&
       !this.settings.autoPlay &&

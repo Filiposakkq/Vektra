@@ -15,6 +15,7 @@ export class EvalBar {
   private root: HTMLDivElement;
   private white: HTMLDivElement;
   private label: HTMLDivElement;
+  private depth: HTMLDivElement;
 
   constructor() {
     this.root = document.createElement('div');
@@ -51,11 +52,21 @@ export class EvalBar {
       letterSpacing: '-0.03em',
       textAlign: 'center',
     });
-    this.root.append(this.white, this.label);
+    this.depth = document.createElement('div');
+    this.depth.className = 'vektra-evalbar-depth';
+    Object.assign(this.depth.style, {
+      position: 'absolute',
+      left: '0',
+      right: '0',
+      font: '600 8px/1 system-ui, -apple-system, "Segoe UI", sans-serif',
+      textAlign: 'center',
+      opacity: '0.75',
+    });
+    this.root.append(this.white, this.label, this.depth);
   }
 
-  /** score must be from White's point of view. */
-  update(board: HTMLElement, score: Score, flipped: boolean): void {
+  /** score must be from White's point of view; depth is the search depth, when known. */
+  update(board: HTMLElement, score: Score, flipped: boolean, depth?: number): void {
     if (this.root.parentElement !== board) board.appendChild(this.root);
     // chess.com draws its own bar in the same place on some pages (analysis
     // with its engine on); two bars overlap, so Vektra's steps aside.
@@ -75,7 +86,12 @@ export class EvalBar {
     this.label.style.top = atBottom ? '' : '4px';
     this.label.style.bottom = atBottom ? '4px' : '';
     this.label.style.color = whiteAhead ? THEME.oxblood : THEME.bone;
-    this.root.title = `Eval ${formatScore(score)}`;
+    // The depth sits at the other end, so it never covers the score.
+    this.depth.textContent = depth ? `d${depth}` : '';
+    this.depth.style.top = atBottom ? '4px' : '';
+    this.depth.style.bottom = atBottom ? '' : '4px';
+    this.depth.style.color = atBottom ? THEME.bone : THEME.oxblood;
+    this.root.title = `Eval ${formatScore(score)}${depth ? ` · depth ${depth}` : ''}`;
   }
 
   destroy(): void {

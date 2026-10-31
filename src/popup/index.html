@@ -42,6 +42,20 @@
             <label><input type="radio" name="hintMode" value="hotkey" /><span>On demand</span></label>
           </div>
           <p class="note" data-show="hintMode=hotkey">Press <kbd data-command="show-hint"></kbd> to show the arrows.</p>
+          <label class="row inline check" data-show="hintMode=hotkey">
+            <span>Show the piece first</span>
+            <input type="checkbox" name="hintSteps" />
+          </label>
+          <p class="note" data-show="hintMode=hotkey">The first press highlights the piece to move; the second shows the move.</p>
+          <label class="row inline check">
+            <span>Show scores on arrows</span>
+            <input type="checkbox" name="arrowScores" />
+          </label>
+          <label class="row inline check">
+            <span>Show the bot's threats</span>
+            <input type="checkbox" name="showThreats" />
+          </label>
+          <p class="note">A red arrow shows what the bot would play if you ignored it, when that would cost you.</p>
           <div class="move-suggestions">
             <h3>Move suggestions</h3>
             <label class="row inline check">

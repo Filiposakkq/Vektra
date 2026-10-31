@@ -16,8 +16,19 @@ export interface Arrow {
   rank: number;
   /** Deliberately weaker alternative selected for this position. */
   weaker?: boolean;
-  /** Current best line while a strength-limited search is still running. */
+  /** Drawn while the search is still running; the move may still change. */
   provisional?: boolean;
+  /** Score printed at the arrow's target square, e.g. "+0.8" or "M3". */
+  label?: string;
+  /**
+   * How much worse than the best move this alternative is, in win-chance
+   * points (0-100). Worse alternatives are drawn fainter.
+   */
+  winLoss?: number;
+  /** Position in one line of play (1 = the move now), drawn numbered in one colour. */
+  step?: number;
+  /** What the opponent would play if it were their move. */
+  threat?: boolean;
 }
 
 /** Connector colour and visibility by rank. Colours come from settings. */
@@ -29,6 +40,16 @@ export const ARROW_STYLES = [
 
 export const DEFAULT_ARROW_COLORS = ['#2fb35a', '#3b8fd9', '#e8a33a'] as const;
 export const WEAKER_ARROW_COLOR = '#c65ad9';
+export const THREAT_ARROW_COLOR = '#d9483b';
+
+/** Win-chance loss at which an alternative is drawn at its faintest. */
+export const FADE_FULL_WIN_LOSS = 10;
+
+/** Opacity factor for an alternative that loses this many win-chance points. */
+export function lossFade(winLoss: number | undefined): number {
+  if (!winLoss || winLoss <= 0) return 1;
+  return 1 - 0.55 * Math.min(1, winLoss / FADE_FULL_WIN_LOSS);
+}
 
 /** Centre of a square in board units (0-8), as seen on screen. */
 export function squareCenter(square: string, flipped: boolean): [number, number] {
@@ -93,6 +114,58 @@ export interface SquareBadge {
 }
 
 const SHADOW_ID = 'vektra-arrow-shadow';
+const LABEL_FONT = { 'font-size': 0.2, 'font-weight': 700, 'font-family': 'system-ui, -apple-system, "Segoe UI", sans-serif' };
+
+/**
+ * A score pill in the bottom-right corner of the arrow's target square. When
+ * several arrows end on one square, later pills stack upwards (slot 1, 2...).
+ */
+function scoreLabel(text: string, to: [number, number], color: string, opacity: number, slot: number): SVGGElement {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.classList.add('vektra-score-label');
+  g.setAttribute('opacity', String(opacity));
+  const height = 0.24;
+  const width = 0.1 + text.length * 0.105;
+  const x = to[0] + 0.5 - width - 0.03;
+  const y = to[1] + 0.5 - height - 0.03 - slot * (height + 0.03);
+  const pill = document.createElementNS(SVG_NS, 'rect');
+  for (const [k, v] of Object.entries({ x, y, width, height, rx: height / 2, fill: color })) {
+    pill.setAttribute(k, String(v));
+  }
+  const label = document.createElementNS(SVG_NS, 'text');
+  for (const [k, v] of Object.entries({
+    x: x + width / 2,
+    y: y + height / 2,
+    fill: '#fff',
+    'text-anchor': 'middle',
+    'dominant-baseline': 'central',
+  })) label.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries(LABEL_FONT)) label.setAttribute(k, String(v));
+  label.textContent = text;
+  g.append(pill, label);
+  return g;
+}
+
+/** The step number of a move in a line, where the arrow leaves its square. */
+function stepMarker(step: number, from: [number, number], toward: [number, number], color: string): SVGGElement {
+  const len = Math.hypot(toward[0] - from[0], toward[1] - from[1]) || 1;
+  const cx = from[0] + ((toward[0] - from[0]) / len) * 0.42;
+  const cy = from[1] + ((toward[1] - from[1]) / len) * 0.42;
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.classList.add('vektra-step-marker');
+  const circle = document.createElementNS(SVG_NS, 'circle');
+  for (const [k, v] of Object.entries({ cx, cy, r: 0.13, fill: color, stroke: '#fff', 'stroke-width': 0.025 })) {
+    circle.setAttribute(k, String(v));
+  }
+  const label = document.createElementNS(SVG_NS, 'text');
+  for (const [k, v] of Object.entries({ x: cx, y: cy, fill: '#fff', 'text-anchor': 'middle', 'dominant-baseline': 'central' })) {
+    label.setAttribute(k, String(v));
+  }
+  for (const [k, v] of Object.entries(LABEL_FONT)) label.setAttribute(k, String(v));
+  label.textContent = String(step);
+  g.append(circle, label);
+  return g;
+}
 
 export class BoardOverlay {
   private lastBadge = '';
@@ -128,13 +201,21 @@ export class BoardOverlay {
     this.attach(board);
     this.svg.replaceChildren();
     this.svg.appendChild(this.shadowFilter());
-    // Draw worst first so the best arrow ends up on top.
-    for (const { move, rank, provisional, weaker } of [...arrows].sort((a, b) => b.rank - a.rank)) {
+    const labels: { rank: number; draw: (slot: number) => SVGGElement; square: string }[] = [];
+    // Threats go underneath; then worst first so the best arrow ends up on top.
+    const order = (a: Arrow) => (a.threat ? Infinity : a.rank);
+    for (const arrow of [...arrows].sort((a, b) => order(b) - order(a))) {
+      const { move, rank, provisional, weaker, threat, step } = arrow;
       const r = Math.min(rank, ARROW_STYLES.length - 1);
-      const style = {
-        ...ARROW_STYLES[r],
-        color: weaker ? WEAKER_ARROW_COLOR : this.colors[r] ?? DEFAULT_ARROW_COLORS[r],
-      };
+      // A numbered line keeps one colour; only its strength fades by step.
+      const color = threat
+        ? THREAT_ARROW_COLOR
+        : weaker
+          ? WEAKER_ARROW_COLOR
+          : step
+            ? this.colors[0] ?? DEFAULT_ARROW_COLORS[0]
+            : this.colors[r] ?? DEFAULT_ARROW_COLORS[r];
+      const style = { ...(threat ? ARROW_STYLES[2] : ARROW_STYLES[r]), color };
       const from = squareCenter(move.slice(0, 2), flipped);
       const to = squareCenter(move.slice(2, 4), flipped);
       if (from[0] === to[0] && from[1] === to[1]) continue;
@@ -142,16 +223,16 @@ export class BoardOverlay {
       const shape = arrowGeometry(from, to, style.width, corner, 0.42);
 
       const g = document.createElementNS(SVG_NS, 'g');
-      g.classList.add('vektra-move');
+      g.classList.add(threat ? 'vektra-threat' : 'vektra-move');
       g.dataset.move = move;
       g.dataset.rank = String(rank);
       if (weaker) g.dataset.weaker = 'true';
-      g.setAttribute(
-        'opacity',
-        String(style.opacity * (provisional ? 0.6 : 1) * (weaker ? 0.62 : 1)),
-      );
+      if (step) g.dataset.step = String(step);
+      const opacity =
+        style.opacity * (provisional ? 0.6 : 1) * (weaker ? 0.62 : 1) * lossFade(arrow.winLoss);
+      g.setAttribute('opacity', String(opacity));
       if (provisional) g.dataset.provisional = 'true';
-      if (rank === 0) {
+      if (rank === 0 && !threat) {
         for (const [square, center, role] of [
           [move.slice(0, 2), from, 'from'],
           [move.slice(2, 4), to, 'to'],
@@ -191,8 +272,47 @@ export class BoardOverlay {
       head.dataset.move = move;
       head.dataset.rank = String(rank);
       g.append(shaft, head);
+      if (step) g.appendChild(stepMarker(step, from, corner ?? to, style.color));
       this.svg.appendChild(g);
+      const { label } = arrow;
+      if (label) {
+        labels.push({
+          rank,
+          square: move.slice(2, 4),
+          draw: (slot) => scoreLabel(label, to, style.color, Math.max(opacity, 0.85), slot),
+        });
+      }
     }
+    // Labels last, so no arrow covers a score; the best move's sits lowest.
+    const slots = new Map<string, number>();
+    for (const label of labels.sort((a, b) => a.rank - b.rank)) {
+      const slot = slots.get(label.square) ?? 0;
+      slots.set(label.square, slot + 1);
+      this.svg.appendChild(label.draw(slot));
+    }
+  }
+
+  /** Highlight only the square of the piece to move (the first step of a hint). */
+  drawPieceHint(board: HTMLElement, square: string, flipped: boolean): void {
+    this.attach(board);
+    const [cx, cy] = squareCenter(square, flipped);
+    const color = this.colors[0] ?? DEFAULT_ARROW_COLORS[0];
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.classList.add('vektra-piece-hint');
+    rect.dataset.square = square;
+    for (const [k, v] of Object.entries({
+      x: cx - 0.5 + 0.03,
+      y: cy - 0.5 + 0.03,
+      width: 0.94,
+      height: 0.94,
+      rx: 0.08,
+      fill: color,
+      'fill-opacity': 0.28,
+      stroke: color,
+      'stroke-opacity': 0.9,
+      'stroke-width': 0.06,
+    })) rect.setAttribute(k, String(v));
+    this.svg.appendChild(rect);
   }
 
   /** A soft shadow under the arrows so they stand out on light and dark squares. */

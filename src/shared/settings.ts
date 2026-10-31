@@ -22,6 +22,12 @@ export interface Settings {
   arrows: 1 | 2 | 3;
   /** Show hints immediately, or wait for the "show hint" shortcut in bot games. */
   hintMode: 'instant' | 'hotkey';
+  /** On demand: the first shortcut press shows only the piece to move, the second the move. */
+  hintSteps: boolean;
+  /** Print each arrow's score at its target square. */
+  arrowScores: boolean;
+  /** On the user's turn, show what the bot threatens if the user ignores it. */
+  showThreats: boolean;
   /** Engine depth for full-game analysis. */
   analysisDepth: number;
   /** Rate the user's moves (Best, Mistake...) during bot games. */
@@ -52,6 +58,9 @@ export const DEFAULT_SETTINGS: Settings = {
   movetimeMs: 1500,
   arrows: 3,
   hintMode: 'instant',
+  hintSteps: true,
+  arrowScores: true,
+  showThreats: true,
   analysisDepth: 12,
   liveRatings: true,
   occasionalWeakerMoves: false,
@@ -186,6 +195,9 @@ export function sanitizeSettings(raw: unknown): Settings {
     movetimeMs: clampInt(r.movetimeMs, MOVETIME_MIN, MOVETIME_MAX, d.movetimeMs),
     arrows: clampInt(r.arrows, 1, 3, d.arrows) as 1 | 2 | 3,
     hintMode: oneOf(r.hintMode, ['instant', 'hotkey'] as const, d.hintMode),
+    hintSteps: bool(r.hintSteps, d.hintSteps),
+    arrowScores: bool(r.arrowScores, d.arrowScores),
+    showThreats: bool(r.showThreats, d.showThreats),
     liveRatings: bool(r.liveRatings, d.liveRatings),
     occasionalWeakerMoves: bool(r.occasionalWeakerMoves, d.occasionalWeakerMoves),
     weakerMoveChancePercent: clampInt(r.weakerMoveChancePercent, 0, 100, d.weakerMoveChancePercent),
