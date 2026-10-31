@@ -28,6 +28,10 @@ export interface Settings {
   arrowScores: boolean;
   /** On the user's turn, show what the bot threatens if the user ignores it. */
   showThreats: boolean;
+  /** Alternatives that give up more win chance than this (points, 0-100) are not drawn. */
+  hideWorseWinLoss: number;
+  /** A threat is shown only when allowing it would cost at least this much win chance. */
+  threatWinLoss: number;
   /** Engine depth for full-game analysis. */
   analysisDepth: number;
   /** Rate the user's moves (Best, Mistake...) during bot games. */
@@ -61,6 +65,8 @@ export const DEFAULT_SETTINGS: Settings = {
   hintSteps: true,
   arrowScores: true,
   showThreats: true,
+  hideWorseWinLoss: 10,
+  threatWinLoss: 12,
   analysisDepth: 12,
   liveRatings: true,
   occasionalWeakerMoves: false,
@@ -200,6 +206,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     hintSteps: bool(r.hintSteps, d.hintSteps),
     arrowScores: bool(r.arrowScores, d.arrowScores),
     showThreats: bool(r.showThreats, d.showThreats),
+    hideWorseWinLoss: clampInt(r.hideWorseWinLoss, 2, 40, d.hideWorseWinLoss),
+    threatWinLoss: clampInt(r.threatWinLoss, 4, 40, d.threatWinLoss),
     liveRatings: bool(r.liveRatings, d.liveRatings),
     occasionalWeakerMoves: bool(r.occasionalWeakerMoves, d.occasionalWeakerMoves),
     weakerMoveChancePercent: clampInt(r.weakerMoveChancePercent, 0, 100, d.weakerMoveChancePercent),

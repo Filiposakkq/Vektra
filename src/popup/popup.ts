@@ -59,6 +59,7 @@ function render() {
     if (out.dataset.format === 'seconds') out.textContent = `${(Number(value) / 1000).toFixed(1)} s`;
     else if (out.dataset.format === 'decimal-seconds') out.textContent = `${Number(value).toFixed(1)} s`;
     else if (out.dataset.format === 'centipawns') out.textContent = `${(Number(value) / 100).toFixed(2)} pawns`;
+    else if (out.dataset.format === 'win-chance') out.textContent = `${value}% win chance`;
     else if (out.dataset.for === 'weakerMoveChancePercent') out.textContent = `${value}%`;
     else out.textContent = String(value);
   }
@@ -73,7 +74,7 @@ function render() {
   }
   if (document.getElementById('engine-status')) renderEngine();
   const status = document.getElementById('status')!;
-  status.textContent = settingsSaveError ?? (settings.enabled ? 'Enabled' : 'Paused');
+  status.textContent = settingsSaveError ?? (settings.enabled ? 'On' : 'Paused');
   status.classList.toggle('on', settings.enabled);
   const enabledInput = document.querySelector<HTMLInputElement>('input[name="enabled"]')!;
   enabledInput.setAttribute('aria-label', settings.enabled ? 'Turn Vektra off' : 'Turn Vektra on');

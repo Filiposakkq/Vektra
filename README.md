@@ -118,8 +118,10 @@ options are grouped under clearly labeled expandable sections.
   chance is 50% per eligible turn, and **How much weaker** defaults to 2.00
   pawns. A weaker move aims to give up between half of that and all of it, so
   a higher setting gives clearly worse moves; when no move is that much worse,
-  the closest one within the limit is used. The engine searches ten lines
-  while this is on (instead of up to three), so searches take longer.
+  the closest one within the limit is used. Candidates come from a second,
+  lighter search (ten lines, up to depth 12 or 0.6 s) after the main one, so
+  the main arrows appear as quickly as without weaker moves; autoplay waits
+  for it.
   Positions without a suitable legal alternative keep the engine's first
   choice. With autoplay off, the engine's
   best move stays first and an eligible weaker alternative is always shown as
@@ -131,7 +133,8 @@ options are grouped under clearly labeled expandable sections.
   evaluation bar. Each arrow shows its score (White's point of view) at its
   target square; turn this off with **Show scores on arrows**. Alternatives
   get fainter the more win chance they give up against the best move, and
-  ones that give up more than 10 points are not drawn (unless **Show
+  ones that give up more than the **Hide alternatives** limit (10 points by
+  default) are not drawn (unless **Show
   additional candidate moves** is on). Arrows stay dim until the search
   finishes, and the eval bar shows the search depth (for example `d14`).
 - **Board look**: arrows are solid once the engine has finished and dashed
@@ -142,6 +145,10 @@ options are grouped under clearly labeled expandable sections.
   of the side ahead. Move badges are rounded tiles in the usual category
   colours, with drawn glyphs that stay sharp at move-list size. The board
   control shows only its switches until you point at it.
+- **Speed**: the engine never asks for more lines than there are legal
+  moves, so arrows show while it searches even in check. Finished searches
+  are kept for the last 300 requests, so stepping back to a position shows
+  its arrows at once.
 - **Analysed positions**: the engine's line is drawn as numbered steps in one
   colour (1 = the move now, 2 = the reply, 3 = the next move), not as
   alternatives.
@@ -151,7 +158,8 @@ options are grouped under clearly labeled expandable sections.
   shows the move; with autoplay on, one press shows the move. Analysis and
   review pages always show hints immediately.
 - **Bot threats**: on your turn, a red arrow shows what the bot would play if
-  you passed, when allowing it would cost at least 12 points of win chance.
+  you passed, when allowing it would cost at least the chosen amount of win
+  chance (12 points by default).
   It comes from a second, shorter search (up to depth 12 or 0.5 s) after the
   main one. Turn it off with **Show the bot's threats**.
 - **Autoplay**: off by default and available only in games against bots. The

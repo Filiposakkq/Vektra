@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   arrowsFromLines,
   buildRequest,
+  buildWeakerRequest,
+  capLines,
   chooseWeakerMove,
   isStrengthLimited,
   pickWeakerCandidate,
@@ -48,10 +50,39 @@ describe('hint rules', () => {
     expect(isStrengthLimited({ ...DEFAULT_SETTINGS, skillLevel: 5 })).toBe(true);
   });
 
-  it('requests enough engine lines when occasional weaker moves are enabled', () => {
+  it('keeps the main search light and searches weaker moves separately', () => {
     expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1 }).multipv).toBe(1);
-    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, occasionalWeakerMoves: true }).multipv).toBe(10);
+    // Weaker moves don't widen the main search; they get their own.
+    expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, occasionalWeakerMoves: true }).multipv).toBe(1);
     expect(buildRequest('fen', { ...DEFAULT_SETTINGS, arrows: 1, weakenedShowsTopMoves: true }).multipv).toBe(5);
+    const weaker = buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, depth: 18 });
+    expect(weaker.multipv).toBe(10);
+    expect(weaker.limit).toEqual({ depth: 12 });
+    expect(buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, depth: 8 }).limit).toEqual({ depth: 8 });
+    expect(
+      buildWeakerRequest(WHITE_TO_MOVE, { ...DEFAULT_SETTINGS, searchMode: 'movetime', movetimeMs: 2000 }).limit,
+    ).toEqual({ movetimeMs: 600 });
+  });
+
+  it('never asks for more lines than there are legal moves', () => {
+    // White is in check with two legal king moves.
+    const inCheck = '4k3/8/8/8/8/8/3q4/4K3 w - - 0 1';
+    expect(capLines(inCheck, 3)).toBe(2);
+    expect(buildRequest(inCheck, DEFAULT_SETTINGS).multipv).toBe(2);
+    expect(buildWeakerRequest(inCheck, DEFAULT_SETTINGS).multipv).toBe(2);
+    expect(capLines(WHITE_TO_MOVE, 3)).toBe(3);
+    expect(capLines('not a fen', 3)).toBe(3);
+  });
+
+  it('compares candidate lines up to one depth apart, as a timed search leaves them', () => {
+    const lines = [
+      { multipv: 1, depth: 14, score: { type: 'cp' as const, value: 60 }, pv: ['e2e4'] },
+      { multipv: 2, depth: 13, score: { type: 'cp' as const, value: 0 }, pv: ['d2d4'] },
+      { multipv: 3, depth: 12, score: { type: 'cp' as const, value: -40 }, pv: ['g1f3'] },
+    ];
+    expect(
+      weakerMoveCandidates(WHITE_TO_MOVE, 'e2e4', lines, { ...DEFAULT_SETTINGS, occasionalWeakerMoves: true }).map((c) => c.move),
+    ).toEqual(['d2d4']);
   });
 
   it('chooses only legal alternatives within the configured evaluation-loss limit', () => {
@@ -73,7 +104,7 @@ describe('hint rules', () => {
       line('d2d4', 0),
       line('g1f3', -250),
       line('e2e5', 30),
-      line('b1c3', 40, 15),
+      line('b1c3', 40, 14),
     ];
 
     expect(chooseWeakerMove(fen, 'e2e4', lines, settings, () => 0)).toEqual({

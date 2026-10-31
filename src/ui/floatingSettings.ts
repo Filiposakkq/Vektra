@@ -24,9 +24,9 @@ const css = `
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid rgba(104, 223, 194, .24);
+    border: 1px solid rgba(255, 245, 235, .1);
     border-radius: 16px;
-    background: #111820;
+    background: #262421;
     box-shadow: 0 18px 56px rgba(0, 0, 0, .56);
   }
   .launcher {
@@ -37,10 +37,10 @@ const css = `
     width: auto;
     height: auto;
     padding: 10px 14px;
-    border: 1px solid rgba(104, 223, 194, .28);
+    border: 1px solid rgba(255, 245, 235, .12);
     border-radius: 999px;
-    background: linear-gradient(135deg, #202d39, #111820);
-    color: #e7eef6;
+    background: #2f2c29;
+    color: #eeeae5;
     box-shadow: 0 8px 24px rgba(0, 0, 0, .38);
     font: 600 13px/1.2 system-ui, sans-serif;
     touch-action: none;
@@ -51,8 +51,8 @@ const css = `
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #68dfc2;
-    box-shadow: 0 0 0 4px rgba(104, 223, 194, .14);
+    background: #2f6fe4;
+    box-shadow: 0 0 0 4px rgba(47, 111, 228, .22);
   }
   header {
     flex: none;
@@ -61,15 +61,15 @@ const css = `
     justify-content: space-between;
     height: 48px;
     padding: 7px 12px 7px 16px;
-    border-bottom: 1px solid #2b3948;
-    background: linear-gradient(120deg, #1d2a36, #151e28);
-    color: #e7eef6;
+    border-bottom: 1px solid rgba(255, 245, 235, .07);
+    background: #262421;
+    color: #eeeae5;
     user-select: none;
     touch-action: none;
     cursor: grab;
   }
   header:active { cursor: grabbing; }
-  strong { font: 650 16px/1.2 system-ui, sans-serif; letter-spacing: -.01em; }
+  strong { font: 700 15px/1.2 system-ui, sans-serif; letter-spacing: -.01em; }
   .actions { display: flex; align-items: center; gap: 7px; }
   .show-hint {
     width: auto;
@@ -84,15 +84,15 @@ const css = `
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid #2b3948;
+    border: 1px solid #45403b;
     border-radius: 7px;
-    background: #18232e;
-    color: #e7eef6;
+    background: #2f2c29;
+    color: #eeeae5;
     font: 18px/1 system-ui, sans-serif;
     cursor: pointer;
   }
-  button:hover { border-color: #68dfc2; background: #22313e; }
-  button:focus-visible { outline: 2px solid #68dfc2; outline-offset: 2px; }
+  button:hover { border-color: #5d5751; background: #3a3633; }
+  button:focus-visible { outline: 2px solid #9dbcff; outline-offset: 2px; }
   [hidden] { display: none !important; }
   iframe {
     display: block;
@@ -101,7 +101,7 @@ const css = `
     height: 1px;
     border: 0;
     overscroll-behavior: contain;
-    background: #111820;
+    background: #262421;
   }
   @media (max-width: 440px) {
     .window { width: calc(100vw - 24px); }
@@ -135,7 +135,7 @@ export class FloatingSettings {
     this.windowElement.className = 'window';
     const header = document.createElement('header');
     const title = document.createElement('strong');
-    title.textContent = 'Vektra settings';
+    title.textContent = 'Vektra';
     const actions = document.createElement('div');
     actions.className = 'actions';
     this.stopAutoplay = document.createElement('button');

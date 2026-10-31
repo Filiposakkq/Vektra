@@ -8,10 +8,10 @@
   <body>
     <header>
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">V</span>
+        <span class="brand-mark" aria-hidden="true"></span>
         <div class="brand-copy">
           <h1>Vektra</h1>
-          <span class="subtitle">Chess analysis tools</span>
+          <span class="subtitle">Engine hints for bot games</span>
         </div>
         <span class="status" id="status" role="status" aria-live="polite"></span>
       </div>
@@ -35,134 +35,148 @@
           <div class="presets" id="presets"></div>
         </details>
 
-        <section>
-          <h2>Bot games</h2>
-          <div class="segmented">
-            <label><input type="radio" name="hintMode" value="instant" /><span>Instant</span></label>
-            <label><input type="radio" name="hintMode" value="hotkey" /><span>On demand</span></label>
+        <!-- Each group carries the colour of what it draws on the board. -->
+        <section class="group key-lapis">
+          <h2><span class="key" aria-hidden="true"></span>Arrows</h2>
+          <div class="row">
+            <span class="field-label">When to show them</span>
+            <div class="segmented">
+              <label><input type="radio" name="hintMode" value="instant" /><span>Instantly</span></label>
+              <label><input type="radio" name="hintMode" value="hotkey" /><span>On demand</span></label>
+            </div>
           </div>
-          <p class="note" data-show="hintMode=hotkey">Press <kbd data-command="show-hint"></kbd> to show the arrows.</p>
+          <p class="note" data-show="hintMode=hotkey">Press <kbd data-command="show-hint"></kbd> to show them.</p>
           <label class="row inline check" data-show="hintMode=hotkey">
-            <span>Show the piece first</span>
+            <span>Show the piece first<small>First press shows the piece, the second the move.</small></span>
             <input type="checkbox" name="hintSteps" />
           </label>
-          <p class="note" data-show="hintMode=hotkey">The first press highlights the piece to move; the second shows the move.</p>
           <label class="row inline check">
-            <span>Show scores on arrows</span>
+            <span>Scores on arrows</span>
             <input type="checkbox" name="arrowScores" />
           </label>
+          <div class="row">
+            <label for="hideWorseWinLoss">
+              <span>Hide alternatives that cost more than</span>
+              <output data-for="hideWorseWinLoss" data-format="win-chance"></output>
+            </label>
+            <input type="range" id="hideWorseWinLoss" name="hideWorseWinLoss" min="2" max="40" step="1" />
+          </div>
+        </section>
+
+        <section class="group key-vermilion">
+          <h2><span class="key" aria-hidden="true"></span>Threats</h2>
           <label class="row inline check">
-            <span>Show the bot's threats</span>
+            <span>Show the bot's threats<small>What it would play if you passed.</small></span>
             <input type="checkbox" name="showThreats" />
           </label>
-          <p class="note">A red arrow shows what the bot would play if you ignored it, when that would cost you.</p>
-          <div class="move-suggestions">
-            <h3>Move suggestions</h3>
-            <label class="row inline check">
-              <span>Enable weaker-move suggestions</span>
-              <input type="checkbox" name="occasionalWeakerMoves" />
+          <div class="row" data-show="showThreats=true">
+            <label for="threatWinLoss">
+              <span>Only when they would cost at least</span>
+              <output data-for="threatWinLoss" data-format="win-chance"></output>
             </label>
-            <p class="note">With autoplay off, the best move stays first and an eligible weaker move is always shown second in violet. Autoplay may play a weaker move instead.</p>
-            <div class="row" data-show="occasionalWeakerMoves=true">
-              <label for="weakerMoveChancePercent">
-                <span>Autoplay chance per eligible turn</span>
-                <output data-for="weakerMoveChancePercent"></output>
-              </label>
-              <input type="range" id="weakerMoveChancePercent" name="weakerMoveChancePercent" min="0" max="100" step="5" />
-            </div>
-            <div class="row" data-show="occasionalWeakerMoves=true">
-              <label for="weakerMoveMaxLossCp">
-                <span>How much weaker</span>
-                <output data-for="weakerMoveMaxLossCp" data-format="centipawns"></output>
-              </label>
-              <input type="range" id="weakerMoveMaxLossCp" name="weakerMoveMaxLossCp" min="10" max="300" step="10" />
-            </div>
-            <p class="note" data-show="occasionalWeakerMoves=true">
-              Weaker moves give up between half of this and this much. When no move is that much worse, the closest one within the limit is used. The chance setting applies to autoplay; without autoplay, the weaker move is always shown.
-            </p>
-            <label class="row inline check">
-              <span>Show additional candidate moves</span>
-              <input type="checkbox" name="weakenedShowsTopMoves" />
+            <input type="range" id="threatWinLoss" name="threatWinLoss" min="4" max="40" step="1" />
+          </div>
+        </section>
+
+        <section class="group key-violet move-suggestions">
+          <h2><span class="key" aria-hidden="true"></span>Weaker moves</h2>
+          <label class="row inline check">
+            <span>Suggest weaker moves<small>A second, violet arrow. Autoplay may play it.</small></span>
+            <input type="checkbox" name="occasionalWeakerMoves" />
+          </label>
+          <div class="row" data-show="occasionalWeakerMoves=true">
+            <label for="weakerMoveMaxLossCp">
+              <span>How much weaker</span>
+              <output data-for="weakerMoveMaxLossCp" data-format="centipawns"></output>
             </label>
-            <p class="note">
-              Shows up to five engine lines, including alongside a weaker selection.
-            </p>
-            <p class="note">The board also has a quick toggle for weaker moves.</p>
+            <input type="range" id="weakerMoveMaxLossCp" name="weakerMoveMaxLossCp" min="10" max="300" step="10" />
+          </div>
+          <p class="note" data-show="occasionalWeakerMoves=true">Each weaker move gives up between half of this and all of it.</p>
+          <div class="row" data-show="occasionalWeakerMoves=true">
+            <label for="weakerMoveChancePercent">
+              <span>How often autoplay plays one</span>
+              <output data-for="weakerMoveChancePercent"></output>
+            </label>
+            <input type="range" id="weakerMoveChancePercent" name="weakerMoveChancePercent" min="0" max="100" step="5" />
           </div>
           <label class="row inline check">
-            <span>Rate my moves as I play</span>
-            <input type="checkbox" name="liveRatings" />
+            <span>Show more candidate lines<small>Up to five, also next to a weaker move.</small></span>
+            <input type="checkbox" name="weakenedShowsTopMoves" />
           </label>
+        </section>
+
+        <section class="group key-saffron">
+          <h2><span class="key" aria-hidden="true"></span>Autoplay</h2>
           <label class="row inline check">
-            <span>Play moves automatically</span>
+            <span>Play my moves automatically<small>Bot games only.</small></span>
             <input type="checkbox" name="autoPlay" />
           </label>
           <details class="inline-advanced" data-show="autoPlay=true">
-            <summary>Autoplay delay range</summary>
-            <div class="row" data-show="autoPlay=true">
+            <summary>Delay before each move</summary>
+            <div class="row">
               <label for="autoPlayMinDelaySec">
-                <span>Minimum move delay</span>
+                <span>Shortest</span>
                 <output data-for="autoPlayMinDelaySec" data-format="decimal-seconds"></output>
               </label>
               <input type="range" id="autoPlayMinDelaySec" name="autoPlayMinDelaySec" min="0" max="30" step="0.5" />
             </div>
-            <div class="row" data-show="autoPlay=true">
+            <div class="row">
               <label for="autoPlayMaxDelaySec">
-                <span>Maximum move delay</span>
+                <span>Longest</span>
                 <output data-for="autoPlayMaxDelaySec" data-format="decimal-seconds"></output>
               </label>
               <input type="range" id="autoPlayMaxDelaySec" name="autoPlayMaxDelaySec" min="0" max="30" step="0.5" />
             </div>
-            <p class="note" data-show="autoPlay=true">
-              The delay is selected from this range after the engine chooses a move. Engine strength above controls how strong its choice is.
-            </p>
           </details>
-          <p class="note">
-            Autoplay is off by default and works only in games against chess.com bots. Promotions must be handled manually.
-          </p>
+        </section>
+
+        <section class="group key-slate">
+          <h2><span class="key" aria-hidden="true"></span>Ratings</h2>
+          <label class="row inline check">
+            <span>Rate my moves as I play</span>
+            <input type="checkbox" name="liveRatings" />
+          </label>
         </section>
       </div>
 
       <div data-panel="engine" id="panel-engine" role="tabpanel" aria-labelledby="tab-engine" hidden>
-        <section>
-          <h2>Engine</h2>
+        <section class="group key-lapis">
+          <h2><span class="key" aria-hidden="true"></span>Engine</h2>
           <div class="segmented">
-            <label><input type="radio" name="engine" value="lite" /><span>Lite (built in)</span></label>
+            <label><input type="radio" name="engine" value="lite" /><span>Lite, built in</span></label>
             <label><input type="radio" name="engine" value="full" id="engine-full" /><span>Full strength</span></label>
           </div>
           <p class="note" id="engine-status" role="status" aria-live="polite"></p>
           <div class="engine-actions">
-            <button type="button" id="engine-download" class="action">Download full engine · 99 MB</button>
+            <button type="button" id="engine-download" class="action">Download the full engine (99 MB)</button>
             <button type="button" id="engine-remove" class="link" hidden>Remove download</button>
           </div>
           <div class="progress" id="engine-progress" role="progressbar" aria-label="Full engine download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><i></i></div>
         </section>
         <details class="advanced-settings">
           <summary>
-            <span>Engine strength<small>Choose Skill level or an approximate Elo target</small></span>
+            <span>Playing strength<small>Skill level or an approximate Elo</small></span>
           </summary>
-          <p class="advanced-intro">Adjust the engine's playing strength without changing search depth or time.</p>
           <section>
-            <h2>Strength</h2>
             <div class="segmented">
               <label><input type="radio" name="limitStrength" value="false" /><span>Skill level</span></label>
               <label><input type="radio" name="limitStrength" value="true" /><span>Elo</span></label>
             </div>
             <div class="row" data-show="limitStrength=false">
-              <label for="skillLevel">Skill level <output data-for="skillLevel"></output></label>
+              <label for="skillLevel"><span>Skill level</span><output data-for="skillLevel"></output></label>
               <input type="range" id="skillLevel" name="skillLevel" min="0" max="20" step="1" />
             </div>
             <div class="row" data-show="limitStrength=true">
-              <label for="elo">Approximate Elo <output data-for="elo"></output></label>
+              <label for="elo"><span>Approximate Elo</span><output data-for="elo"></output></label>
               <input type="range" id="elo" name="elo" min="1320" max="3190" step="10" />
               <div class="strength-presets" id="strength-presets" aria-label="Approximate strength presets"></div>
-              <p class="note">An approximate target, not a rating guarantee.</p>
+              <p class="note">A target, not a rating guarantee. Search depth and time stay as set below.</p>
             </div>
           </section>
         </details>
         <details class="inline-advanced">
           <summary>
-            <span>Search depth or time<small>Choose between a deeper search and a time limit</small></span>
+            <span>Search depth or time<small>Deeper is stronger; a time limit is steadier</small></span>
           </summary>
           <section>
             <div class="segmented">
@@ -170,11 +184,11 @@
               <label><input type="radio" name="searchMode" value="movetime" /><span>Time</span></label>
             </div>
             <div class="row" data-show="searchMode=depth">
-              <label for="depth">Depth <output data-for="depth"></output></label>
+              <label for="depth"><span>Depth</span><output data-for="depth"></output></label>
               <input type="range" id="depth" name="depth" min="1" max="30" step="1" />
             </div>
             <div class="row" data-show="searchMode=movetime">
-              <label for="movetimeMs">Time per move <output data-for="movetimeMs" data-format="seconds"></output></label>
+              <label for="movetimeMs"><span>Time per move</span><output data-for="movetimeMs" data-format="seconds"></output></label>
               <input type="range" id="movetimeMs" name="movetimeMs" min="100" max="10000" step="100" />
             </div>
           </section>
@@ -182,19 +196,16 @@
       </div>
 
       <div data-panel="analysis" id="panel-analysis" role="tabpanel" aria-labelledby="tab-analysis" hidden>
-        <section>
-          <h2>Full-game analysis</h2>
+        <section class="group key-slate">
+          <h2><span class="key" aria-hidden="true"></span>Full-game analysis</h2>
           <div class="row">
-            <label for="analysisDepth">Depth <output data-for="analysisDepth"></output></label>
+            <label for="analysisDepth"><span>Depth</span><output data-for="analysisDepth"></output></label>
             <input type="range" id="analysisDepth" name="analysisDepth" min="8" max="24" step="1" />
           </div>
-          <p class="note">Higher depth can give more detailed evaluations, but takes longer. 12 is a faster starting point; increase it for deeper analysis.</p>
-        </section>
-        <section>
-          <h2>How to use</h2>
+          <p class="note">12 is quick. Go higher for more detailed ratings; it takes longer.</p>
           <p class="note">
-            Open a finished game, Game Review, or the analysis board, then click <b>Analyze game</b> in the Vektra panel
-            beside the board. You get move ratings, accuracy, an eval graph and PDF/JSON export.
+            Open a finished game, Game Review or the analysis board, then choose <b>Analyze game</b> in the
+            Vektra panel beside the board for move ratings, accuracy, an eval graph and PDF or JSON export.
           </p>
         </section>
       </div>
@@ -203,9 +214,11 @@
 
     <footer>
       <div class="shortcuts" id="shortcuts"></div>
-      <button type="button" id="edit-shortcuts" class="link">Change shortcuts</button>
-      <button type="button" id="reset-settings" class="link reset-link">Reset settings</button>
-      <p>Move suggestions and ratings are engine estimates. Autoplay is optional.</p>
+      <div class="footer-actions">
+        <button type="button" id="edit-shortcuts" class="link">Change shortcuts</button>
+        <button type="button" id="reset-settings" class="link reset-link">Reset settings</button>
+      </div>
+      <p>Suggestions and ratings are engine estimates.</p>
     </footer>
     <script type="module" src="./popup.ts"></script>
   </body>

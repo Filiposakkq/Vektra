@@ -25,6 +25,8 @@ export interface Arrow {
    * points (0-100). Worse alternatives are drawn fainter.
    */
   winLoss?: number;
+  /** The win-chance loss at which this arrow is at its faintest. */
+  fadeFullAt?: number;
   /** Position in one line of play (1 = the move now), drawn numbered in one colour. */
   step?: number;
   /** What the opponent would play if it were their move. */
@@ -71,9 +73,9 @@ export function labelTextColor(fill: string): string {
 export const FADE_FULL_WIN_LOSS = 10;
 
 /** Opacity factor for an alternative that loses this many win-chance points. */
-export function lossFade(winLoss: number | undefined): number {
+export function lossFade(winLoss: number | undefined, fullAt = FADE_FULL_WIN_LOSS): number {
   if (!winLoss || winLoss <= 0) return 1;
-  return 1 - 0.55 * Math.min(1, winLoss / FADE_FULL_WIN_LOSS);
+  return 1 - 0.55 * Math.min(1, winLoss / Math.max(1, fullAt));
 }
 
 /** Centre of a square in board units (0-8), as seen on screen. */
@@ -321,7 +323,7 @@ export class BoardOverlay {
       if (weaker) g.dataset.weaker = 'true';
       if (step) g.dataset.step = String(step);
       const opacity =
-        style.opacity * (provisional ? 0.6 : 1) * (weaker ? 0.62 : 1) * lossFade(arrow.winLoss);
+        style.opacity * (provisional ? 0.6 : 1) * (weaker ? 0.62 : 1) * lossFade(arrow.winLoss, arrow.fadeFullAt);
       g.setAttribute('opacity', String(opacity));
       if (provisional) g.dataset.provisional = 'true';
       if (rank === 0 && !threat) {

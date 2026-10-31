@@ -261,12 +261,18 @@ if (runSuite('games')) {
     )
     .then(() => true, () => false);
   check(searchComplete, 'navigation: second-game engine search finishes');
-  await p.evaluate(() => history.pushState({}, '', '/game/computer/2472370120'));
+  // Mark the readout, so any refresh shows: it is reset, and a search result
+  // (from the cache when the position is the same) writes it again.
+  await p.evaluate(() => {
+    document.querySelector('wc-chess-board .vektra-autoplay-control')
+      .shadowRoot.querySelector('.think-time').textContent = 'Think: stale';
+    history.pushState({}, '', '/game/computer/2472370120');
+  });
   const routeRefresh = await p
     .waitForFunction(
       () =>
         document.querySelector('wc-chess-board .vektra-autoplay-control')
-          ?.shadowRoot?.querySelector('.think-time')?.textContent === 'Think: —',
+          ?.shadowRoot?.querySelector('.think-time')?.textContent !== 'Think: stale',
       null,
       { timeout: 5000 },
     )

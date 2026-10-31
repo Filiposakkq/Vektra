@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   arrowScoreLabel,
-  MAX_ALTERNATIVE_WIN_LOSS,
   nullMoveFen,
   scoreArrows,
 } from '../src/content/hints';
 import type { PvLine } from '../src/engine/uci';
+import { DEFAULT_SETTINGS } from '../src/shared/settings';
 import { BOARD_COLORS, BoardOverlay, labelTextColor, lossFade, THREAT_ARROW_COLOR } from '../src/ui/overlay';
 
 const line = (move: string, multipv: number, value: number): PvLine => ({
@@ -47,7 +47,8 @@ describe('arrow scores', () => {
     expect(scored[0]).toEqual({ move: 'e2e4', rank: 0, label: '+0.4' });
     expect(scored[1].label).toBe('+0.3');
     expect(scored[1].winLoss).toBeGreaterThan(0);
-    expect(scored[1].winLoss).toBeLessThan(MAX_ALTERNATIVE_WIN_LOSS);
+    expect(scored[1].winLoss).toBeLessThan(DEFAULT_SETTINGS.hideWorseWinLoss);
+    expect(scored[1].fadeFullAt).toBe(DEFAULT_SETTINGS.hideWorseWinLoss);
   });
 
   it('shows scores for Black from White’s point of view', () => {
@@ -203,5 +204,22 @@ describe('board visuals', () => {
   it('uses dark text on light label colours', () => {
     expect(labelTextColor(BOARD_COLORS.saffron)).toBe(BOARD_COLORS.ink);
     expect(labelTextColor(BOARD_COLORS.lapis)).toBe('#fff');
+  });
+});
+
+describe('adjustable thresholds', () => {
+  it('hides and fades alternatives by the chosen win-chance limit', () => {
+    const lines = [line('e2e4', 1, 30), line('d2d4', 2, -20), line('f2f3', 3, -120)];
+    const arrows = [
+      { move: 'e2e4', rank: 0 },
+      { move: 'd2d4', rank: 1 },
+      { move: 'f2f3', rank: 2 },
+    ];
+    const strict = scoreArrows(arrows, lines, 'w', { showScores: false, hideWorse: true, maxWinLoss: 3 });
+    expect(strict.map((a) => a.move)).toEqual(['e2e4']);
+    const loose = scoreArrows(arrows, lines, 'w', { showScores: false, hideWorse: true, maxWinLoss: 30 });
+    expect(loose.map((a) => a.move)).toEqual(['e2e4', 'd2d4', 'f2f3']);
+    expect(loose[2].fadeFullAt).toBe(30);
+    expect(lossFade(15, 30)).toBeGreaterThan(lossFade(15, 10));
   });
 });
