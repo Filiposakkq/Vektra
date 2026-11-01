@@ -53,9 +53,14 @@ export class BoardLayer {
     svg.replaceChildren(this.tintLayer, this.arrowLayer, this.labelLayer, this.badgeLayer);
   }
 
-  /** Remove everything (a new position, or Vektra turning off). */
-  clear(): void {
+  /** Remove the arrows (a new position); the eval strip stays until the next evaluation. */
+  clearArrows(): void {
     this.draw([], false, null);
+  }
+
+  /** Remove everything, the eval strip too (Vektra turning off). */
+  clear(): void {
+    this.clearArrows();
     this.evalStrip.classList.remove('shown');
   }
 

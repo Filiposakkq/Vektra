@@ -241,7 +241,7 @@ function show(reading: Reading): void {
   if (continued?.engine !== main) main.stop();
   if (continued?.engine !== helper) helper.stop();
   if (!continued) pondering = null;
-  layer.clear();
+  layer.clearArrows();
   shownArrows = [];
   const user = reading.flipped ? 'b' : 'w';
   const stale = () => key !== current;
@@ -260,6 +260,8 @@ function show(reading: Reading): void {
     let ponderStarted = false;
     const use = (lines: PvLine[]) => {
       if (stale()) return;
+      // The eval strip follows the game on the bot's turn too.
+      if (lines[0]?.depth >= MIN_DRAW_DEPTH) layer.eval(whitePov(lines[0].score, fen.split(' ')[1] as 'w' | 'b'), reading.flipped);
       if (beforeFen && settings.liveRatings && lines[0]?.depth >= EARLY_RATING_DEPTH) {
         remember(fen, lines);
         void rateMove(beforeFen, fen);
