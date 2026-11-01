@@ -21,6 +21,8 @@ interface FakePort {
 function stubRuntime(reply: () => Promise<unknown> = async () => ({ ok: true })) {
   const ports: FakePort[] = [];
   const runtime: { lastError?: { message: string }; [key: string]: unknown } = {
+    // Cleared to act as a page whose Vektra was updated or reloaded.
+    id: 'test',
     lastError: undefined,
     sendMessage: () => reply(),
     connect: ({ name }: { name: string }) => {
@@ -210,6 +212,23 @@ describe('EngineClient connection', () => {
     ports[1].send({ type: 'done', id, bestmove: 'e2e4', lines: [] });
     await expect(search).resolves.toEqual({ bestmove: 'e2e4', lines: [] });
     expect(errors).toEqual([]);
+  });
+
+  it('says Vektra was updated when its port closes under an idle page', async () => {
+    const ports = stubRuntime();
+    const errors: string[] = [];
+    const client = new EngineClient();
+    client.onError = (m) => errors.push(m);
+    const search = client.analyze(REQUEST);
+    await vi.waitFor(() => expect(ports[0]?.posted).toHaveLength(1));
+    const { id } = ports[0].posted[0] as { id: number };
+    ports[0].send({ type: 'done', id, bestmove: 'e2e4', lines: [] });
+    await search;
+    delete (chrome.runtime as { id?: string }).id;
+    ports[0].drop();
+    expect(errors).toEqual(['Extension context invalidated.']);
+    // No reconnect: this page's Vektra is gone.
+    expect(ports).toHaveLength(1);
   });
 
   it('gives up with an error when the connection drops again', async () => {

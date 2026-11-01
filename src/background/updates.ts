@@ -3,6 +3,7 @@ import {
   EMPTY_UPDATE_STATE,
   GAME_IN_PROGRESS,
   LATEST_RELEASE_API,
+  UPDATED_NOTE_KEY,
   UPDATER_HOST,
   UPDATE_STATE_KEY,
   compareVersions,
@@ -177,7 +178,14 @@ export function startUpdates(): void {
   // Each time Chrome starts, and after Vektra is installed, updated or
   // reloaded; these are rare, so GitHub is always asked.
   chrome.runtime.onStartup.addListener(() => void checkForUpdate({ force: true }));
-  chrome.runtime.onInstalled.addListener(() => void checkForUpdate({ force: true }));
+  chrome.runtime.onInstalled.addListener((details) => {
+    // A reload of the same version also reports "update"; only a new version counts.
+    const to = runningVersion();
+    if (details.reason === 'update' && details.previousVersion && details.previousVersion !== to) {
+      void chrome.storage.local.set({ [UPDATED_NOTE_KEY]: { from: details.previousVersion, to } });
+    }
+    void checkForUpdate({ force: true });
+  });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === RELOAD_ALARM) void reloadWhenIdle();
   });

@@ -18,6 +18,15 @@ interface Pending {
 /** Times a dropped connection is reopened, and its search sent again, before giving up. */
 const MAX_RECONNECTS = 1;
 
+/** False once Vektra was updated or reloaded under this page. */
+function extensionAlive(): boolean {
+  try {
+    return Boolean(chrome.runtime?.id);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Content-script side of the engine. Only the latest search matters: starting
  * a new one resolves the previous one with null.
@@ -83,6 +92,13 @@ export class EngineClient {
         if (port !== this.port) return;
         this.port = null;
         this.readyEngine = null;
+        // Vektra was updated or reloaded under this page: say so even when
+        // idle, so the page can ask to be reloaded rather than go quiet.
+        if (!extensionAlive()) {
+          this.cancelAll();
+          this.reportError('Extension context invalidated.');
+          return;
+        }
         // A search was waiting: open a new connection and send it again
         // (the engine page may have restarted, or its worker crashed).
         if (this.pending.size && this.reconnects < MAX_RECONNECTS) {

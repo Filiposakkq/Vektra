@@ -22,7 +22,9 @@ import {
   RELEASES_URL,
   UPDATE_CHECK,
   UPDATE_INSTALL,
+  UPDATED_NOTE_KEY,
   UPDATE_STATE_KEY,
+  releaseUrl,
   updateAvailable,
   type UpdateState,
 } from '../shared/updates';
@@ -286,6 +288,19 @@ function renderUpdates() {
   document.getElementById('helper-note')!.hidden = !settings.updateCheck || !state || state.helper;
 }
 
+/** "Updated to 0.2.3 · What's new", once, the first time the settings open after an update. */
+async function showUpdatedNote() {
+  const note = (await chrome.storage.local.get(UPDATED_NOTE_KEY))[UPDATED_NOTE_KEY] as { to?: unknown } | undefined;
+  if (!note) return;
+  await chrome.storage.local.remove(UPDATED_NOTE_KEY);
+  // A note left from an earlier update isn't news any more.
+  if (note.to !== chrome.runtime.getManifest().version) return;
+  const version = String(note.to);
+  document.getElementById('update-note-version')!.textContent = `Vektra ${version}`;
+  (document.getElementById('update-note-link') as HTMLAnchorElement).href = releaseUrl(version);
+  document.getElementById('update-note')!.hidden = false;
+}
+
 /** Ask the background worker for the update state; it checks GitHub if it hasn't lately. */
 async function refreshUpdates(type: typeof UPDATE_CHECK | typeof UPDATE_INSTALL = UPDATE_CHECK, force = false) {
   try {
@@ -406,6 +421,7 @@ async function initializePopup() {
   updateState = ((await chrome.storage.local.get(UPDATE_STATE_KEY))[UPDATE_STATE_KEY] as UpdateState | undefined) ?? null;
   renderUpdates();
   void refreshUpdates();
+  void showUpdatedNote().catch(() => {});
   void renderPageHealth();
   void chrome.runtime
     .sendMessage({ type: ENSURE_ENGINE })

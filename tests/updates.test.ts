@@ -174,6 +174,18 @@ describe('background updates', () => {
     expect((await mod.checkForUpdate()).phase).toBe('idle');
   });
 
+  it('leaves a note for the popup when Vektra starts as a new version', async () => {
+    const { mod, fake, githubCalls } = await updates({ running: '0.2.3', release: 'v0.2.3' });
+    mod.startUpdates();
+    fake.runtime.onInstalled.emit({ reason: 'update', previousVersion: '0.2.3' });
+    await vi.waitFor(() => expect(githubCalls()).toBe(1));
+    // A reload of the same version is no news.
+    expect(fake.local.data.updatedNote).toBeUndefined();
+    fake.runtime.onInstalled.emit({ reason: 'update', previousVersion: '0.2.2' });
+    await vi.waitFor(() => expect(fake.local.data.updatedNote).toEqual({ from: '0.2.2', to: '0.2.3' }));
+    await vi.waitFor(() => expect(githubCalls()).toBe(2));
+  });
+
   it('checks when Chrome starts and reloads from the alarm once the game is over', async () => {
     const { mod, fake, githubCalls } = await updates({ state: { checkedAt: Date.now() } });
     mod.startUpdates();

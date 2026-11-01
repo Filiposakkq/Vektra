@@ -21,13 +21,15 @@ async function openPopup(
     tab = { url: 'https://www.chess.com/play/online' },
     pageHealth,
     updateState,
-  }: { tab?: Partial<chrome.tabs.Tab>; pageHealth?: unknown; updateState?: UpdateState } = {},
+    updatedNote,
+  }: { tab?: Partial<chrome.tabs.Tab>; pageHealth?: unknown; updateState?: UpdateState; updatedNote?: unknown } = {},
 ) {
   vi.resetModules();
   const background = await import('../src/shared/settings');
   background.becomeSettingsWriter();
   fake = installFakeChrome({
     sync: { settings: stored },
+    local: updatedNote ? { updatedNote } : {},
     onSendMessage: (msg) =>
       new Promise((resolve) => {
         // The background worker's update check answers with the update state.
@@ -201,7 +203,7 @@ describe('settings popup', () => {
     it('offers a download without the updater helper', async () => {
       await openPopup(undefined, { updateState: { ...idle, latest: release } });
       await vi.waitFor(() => expect(banner().hidden).toBe(false));
-      expect(document.getElementById('update-text')!.textContent).toMatch(/0.3.0 is available. Download it/);
+      expect(document.getElementById('update-text')!.textContent).toMatch(/0\.3\.0 is available\. Download it/);
       expect(shown('update-download')).toBe(true);
       expect(shown('update-now')).toBe(false);
       expect((document.getElementById('update-download') as HTMLAnchorElement).href).toBe(release.url);
@@ -239,6 +241,23 @@ describe('settings popup', () => {
       await vi.waitFor(() =>
         expect(fake.runtime.sendMessage).toHaveBeenCalledWith({ type: 'vektra:update-check', force: true }),
       );
+    });
+
+    it('says once that Vektra was updated', async () => {
+      await openPopup(undefined, { updateState: idle, updatedNote: { from: '0.2.1', to: '0.2.0' } });
+      const note = document.getElementById('update-note')!;
+      await vi.waitFor(() => expect(note.hidden).toBe(false));
+      expect(note.textContent?.replace(/\s+/g, ' ').trim()).toBe("Updated to Vektra 0.2.0 · What's new");
+      expect((document.getElementById('update-note-link') as HTMLAnchorElement).href).toBe(
+        'https://github.com/Filiposakkq/Vektra/releases/tag/v0.2.0',
+      );
+      expect(fake.local.data.updatedNote).toBeUndefined();
+    });
+
+    it('drops a note from an earlier update without showing it', async () => {
+      await openPopup(undefined, { updateState: idle, updatedNote: { from: '0.1.0', to: '0.1.5' } });
+      await vi.waitFor(() => expect(fake.local.data.updatedNote).toBeUndefined());
+      expect(document.getElementById('update-note')!.hidden).toBe(true);
     });
 
     it('shows no new version when the update check is off', async () => {

@@ -16,7 +16,7 @@ import { HintController } from './hints';
 import { isGameOver, isLiveGamePath, resolveScope, type Scope } from './pageScope';
 import { uciToSan } from '../analysis/chessNotation';
 import type { AnalysisController } from './analysisController';
-import { reportAnalysisLoadFailure, setReloadNotice } from './extensionUpdate';
+import { handleStaleExtension, reportAnalysisLoadFailure, setReloadNotice } from './extensionUpdate';
 import { checkPage } from './pageHealth';
 import { PAGE_HEALTH, type PageHealth } from '../shared/pageHealth';
 import { GAME_IN_PROGRESS } from '../shared/updates';
@@ -181,7 +181,11 @@ function applyScope(scope: Scope) {
       hints = new HintController();
       hints.setSettings(settings);
       hints.onBestMove = (state, move) => autoPlay.schedule(state, move);
-      hints.onEngineError = (message) => engineErrorNotice.show(message, () => hints?.refresh());
+      hints.onEngineError = (message) => {
+        // After an update the page runs an outdated Vektra: ask for a reload, not a retry.
+        if (handleStaleExtension(new Error(message))) return;
+        engineErrorNotice.show(message, () => hints?.refresh());
+      };
       hints.onEngineReady = () => engineErrorNotice.clear();
       hints.onMoveChosen = (state, move, searchTimeMs, lossCp) => {
         boardAutoPlay?.recordPick(moveLabel(state.fen), uciToSan(state.fen, move), searchTimeMs, lossCp);

@@ -10,6 +10,15 @@ export const LATEST_RELEASE_API = 'https://api.github.com/repos/Filiposakkq/Vekt
 /** The updater helper's name, as install-updater.ps1 registers it with Chrome. */
 export const UPDATER_HOST = 'com.vektra.updater';
 
+/**
+ * Set in chrome.storage.local when Vektra starts as a newer version:
+ * { from, to }. The popup shows "Updated to <to>" once, then removes it.
+ */
+export const UPDATED_NOTE_KEY = 'updatedNote';
+
+/** The GitHub page of one release, with its notes. */
+export const releaseUrl = (version: string) => `${RELEASES_URL}/tag/v${version}`;
+
 /** Where the background worker keeps the UpdateState, in chrome.storage.local. */
 export const UPDATE_STATE_KEY = 'updateState';
 /**

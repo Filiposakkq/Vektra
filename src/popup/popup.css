@@ -329,6 +329,12 @@ form input[type="checkbox"]:checked::before { transform: translateX(14px); backg
 }
 .page-warning[hidden] { display: none; }
 
+/* Shown once after Vektra updated itself. */
+.update-note { margin: 0 16px 12px; color: var(--muted); font-size: 12px; }
+.update-note[hidden] { display: none; }
+.update-note a { color: var(--lapis-text); font-weight: 600; text-decoration: none; }
+.update-note a:hover { text-decoration: underline; }
+
 /* A new version: what it is and what to do about it. */
 .update-banner {
   margin: 0 16px 12px;
