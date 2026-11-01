@@ -33,7 +33,32 @@ export function fenFromBoard(board: string, turn: 'w' | 'b'): string | null {
     if (at('a8') === 'r') castling += 'q';
   }
   const fen = `${board} ${turn} ${castling || '-'} - 0 1`;
-  return validateFen(fen).ok ? fen : null;
+  if (!validateFen(fen).ok || !possibleBoard(ranks)) return null;
+  // The side that just moved can't have left its king in check.
+  const other = turn === 'w' ? 'b' : 'w';
+  try {
+    if (new Chess(`${board} ${other} - - 0 1`).inCheck()) return null;
+  } catch {
+    return null;
+  }
+  return fen;
+}
+
+/**
+ * False for piece counts no game can reach: a board read mid-animation can
+ * show a moving piece on two squares, and Stockfish crashes on such positions.
+ */
+function possibleBoard(ranks: string[]): boolean {
+  const count = (piece: string) => ranks.join('').split(piece).length - 1;
+  for (const [pawn, pieces] of [['P', 'NBRQ'], ['p', 'nbrq']] as const) {
+    const king = pawn === 'P' ? 'K' : 'k';
+    if (count(king) !== 1 || count(pawn) > 8) return false;
+    // Every piece beyond the starting set must be a promoted pawn.
+    const start: Record<string, number> = { n: 2, b: 2, r: 2, q: 1 };
+    const promoted = [...pieces].reduce((sum, p) => sum + Math.max(0, count(p) - start[p.toLowerCase()]), 0);
+    if (count(pawn) + promoted > 8) return false;
+  }
+  return !/[Pp]/.test(ranks[0] + ranks[7]);
 }
 
 /**

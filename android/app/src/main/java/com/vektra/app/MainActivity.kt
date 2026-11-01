@@ -123,7 +123,14 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        serviceText.text = if (serviceEnabled()) {
+        serviceText.text = if (serviceEnabled() && !PositionStore.serviceRunning) {
+            // Switched on, but its process was killed (recent apps cleared, battery
+            // saver): Android won't restart an accessibility service by itself.
+            "Accessibility service: stopped. Android stopped Vektra (clearing recent apps or the battery " +
+                "saver can do this) and won't restart it by itself: turn Vektra off and on again in the " +
+                "accessibility settings. To keep it running on Xiaomi, open Vektra's app info and allow " +
+                "Autostart, and set Battery saver to No restrictions."
+        } else if (serviceEnabled()) {
             "Accessibility service: on."
         } else {
             "Accessibility service: off. Turn on Vektra in the accessibility settings (on Xiaomi: " +

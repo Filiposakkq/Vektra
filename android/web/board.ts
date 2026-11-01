@@ -19,6 +19,8 @@ import {
 import type { Arrow } from '@core/hints/types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+/** How long leaving arrows take to fade out. */
+const FADE_MS = 160;
 
 /** A move rating shown on a square (Best, Mistake...). */
 export interface Badge {
@@ -39,20 +41,34 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
  * sits above the app's pieces, so square tints stay light.
  */
 export class BoardLayer {
-  constructor(
-    private readonly svg: SVGSVGElement,
-    private readonly evalStrip: HTMLElement,
-  ) {}
+  private readonly tintLayer = el('g', {});
+  private readonly arrowLayer = el('g', {});
+  private readonly labelLayer = el('g', {});
+  private readonly badgeLayer = el('g', {});
+  /** The arrows on the board, by kind and move, so an unchanged arrow stays put while the engine updates. */
+  private arrowNodes = new Map<string, SVGGElement>();
 
+  constructor(
+    svg: SVGSVGElement,
+    private readonly evalStrip: HTMLElement,
+  ) {
+    svg.replaceChildren(this.tintLayer, this.arrowLayer, this.labelLayer, this.badgeLayer);
+  }
+
+  /** Fade everything out (a new position, or Vektra turning off). */
   clear(): void {
-    this.svg.replaceChildren();
+    this.draw([], false, null);
     this.evalStrip.classList.remove('shown');
   }
 
+  /**
+   * Draw the arrows. The engine sends many updates while it searches, so an
+   * arrow that is still there keeps its element; gone ones fade out.
+   */
   draw(arrows: Arrow[], flipped: boolean, badge: Badge | null = null): void {
     const tints: SVGElement[] = [];
-    const shapes: SVGElement[] = [];
     const labels: SVGElement[] = [];
+    const next = new Map<string, SVGGElement>();
     const moveSegments = arrows
       .filter((a) => !a.threat)
       .map((a): [[number, number], [number, number]] => [squareCenter(a.move.slice(0, 2), flipped), squareCenter(a.move.slice(2, 4), flipped)]);
@@ -81,7 +97,11 @@ export class BoardLayer {
         }
       }
       const shape = arrowGeometry(from, to, style.width, corner, 0.42);
-      const g = el('g', { opacity, filter: 'url(#vektra-shadow)' });
+      const key = `${arrow.threat ? 'threat' : arrow.weaker ? 'weaker' : 'move'}:${arrow.move}:${flipped}`;
+      // New arrows show at once (a fade-in looked laggy on the phone); only leaving ones fade.
+      const g = this.arrowNodes.get(key) ?? el('g', {});
+      g.style.transition = '';
+      g.style.opacity = String(opacity);
       const shaft = el('path', {
         d: shape.shaft,
         fill: 'none',
@@ -92,12 +112,37 @@ export class BoardLayer {
       });
       // Dashed while the engine may still change its mind; solid once final.
       if (arrow.provisional) shaft.setAttribute('stroke-dasharray', `${style.width * 0.9} ${style.width * 1.1}`);
-      g.append(shaft, el('polygon', { points: shape.head, fill: color, stroke: color, 'stroke-width': style.width * 0.15, 'stroke-linejoin': 'round' }));
-      shapes.push(g);
+      // A dark edge under the arrow keeps it readable on light squares and white
+      // pieces. A plain outline, not the extension's drop-shadow filter: a phone
+      // redraws a filter on every frame of a fade.
+      const edge = { stroke: BOARD_COLORS.ink, 'stroke-opacity': 0.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+      const shaftEdge = el('path', { ...edge, d: shape.shaft, fill: 'none', 'stroke-width': style.width + 0.035 });
+      if (arrow.provisional) shaftEdge.setAttribute('stroke-dasharray', shaft.getAttribute('stroke-dasharray')!);
+      const headEdge = el('polygon', { ...edge, points: shape.head, fill: BOARD_COLORS.ink, 'fill-opacity': 0.4, 'stroke-width': style.width * 0.15 + 0.035 });
+      g.replaceChildren(
+        shaftEdge,
+        headEdge,
+        shaft,
+        el('polygon', { points: shape.head, fill: color, stroke: color, 'stroke-width': style.width * 0.15, 'stroke-linejoin': 'round' }),
+      );
+      // Appended in drawing order, so the best arrow stays on top.
+      this.arrowLayer.appendChild(g);
+      next.set(key, g);
       if (arrow.label) labels.push(this.scoreLabel(arrow.label, to, color, Math.max(opacity, 0.85)));
     }
-    const badges = badge ? [this.badge(badge, flipped)] : [];
-    this.svg.replaceChildren(this.shadowFilter(), ...tints, ...shapes, ...labels, ...badges);
+    // Arrows that are gone fade out, then leave (unless they come back meanwhile).
+    for (const [key, old] of this.arrowNodes) {
+      if (next.has(key)) continue;
+      old.style.transition = `opacity ${FADE_MS}ms ease-in`;
+      old.style.opacity = '0';
+      setTimeout(() => {
+        if (this.arrowNodes.get(key) !== old) old.remove();
+      }, FADE_MS + 40);
+    }
+    this.arrowNodes = next;
+    this.tintLayer.replaceChildren(...tints);
+    this.labelLayer.replaceChildren(...labels);
+    this.badgeLayer.replaceChildren(...(badge ? [this.badge(badge, flipped)] : []));
   }
 
   /** A rating icon in the square's top-right corner, overlapping the edge like Chess.com's. */
@@ -148,14 +193,5 @@ export class BoardLayer {
     label.textContent = text;
     g.append(el('rect', { x, y, width, height, rx: height / 2, fill: color, stroke: BOARD_COLORS.ink, 'stroke-opacity': 0.35, 'stroke-width': 0.015 }), label);
     return g;
-  }
-
-  /** A tight dark edge under the arrows so they read on light squares and white pieces. */
-  private shadowFilter(): SVGElement {
-    const defs = el('defs', {});
-    const filter = el('filter', { id: 'vektra-shadow', x: '-20%', y: '-20%', width: '140%', height: '140%' });
-    filter.append(el('feDropShadow', { dx: 0, dy: 0.012, stdDeviation: 0.016, 'flood-color': BOARD_COLORS.ink, 'flood-opacity': 0.55 }));
-    defs.append(filter);
-    return defs;
   }
 }

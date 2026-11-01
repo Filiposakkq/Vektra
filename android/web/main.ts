@@ -40,17 +40,43 @@ const EARLY_RATING_DEPTH = 4;
 /** Final evaluations kept, for rating moves. */
 const EVALS_KEPT = 200;
 
-function startEngine(): UciEngine {
+/** A Stockfish worker; `onCrash` gets a new one going if it ever dies. */
+function startEngine(name: string, onCrash: () => void): UciEngine {
   const worker = new Worker('engine/stockfish-19-lite-single.js');
   const engine = new UciEngine((command) => worker.postMessage(command));
   worker.onmessage = (event: MessageEvent) => engine.handleLine(String(event.data));
-  worker.onerror = (event) => console.error(`[Vektra] the engine failed: ${event.message}`);
+  worker.onerror = (event) => {
+    console.error(`[Vektra] the ${name} engine failed (${event.message}); starting it again`);
+    worker.terminate();
+    onCrash();
+  };
   return engine;
 }
 
+/** After a crash: the current position is searched again on fresh engines. */
+function engineRestarted(): void {
+  pondering = null;
+  current = '';
+  if (lastReading) show(lastReading);
+}
+
 /** The main search; the helper runs the quick weaker-move and threat passes beside it. */
-const main = startEngine();
-const helper = startEngine();
+let main: UciEngine;
+let helper: UciEngine;
+const startMain = () => {
+  main = startEngine('main', () => {
+    startMain();
+    engineRestarted();
+  });
+};
+const startHelper = () => {
+  helper = startEngine('helper', () => {
+    startHelper();
+    engineRestarted();
+  });
+};
+startMain();
+startHelper();
 const layer = new BoardLayer(document.getElementById('board') as unknown as SVGSVGElement, document.getElementById('eval')!);
 
 let settings: Settings = DEFAULT_SETTINGS;
@@ -173,13 +199,36 @@ async function ponder(fen: string, lines: PvLine[], user: 'w' | 'b', stale: () =
   }
 }
 
+/** Whose turn it is: from the board when it is one move on from the last position, else from the move list. */
+function turnOf(reading: Reading): 'w' | 'b' | null {
+  if (lastFen) {
+    const [lastBoard, lastTurn] = lastFen.split(' ');
+    // Nothing moved: the move list may still be catching up.
+    if (reading.board === lastBoard) return lastTurn as 'w' | 'b';
+    // One legal move on: the turn passed, before the move list shows it.
+    if (moveBetween(lastFen, reading.board)) return lastTurn === 'w' ? 'b' : 'w';
+  }
+  return reading.turn ?? (reading.board === START_BOARD ? 'w' : null);
+}
+
+/** The position last shown, with whose turn it was. */
+let lastFen: string | null = null;
+
 function show(reading: Reading): void {
-  const key = `${reading.board} ${reading.turn} ${reading.flipped}`;
+  if (!settings.enabled) {
+    clear();
+    lastReading = reading;
+    return;
+  }
+  const turn = turnOf(reading);
+  const fen = turn ? fenFromBoard(reading.board, turn) : null;
+  // An impossible board was read mid-animation, or the turn is unknown: keep what is shown.
+  if (!fen) return;
+  const key = `${fen} ${reading.flipped}`;
   if (key === current) return;
   current = key;
   lastReading = reading;
-  const turn = reading.turn ?? (reading.board === START_BOARD ? 'w' : null);
-  const fen = settings.enabled && turn ? fenFromBoard(reading.board, turn) : null;
+  lastFen = fen;
   // A search done ahead for exactly this position goes on; everything else stops.
   const continued = pondering && pondering.fen === fen ? pondering : null;
   main.stop();
@@ -189,11 +238,6 @@ function show(reading: Reading): void {
   }
   layer.clear();
   shownArrows = [];
-  if (!settings.enabled || !turn) return;
-  if (!fen) {
-    console.warn(`[Vektra] not a legal position: ${reading.board}`);
-    return;
-  }
   const user = reading.flipped ? 'b' : 'w';
   const stale = () => key !== current;
 
@@ -317,6 +361,7 @@ function show(reading: Reading): void {
 
 function clear(): void {
   current = '';
+  lastFen = null;
   main.stop();
   helper.stop();
   pondering = null;

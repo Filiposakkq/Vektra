@@ -21,6 +21,23 @@ describe('a FEN from the pieces alone', () => {
     expect(fenFromBoard('8/8/8/8/8/8/8/8', 'w')).toBeNull();
     expect(fenFromBoard('rnbqkbnr/pppppppp/8/8', 'w')).toBeNull();
   });
+
+  it('refuses boards read mid-animation', () => {
+    // Read on the phone while ...e5 was moving: the pawn on e6 and e5 at once.
+    expect(fenFromBoard('rnb1kbnr/pppp1ppp/4pq2/4p3/3PP3/2N5/PPP2PPP/R1BQKBNR', 'w')).toBeNull();
+    // A pawn on the last rank, two white kings, three knights with all pawns left.
+    expect(fenFromBoard('rnbqkbnP/ppppppp1/8/8/8/8/PPPPPPP1/RNBQKBNR', 'b')).toBeNull();
+    expect(fenFromBoard('rnbqkbnr/pppppppp/8/8/8/4K3/PPPPPPPP/RNBQKBNR', 'w')).toBeNull();
+    expect(fenFromBoard('rnbqkbnr/pppppppp/8/8/8/2N5/PPPPPPPP/RNBQKBNR', 'w')).toBeNull();
+    // A promoted queen is fine when a pawn is missing.
+    expect(fenFromBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPP1/RNBQKQNR', 'w')).not.toBeNull();
+  });
+
+  it('refuses a position where the side that just moved is in check', () => {
+    // White to move, but Black's king is attacked by the queen on e2.
+    expect(fenFromBoard('4k3/8/8/8/8/8/4Q3/4K3', 'w')).toBeNull();
+    expect(fenFromBoard('4k3/8/8/8/8/8/4Q3/4K3', 'b')).toBe('4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1');
+  });
 });
 
 describe('the move between two positions', () => {

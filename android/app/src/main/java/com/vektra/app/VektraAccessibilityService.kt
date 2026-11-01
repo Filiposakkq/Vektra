@@ -22,6 +22,7 @@ class VektraAccessibilityService : AccessibilityService() {
     private var chessScreen: String? = null
     private val isActivityCache = HashMap<String, Boolean>()
     private val check = Runnable { checkScreen() }
+    private val settledCheck = Runnable { checkScreen() }
     private var overlay: HintOverlay? = null
     /** When the screen first changed since the last read, and how long the last read came after it. */
     private var changedAt = 0L
@@ -29,6 +30,7 @@ class VektraAccessibilityService : AccessibilityService() {
     private val settingsListener: (HintSettings) -> Unit = { settings -> handler.post { overlay?.applySettings(settings) } }
 
     override fun onServiceConnected() {
+        PositionStore.serviceRunning = true
         overlay = HintOverlay(this)
         SettingsStore.addListener(settingsListener)
         report(PositionStore.State.Off("Waiting for a Chess.com bot game."))
@@ -41,17 +43,27 @@ class VektraAccessibilityService : AccessibilityService() {
             val cls = event.className?.toString()
             if (cls != null && isChessActivity(cls)) chessScreen = cls
         }
-        // Boards change often; read once things settle.
-        if (changedAt == 0L) changedAt = SystemClock.uptimeMillis()
-        handler.removeCallbacks(check)
-        handler.postDelayed(check, SETTLE_MS)
+        // Read shortly after the first change, without waiting for the screen
+        // to go quiet: Chess.com keeps updating it during and after a move.
+        // A board caught mid-animation is caught by the overlay page (it
+        // ignores impossible positions); the next change reads again.
+        if (changedAt == 0L) {
+            changedAt = SystemClock.uptimeMillis()
+            handler.postDelayed(check, READ_DELAY_MS)
+        }
+        // And once more when the screen has settled, in case the early read
+        // caught a half-finished move and nothing changes after it.
+        handler.removeCallbacks(settledCheck)
+        handler.postDelayed(settledCheck, SETTLED_MS)
     }
 
     override fun onInterrupt() {}
 
     override fun onDestroy() {
         handler.removeCallbacks(check)
+        handler.removeCallbacks(settledCheck)
         report(PositionStore.State.Off("Vektra's accessibility service isn't running."))
+        PositionStore.serviceRunning = false
         SettingsStore.removeListener(settingsListener)
         overlay?.destroy()
         overlay = null
@@ -117,7 +129,9 @@ class VektraAccessibilityService : AccessibilityService() {
 
     private companion object {
         const val TAG = "Vektra"
-        /** Short: a move should clear the old arrows at once, but a move animation sends a burst of events. */
-        const val SETTLE_MS = 120L
+        /** From the first change on screen to reading it: enough for Chess.com to update its labels. */
+        const val READ_DELAY_MS = 100L
+        /** Quiet time after which the screen is read once more. */
+        const val SETTLED_MS = 400L
     }
 }

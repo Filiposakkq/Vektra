@@ -24,6 +24,10 @@ object PositionStore {
     var lastReading: GameReading? = null
         private set
 
+    /** True while the accessibility service is connected in this process. */
+    @Volatile
+    var serviceRunning = false
+
     private val listeners = CopyOnWriteArrayList<(State) -> Unit>()
 
     fun addListener(listener: (State) -> Unit) = listeners.add(listener)
