@@ -81,3 +81,23 @@ export function moveBetween(fen: string, board: string): { uci: string; san: str
   }
   return null;
 }
+
+/**
+ * True when `board` is `before` with exactly one piece gone and nothing else
+ * changed: the user is dragging that piece (its square reads as empty until
+ * the move lands), not a position to search.
+ */
+export function onePieceLifted(before: string, board: string): boolean {
+  const squares = (placement: string) =>
+    placement.split('/').flatMap((row) => [...row].flatMap((c) => (c >= '1' && c <= '8' ? Array<string>(Number(c)).fill('') : [c])));
+  const a = squares(before);
+  const b = squares(board);
+  if (a.length !== 64 || b.length !== 64) return false;
+  let gone = 0;
+  for (let i = 0; i < 64; i++) {
+    if (a[i] === b[i]) continue;
+    if (b[i] !== '') return false;
+    gone++;
+  }
+  return gone === 1;
+}

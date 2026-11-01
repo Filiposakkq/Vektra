@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -27,6 +28,10 @@ class VektraAccessibilityService : AccessibilityService() {
     /** When the screen first changed since the last read, and how long the last read came after it. */
     private var changedAt = 0L
     private var readDelayMs = 0L
+    private var lastReadAt = 0L
+    /** How long collecting the last screen took. */
+    private var readCostMs = 0L
+    private var readScheduled = false
     private val settingsListener: (HintSettings) -> Unit = { settings -> handler.post { overlay?.applySettings(settings) } }
 
     override fun onServiceConnected() {
@@ -43,13 +48,31 @@ class VektraAccessibilityService : AccessibilityService() {
             val cls = event.className?.toString()
             if (cls != null && isChessActivity(cls)) chessScreen = cls
         }
-        // Read shortly after the first change, without waiting for the screen
-        // to go quiet: Chess.com keeps updating it during and after a move.
-        // A board caught mid-animation is caught by the overlay page (it
-        // ignores impossible positions); the next change reads again.
-        if (changedAt == 0L) {
-            changedAt = SystemClock.uptimeMillis()
-            handler.postDelayed(check, READ_DELAY_MS)
+        // Chess.com announces each move for screen readers ("Bílý Dáma z d1 na
+        // d4") the moment it is played, well before the board can be read:
+        // apply it at once. The board reads that follow check it.
+        if (pkg == BotGameGuard.CHESS_PACKAGE &&
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+            event.contentChangeTypes and AccessibilityEvent.CONTENT_CHANGE_TYPE_TEXT != 0 &&
+            event.className == "android.widget.TextView" &&
+            PositionStore.state is PositionStore.State.On
+        ) {
+            val text = event.text.joinToString(" ").ifBlank { event.source?.text?.toString().orEmpty() }
+            MoveAnnouncement.parse(text)?.let {
+                Log.i(TAG, "announced: ${it.from}${it.to}")
+                overlay?.played(it)
+            }
+        }
+        // Read soon after a change, without waiting for the screen to go quiet
+        // (Chess.com keeps updating it during and after a move), but not too
+        // often: each read makes Chess.com's app describe its screen, on the
+        // thread that animates its pieces. A board caught mid-animation is
+        // caught by the overlay page (it ignores impossible positions).
+        if (!readScheduled) {
+            val now = SystemClock.uptimeMillis()
+            if (changedAt == 0L) changedAt = now
+            readScheduled = true
+            handler.postDelayed(check, maxOf(FIRST_READ_MS, lastReadAt + READ_GAP_MS - now))
         }
         // And once more when the screen has settled, in case the early read
         // caught a half-finished move and nothing changes after it.
@@ -71,9 +94,11 @@ class VektraAccessibilityService : AccessibilityService() {
     }
 
     private fun checkScreen() {
-        readDelayMs = SystemClock.uptimeMillis() - changedAt
+        readScheduled = false
+        lastReadAt = SystemClock.uptimeMillis()
+        readDelayMs = lastReadAt - changedAt
         changedAt = 0L
-        val root = rootInActiveWindow
+        val root = activeRoot()
         if (root?.packageName?.toString() != BotGameGuard.CHESS_PACKAGE) {
             report(PositionStore.State.Off("Chess.com isn't in front."))
             return
@@ -84,12 +109,26 @@ class VektraAccessibilityService : AccessibilityService() {
         }
         val labels = ArrayList<ScreenLabel>()
         val texts = ArrayList<String>()
+        val started = SystemClock.uptimeMillis()
         collect(root, labels, texts)
+        readCostMs = SystemClock.uptimeMillis() - started
         when (val result = BoardParser.parse(labels)) {
             is BoardResult.Unreadable -> report(PositionStore.State.Off("Bot game, but the board can't be read: ${result.reason}"))
             is BoardResult.Read -> report(PositionStore.State.On(GameReading(result.board, MoveListParser.parse(texts))))
         }
     }
+
+    /**
+     * The window in front. Every node read is a request to Chess.com's app,
+     * answered on the thread that animates its pieces; on Android 13+ the
+     * whole screen comes in a few batches instead of one request per node.
+     */
+    private fun activeRoot(): AccessibilityNodeInfo? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getRootInActiveWindow(AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_HYBRID)
+        } else {
+            rootInActiveWindow
+        }
 
     private fun collect(node: AccessibilityNodeInfo?, labels: MutableList<ScreenLabel>, texts: MutableList<String>) {
         node ?: return
@@ -122,16 +161,18 @@ class VektraAccessibilityService : AccessibilityService() {
             is PositionStore.State.On -> Log.i(
                 TAG,
                 "bot game: ${state.reading.fenStart} flipped=${state.reading.board.flipped} " +
-                    "moves=${state.reading.moves.tokens.joinToString(" ")} (read ${readDelayMs} ms after the screen changed)",
+                    "moves=${state.reading.moves.tokens.joinToString(" ")} (read ${readDelayMs} ms after the screen changed, in ${readCostMs} ms)",
             )
         }
     }
 
     private companion object {
         const val TAG = "Vektra"
-        /** From the first change on screen to reading it: enough for Chess.com to update its labels. */
-        const val READ_DELAY_MS = 100L
+        /** From the first change to the first read. */
+        const val FIRST_READ_MS = 60L
+        /** Reads come at most this often while the screen keeps changing. */
+        const val READ_GAP_MS = 150L
         /** Quiet time after which the screen is read once more. */
-        const val SETTLED_MS = 400L
+        const val SETTLED_MS = 300L
     }
 }

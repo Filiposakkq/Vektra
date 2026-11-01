@@ -65,6 +65,11 @@ class HintOverlay(private val context: Context) {
         call("vektra.show({board:\"${reading.board.placement}\",turn:$turn,flipped:${reading.board.flipped}})")
     }
 
+    /** A move Chess.com announced: the page applies it to the position it shows, before the board is read. */
+    fun played(move: MoveAnnouncement) {
+        call("vektra.played({from:\"${move.from}\",to:\"${move.to}\",color:\"${move.color}\"})")
+    }
+
     /** Sends the user's settings to the page; the shown hints are worked out again. */
     fun applySettings(settings: HintSettings) {
         settingsJson = settings.toJson()

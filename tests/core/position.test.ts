@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fenFromBoard, moveBetween } from '@core/chess/position';
+import { fenFromBoard, moveBetween, onePieceLifted } from '@core/chess/position';
 
 describe('a FEN from the pieces alone', () => {
   it('gives the start position its castling rights', () => {
@@ -59,5 +59,20 @@ describe('the move between two positions', () => {
   it('is null when no single move explains the change', () => {
     expect(moveBetween(start, 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR')).toBeNull();
     expect(moveBetween(start, start.split(' ')[0])).toBeNull();
+  });
+});
+
+describe('a piece being dragged', () => {
+  const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+
+  it('is a board with exactly one piece gone', () => {
+    // Read on the phone while the bishop was being dragged from c1.
+    expect(onePieceLifted('r3kbnr/ppqb2pp/4p3/2ppP3/8/2P5/PP2BPPP/RNBQ1RK1', 'r3kbnr/ppqb2pp/4p3/2ppP3/8/2P5/PP2BPPP/RN1Q1RK1')).toBe(true);
+  });
+
+  it('is not a move, a capture or no change', () => {
+    expect(onePieceLifted(start, 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR')).toBe(false);
+    expect(onePieceLifted(start, start)).toBe(false);
+    expect(onePieceLifted(start, 'rnbqkbnr/pppppppp/8/8/8/8/PPPP2PP/RNBQKBNR')).toBe(false);
   });
 });

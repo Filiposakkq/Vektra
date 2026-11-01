@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js';
 import type { Category } from '@core/analysis/classify';
 import { analyzeMove, describeMoveAnalysis, terminalScore, type PositionEval } from '@core/analysis/moveAnalysis';
-import { fenFromBoard, moveBetween } from '@core/chess/position';
+import { fenFromBoard, moveBetween, onePieceLifted } from '@core/chess/position';
 import type { SearchResult } from '@core/engine/search';
 import { whitePov, type PvLine } from '@core/engine/uci';
 import { UciEngine } from '@core/engine/uciEngine';
@@ -227,6 +227,8 @@ function show(reading: Reading): void {
     lastReading = reading;
     return;
   }
+  // The user is dragging a piece (its square reads as empty): not a position yet.
+  if (lastFen && onePieceLifted(lastFen.split(' ')[0], reading.board)) return;
   const turn = turnOf(reading);
   const fen = turn ? fenFromBoard(reading.board, turn) : null;
   // An impossible board was read mid-animation, or the turn is unknown: keep what is shown.
@@ -372,6 +374,24 @@ function show(reading: Reading): void {
   })();
 }
 
+/**
+ * A move Chess.com announced for screen readers, the moment it was played
+ * and before its board can be read: applied to the position shown. The board
+ * reads that follow check it (show() ignores the same position again, and a
+ * different board wins).
+ */
+function played(move: { from: string; to: string; color: 'w' | 'b' }): void {
+  if (!settings.enabled || !lastFen || !lastReading || lastFen.split(' ')[1] !== move.color) return;
+  const chess = new Chess(lastFen);
+  try {
+    // A promotion is taken to be a queen until the board says otherwise.
+    chess.move({ from: move.from, to: move.to, promotion: 'q' });
+  } catch {
+    return;
+  }
+  show({ board: chess.fen().split(' ')[0], turn: chess.turn(), flipped: lastReading.flipped });
+}
+
 function clear(): void {
   current = '';
   lastFen = null;
@@ -391,5 +411,5 @@ function applySettings(patch: Partial<Settings>): void {
   }
 }
 
-Object.assign(window, { vektra: { show, clear, settings: applySettings } });
+Object.assign(window, { vektra: { show, clear, played, settings: applySettings } });
 console.info('[Vektra] overlay ready');

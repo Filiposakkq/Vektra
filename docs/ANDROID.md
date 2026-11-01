@@ -176,6 +176,16 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    engines took the phone's two fast cores and the arrows lagged, so light
    mode (one engine, searches one after another) is on by default; arrows
    appear and leave without fades, and the overlay window uses the GPU.
+   Chess.com only reports the board changing as a whole (reading it takes
+   100-300 ms while it animates), but announces each move for screen readers
+   the moment it is played ("Bílý Dáma z d1 na d4", `MoveAnnouncement.kt`);
+   the overlay applies that move at once (arrows 10-20 ms later) and the board
+   reads that follow check it. A board read while a piece is dragged (one
+   piece missing) is ignored (`onePieceLifted`). Still not PC-smooth: Chess.com
+   announces after its animation, Android delivers events a little late, and
+   the overlay is a separate window. Drawing the arrows natively instead of in
+   the WebView would save a frame or two; it can't reach the extension, which
+   draws inside the page in the same frame.
 4. **Review.** Finished games from the public archive, with the analysis panel.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 
