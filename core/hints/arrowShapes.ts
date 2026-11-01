@@ -56,6 +56,11 @@ export function squareCenter(square: string, flipped: boolean): [number, number]
   return flipped ? [7 - file + 0.5, rank + 0.5] : [file + 0.5, 7 - rank + 0.5];
 }
 
+/** A point in board units: (0, 0) is the board's top-left corner, (8, 8) its bottom-right one. */
+export type Point = [number, number];
+
+const fmt = ([x, y]: Point) => `${x.toFixed(3)},${y.toFixed(3)}`;
+
 export interface ArrowGeometry {
   /** Path for the shaft, drawn as a stroke with a round tail. */
   shaft: string;
@@ -63,38 +68,47 @@ export interface ArrowGeometry {
   head: string;
 }
 
-const fmt = ([x, y]: [number, number]) => `${x.toFixed(3)},${y.toFixed(3)}`;
+/** An arrow's outline as points: the shaft's line (start, knight corner, notch) and the head. */
+export interface ArrowPoints {
+  shaft: Point[];
+  /** Tip, one barb, the notch, the other barb. */
+  head: Point[];
+}
 
 /**
  * Shape of a move connector from one square centre to another (board units),
  * with an optional corner for knight moves.
  */
-export function arrowGeometry(
-  from: [number, number],
-  to: [number, number],
-  width: number,
-  corner: [number, number] | null = null,
-  startOffset = 0.28,
-): ArrowGeometry {
-  const unit = (a: [number, number], b: [number, number]): [number, number] => {
+export function arrowPoints(from: Point, to: Point, width: number, corner: Point | null = null, startOffset = 0.28): ArrowPoints {
+  const unit = (a: Point, b: Point): Point => {
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     return [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
   };
   const firstEnd = corner ?? to;
   const u1 = unit(from, firstEnd);
-  const start: [number, number] = [from[0] + u1[0] * startOffset, from[1] + u1[1] * startOffset];
+  const start: Point = [from[0] + u1[0] * startOffset, from[1] + u1[1] * startOffset];
   const lastStart = corner ?? start;
   const [ux, uy] = unit(lastStart, to);
   const [nx, ny] = [-uy, ux];
   const lastLen = Math.hypot(to[0] - lastStart[0], to[1] - lastStart[1]);
   const head = Math.min(width * 2.5, lastLen * 0.5);
   const headW = width * 2.7;
-  const back: [number, number] = [to[0] - ux * head, to[1] - uy * head];
-  const notch: [number, number] = [to[0] - ux * head * 0.72, to[1] - uy * head * 0.72];
-  const barbA: [number, number] = [back[0] + (nx * headW) / 2, back[1] + (ny * headW) / 2];
-  const barbB: [number, number] = [back[0] - (nx * headW) / 2, back[1] - (ny * headW) / 2];
-  const shaft = [start, ...(corner ? [corner] : []), notch].map((pt, i) => `${i ? 'L' : 'M'}${fmt(pt)}`).join(' ');
-  return { shaft, head: [to, barbA, notch, barbB].map(fmt).join(' ') };
+  const back: Point = [to[0] - ux * head, to[1] - uy * head];
+  const notch: Point = [to[0] - ux * head * 0.72, to[1] - uy * head * 0.72];
+  const barbA: Point = [back[0] + (nx * headW) / 2, back[1] + (ny * headW) / 2];
+  const barbB: Point = [back[0] - (nx * headW) / 2, back[1] - (ny * headW) / 2];
+  return { shaft: [start, ...(corner ? [corner] : []), notch], head: [to, barbA, notch, barbB] };
+}
+
+/** arrowPoints as SVG: a path for the shaft and polygon points for the head. */
+export function arrowGeometry(from: Point, to: Point, width: number, corner: Point | null = null, startOffset = 0.28): ArrowGeometry {
+  const { shaft, head } = arrowPoints(from, to, width, corner, startOffset);
+  return { shaft: svgPath(shaft), head: head.map(fmt).join(' ') };
+}
+
+/** A polyline as an SVG path ("M x,y L x,y ..."). */
+export function svgPath(points: Point[]): string {
+  return points.map((pt, i) => `${i ? 'L' : 'M'}${fmt(pt)}`).join(' ');
 }
 
 /** How far (board units) a threat arrow is moved aside when it would cover a move arrow. */

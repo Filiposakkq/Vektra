@@ -9,13 +9,13 @@ import { hintArrows, steadyLines, type Threat } from '@core/hints/hintArrows';
 import { buildRequest, buildThreatRequest, buildWeakerRequest } from '@core/hints/hintRequests';
 import { DEFAULT_SETTINGS, sanitizeSettings, type Settings } from '@core/settings';
 import type { Arrow } from '@core/hints/types';
-import { BoardLayer, type Badge } from './board';
+import { NativeLayer, type Badge } from './nativeLayer';
 
 /**
- * The Android app's overlay page. The app lays it over the Chess.com board in
- * bot games and calls `vektra.show()` with what it read and
- * `vektra.settings()` with the user's settings; this page runs Stockfish and
- * the shared hint code (core/) and draws the result.
+ * The Android app's overlay page. The app calls `vektra.show()` with what it
+ * read from the Chess.com board in bot games and `vektra.settings()` with the
+ * user's settings; this page runs Stockfish and the shared hint code (core/)
+ * and hands what to draw to the app, which paints it (nativeLayer.ts).
  */
 
 /** What the app read from the Chess.com screen. */
@@ -81,7 +81,7 @@ const startHelper = () => {
 };
 startMain();
 startHelper();
-const layer = new BoardLayer(document.getElementById('board') as unknown as SVGSVGElement, document.getElementById('eval')!);
+const layer = new NativeLayer();
 
 let settings: Settings = DEFAULT_SETTINGS;
 let lastReading: Reading | null = null;

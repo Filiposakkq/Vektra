@@ -4,20 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Vektra overlay</title>
-    <style>
-      /* Laid over the Chess.com board: an eval strip, then the board itself. */
-      html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
-      /* Outlined, so the dark side still shows on Chess.com's dark background. */
-      #eval { display: flex; height: 8px; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, .55); border-radius: 2px; overflow: hidden; opacity: 0; }
-      #eval.shown { opacity: 0.9; }
-      /* No animation: on a phone it costs more than it adds. */
-      #eval i { display: block; height: 100%; }
-      #board { display: block; width: 100vw; height: 100vw; }
-    </style>
   </head>
   <body>
-    <div id="eval"><i id="eval-mine"></i><i id="eval-theirs"></i></div>
-    <svg id="board" viewBox="0 0 8 8" aria-hidden="true"></svg>
+    <!--
+      Runs the engine and the shared hint code; the app paints what this page
+      works out (nativeLayer.ts, then HintOverlay.kt), so it shows nothing itself.
+    -->
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

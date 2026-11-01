@@ -5,29 +5,38 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.webkit.WebViewAssetLoader
 import kotlin.math.roundToInt
 
 /**
  * A see-through window laid exactly over the Chess.com board, with a thin eval
- * strip above it. It holds the overlay page (android/web), which runs
- * Stockfish and the shared hint code and draws the arrows. Touches go
- * straight through to Chess.com; the window can't be tapped or focused.
+ * strip above it. The overlay page (android/web) runs Stockfish and the
+ * shared hint code in a hidden WebView and hands over what to draw; an
+ * OverlayView paints it natively. Touches go straight through to Chess.com;
+ * the window can't be tapped or focused.
  */
 class HintOverlay(private val context: Context) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
+    private val handler = Handler(Looper.getMainLooper())
     private val stripPx = (EVAL_STRIP_DP * context.resources.displayMetrics.density).roundToInt()
+    private var root: FrameLayout? = null
     private var web: WebView? = null
+    private var painter: OverlayView? = null
     private val params = WindowManager.LayoutParams(
         1,
         1,
@@ -36,7 +45,7 @@ class HintOverlay(private val context: Context) {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-            // Windows a service adds are drawn by the CPU unless asked; the arrows' fades need the GPU.
+            // Windows a service adds are drawn by the CPU unless asked.
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
         PixelFormat.TRANSLUCENT,
     ).apply { gravity = Gravity.TOP or Gravity.START }
@@ -47,7 +56,7 @@ class HintOverlay(private val context: Context) {
     private var settingsJson = SettingsStore.load(context).toJson()
 
     fun show(reading: GameReading) {
-        val view = web ?: create()
+        val view = root ?: create()
         val board = boardRect(reading.board)
         val x = board.left
         val y = board.top - stripPx
@@ -78,31 +87,43 @@ class HintOverlay(private val context: Context) {
 
     /** Clears the arrows and hides the window; the engine stays loaded for the next bot game. */
     fun hide() {
-        val view = web ?: return
+        val view = root ?: return
         call("vektra.clear()")
+        painter?.clear()
         view.visibility = View.GONE
     }
 
     fun destroy() {
-        web?.let {
-            windowManager.removeView(it)
-            it.destroy()
-        }
+        root?.let { windowManager.removeView(it) }
+        web?.destroy()
+        root = null
         web = null
+        painter = null
         pageReady = false
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun create(): WebView {
+    /** The page's way to hand over a frame to paint (nativeLayer.ts calls it). */
+    private inner class Bridge {
+        @JavascriptInterface
+        fun render(frame: String) {
+            handler.post { painter?.show(frame) }
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
+    private fun create(): FrameLayout {
         // Serves the app's assets over https, so the engine's worker and wasm load like on a web page.
         val assets = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
             .build()
-        val view = WebView(context).apply {
+        val webView = WebView(context).apply {
             setBackgroundColor(Color.TRANSPARENT)
+            // It draws nothing: the page only works out what OverlayView paints.
+            alpha = 0f
             settings.javaScriptEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
+            addJavascriptInterface(Bridge(), "VektraNative")
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     assets.shouldInterceptRequest(request.url)
@@ -120,12 +141,19 @@ class HintOverlay(private val context: Context) {
                     return true
                 }
             }
+        }
+        val overlay = OverlayView(context, stripPx)
+        val frame = FrameLayout(context).apply {
+            addView(webView, FrameLayout.LayoutParams(1, 1))
+            addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             visibility = View.GONE
         }
-        windowManager.addView(view, params)
-        view.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
-        web = view
-        return view
+        windowManager.addView(frame, params)
+        webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
+        root = frame
+        web = webView
+        painter = overlay
+        return frame
     }
 
     private fun call(script: String) {
@@ -141,7 +169,7 @@ class HintOverlay(private val context: Context) {
 
     private companion object {
         const val TAG = "Vektra"
-        /** Height of the eval strip above the board (8 CSS pixels in the page). */
+        /** Height of the eval strip above the board. */
         const val EVAL_STRIP_DP = 8f
     }
 }

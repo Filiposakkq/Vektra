@@ -183,9 +183,17 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    reads that follow check it. A board read while a piece is dragged (one
    piece missing) is ignored (`onePieceLifted`). Still not PC-smooth: Chess.com
    announces after its animation, Android delivers events a little late, and
-   the overlay is a separate window. Drawing the arrows natively instead of in
-   the WebView would save a frame or two; it can't reach the extension, which
+   the overlay is a separate window, so it can't match the extension, which
    draws inside the page in the same frame.
+   *Native drawing:* `core/draw/arrowDrawing.ts` describes every arrow
+   (colour, strength, dashes, outline points, score pill, promotion tile);
+   the extension's overlay draws it as SVG and the app's `OverlayView.kt`
+   paints it with Android graphics, so look changes stay in one place. The
+   WebView is hidden and only works out frames (`android/web/nativeLayer.ts`).
+   Rating icons on the phone are round badges with the category's symbol;
+   the extension's detailed icons are SVG drawings. A frame that can't be
+   painted is skipped, never crashing the service. Drawing into Chess.com's
+   own app would need root or a modified copy of it: not an option.
 4. **Review.** Finished games from the public archive, with the analysis panel.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 
