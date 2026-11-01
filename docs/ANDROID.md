@@ -1,7 +1,33 @@
 # Vektra for Android: plan
 
-Status: planned, nothing built yet. This is the plan agreed on 2026-11-01,
-after checking what the Chess.com Android app exposes.
+Status: milestone 1 done (2026-11-01). The app reads the board in Chess.com
+bot games and shows it; it draws nothing yet. This is the plan agreed on
+2026-11-01, after checking what the Chess.com Android app exposes.
+
+## Building and installing
+
+You need Java 17, the Android SDK (platform 35, build tools 35.0.0) and adb.
+Put the SDK path in `android/local.properties` (`sdk.dir=E\:\\android-sdk`;
+the file is ignored by git), then from `android/`:
+
+```bash
+JAVA_HOME=/e/jdk-17 ./gradlew testDebugUnitTest assembleDebug
+```
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+On a PC where security software inspects HTTPS (Windows trusts its
+certificate, Java doesn't), Gradle can't download anything. Run it with
+`GRADLE_OPTS="-Djavax.net.ssl.trustStoreType=Windows-ROOT"` and add
+`-Djavax.net.ssl.trustStoreType=Windows-ROOT` to the command, so Java uses
+the Windows certificate store.
+
+On the phone: on Xiaomi, turn on **Install via USB** in the developer options;
+after installing, turn on Vektra under **Accessibility → Downloaded apps**
+(if it is greyed out, **Allow restricted settings** in Vektra's app info
+first). `adb logcat -s Vektra:I` shows what it reads.
 
 ## Goal
 
@@ -112,6 +138,10 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 
 1. **Read the board.** Android skeleton, accessibility service, the bot-screen
    allow-list, board and move parsing for Czech and English; logs the position.
+   *Done:* checked on the phone, the position read matched the screen square
+   for square (Black to move after 9.Bh3, board shown from Black's side), and
+   it stayed off on the new-game and play-a-friend screens. English labels are
+   tested but not yet seen on a device.
 2. **Hints.** Shared core bundle and engine in the WebView; best-move arrows
    with scores and the eval bar in the overlay.
 3. **The rest of the hints.** Threat arrow, weaker moves, live ratings,
