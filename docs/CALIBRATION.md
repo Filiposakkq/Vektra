@@ -12,7 +12,8 @@ For each game reviewed on Chess.com:
    NAGs: `$3` Brilliant, `$1` Great, `$6` Inaccuracy, `$2` Mistake,
    `$4` Blunder.
 2. Add one header with the two accuracies from the review screen, White
-   first: `[ChesscomAccuracy "78.2 84.9"]`.
+   first: `[ChesscomAccuracy "78.2 84.9"]`, and one with the two Game
+   Ratings below them: `[ChesscomGameRating "2650 1950"]`.
 3. Keep the players' ratings (`WhiteElo`, `BlackElo`); Chess.com's ratings
    seem to depend on them. Replace other people's usernames with
    `Opponent`.
@@ -32,9 +33,13 @@ For each game reviewed on Chess.com:
   100-rated Pepe six Mistakes in a lost position where Vektra's curve has
   flattened out, and rated 29.Qc8+ (hanging the queen at about 10% to win)
   a Blunder where Vektra says Inaccuracy.
-- A temporary sacrifice that wins the material back within a couple of
-  moves (34.Rxd5 in the 1-minute game) is Brilliant to Vektra, not to
-  Chess.com.
+- Brilliant: 34.Rxd5 in the 1-minute game is Brilliant to Vektra, not to
+  Chess.com. "The material comes straight back" doesn't explain it: the
+  engine line after 10.Bxc4, which Chess.com rated Brilliant, wins material
+  back too. Needs more Brilliant and not-Brilliant sacrifices to tell apart.
+- Game rating is a line through the one Game Rating pair known (Francis
+  game: 97.5 rated 2650, 80.4 rated 1950). Refit it once more games carry
+  `ChesscomGameRating`.
 
 The calibration tools stay out of the extension: they live in `tests/tools`
 and never ship, and users get the fitted constants with the code.

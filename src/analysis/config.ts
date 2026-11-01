@@ -96,6 +96,14 @@ export const ACCURACY = {
   WEIGHT_MAX: 12,
 } as const;
 
+/**
+ * Game rating: a line through chess.com's Game Rating of one reviewed game
+ * (accuracy 97.5 rated 2650, 80.4 rated 1950), about 41 rating points per
+ * accuracy point, rounded to 50 and kept within MIN-MAX. A rough guide only
+ * until more games are calibrated (docs/CALIBRATION.md).
+ */
+export const GAME_RATING = { AT_ACCURACY: 80.4, BASE: 1950, PER_POINT: 40.94, MIN: 100, MAX: 3200 } as const;
+
 /** Book moves: only within the first this many plies, and only while every earlier move was book. */
 export const BOOK_MAX_PLY = 30;
 

@@ -91,7 +91,7 @@ export async function buildPdf(a: GameAnalysis, meta: { url?: string; date?: Dat
     doc.roundedRect(bx, y, boxW, 46, 4, 4, 'F');
     doc.setTextColor(color === 'w' ? TEXT : '#f0f0f0');
     doc.setFontSize(9);
-    doc.text(`${label} accuracy`, bx + boxW / 2, y + 16, { align: 'center' });
+    doc.text(`${label} accuracy · game rating ~${a.summary[color].rating}`, bx + boxW / 2, y + 16, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text(a.summary[color].accuracy.toFixed(1), bx + boxW / 2, y + 37, { align: 'center' });

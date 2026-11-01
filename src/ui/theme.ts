@@ -21,6 +21,8 @@ export const THEME = {
   brass: '#2f6fe4',
   /** Text on the accent. */
   brassText: '#ffffff',
+  /** Links on the panel background: the accent, lightened to be readable. */
+  link: '#9dbcff',
 } as const;
 
 export const DISPLAY_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';

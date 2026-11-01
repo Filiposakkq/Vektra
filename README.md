@@ -296,8 +296,22 @@ finishes:
   Blunder `??`;
 - the panel shows accuracy per side, an eval graph (click it to jump to a
   move), and how many moves of each kind each side played;
+- each side gets a rough **game rating** from its accuracy (a line through
+  one Chess.com Game Rating so far, so treat it as a guide), and an accuracy
+  for the **opening, middlegame and endgame** with the badge it would get as
+  a move (a dash where a phase wasn't reached). Phases follow Lichess's
+  split: the middlegame starts once 10 or fewer rooks, knights, bishops and
+  queens are left or a back rank thins out (by move 15 at the latest), the
+  endgame at 6 or fewer;
 - stepping to a move shows the engine's preferred line from that position as
-  arrows, and the panel says what the move was and what the best move was;
+  arrows, and the panel says what the move was and what the best move was.
+  For an Inaccuracy, Mistake, Miss or Blunder it also says why when there is
+  a concrete reason: "Allows mate in 2, starting with Qxh7+", "Misses mate in
+  3 with Rd8+", "Loses the knight on c3 to bxc3", "Loses the queen for a
+  bishop", or "Misses Qxc8, which takes the queen". Moves that only give up
+  position get no reason;
+- **What do the arrows and numbers mean?** at the bottom of the panel opens
+  a short legend of the board marks and the numbers;
 - the shown move gets a Vektra classification marker on its destination square;
 - **Export PDF** downloads a one-page report (accuracy, eval graph, counts and
   every move with its classification and the better move), and **Export

@@ -13,7 +13,7 @@ import {
   type CacheEntry,
 } from '../src/analysis/analysisCache';
 import { ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV, LITE_ENGINE_VERSION } from '../src/analysis/config';
-import type { GameAnalysis, PositionEval } from '../src/analysis/gameAnalysis';
+import { summarize, type GameAnalysis, type PositionEval } from '../src/analysis/gameAnalysis';
 import { FULL_ENGINE } from '../src/engine/fullEngine';
 
 const pos = (depth: number | null): PositionEval => ({
@@ -29,7 +29,7 @@ function analysis(sans: string[], depth: number, engine?: string, reached = dept
     depth,
     positions: [...sans.map(() => pos(reached)), pos(null)],
     moves: [],
-    summary: { w: { accuracy: 100, counts: {} as never }, b: { accuracy: 100, counts: {} as never } },
+    summary: summarize([]),
   };
 }
 

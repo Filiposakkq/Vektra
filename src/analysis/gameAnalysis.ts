@@ -1,10 +1,11 @@
 import type { AnalyzeRequest, SearchResult } from '../engine/protocol';
 import { whitePov } from '../engine/uci';
-import { ACCURACY, ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
+import { ACCURACY, GAME_RATING, ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
 import { openingName } from './openings';
 import { isBookLineWith } from './openingBook';
 import { replay } from '../chess/replay';
 import { CATEGORIES, type Category } from './classify';
+import { PHASES, gamePhases, type Phase } from './phases';
 import { analyzeMove, terminalScore, type MoveAnalysis, type PositionEval } from './moveAnalysis';
 
 export { uciToSan } from './chessNotation';
@@ -19,6 +20,17 @@ export interface Analyzer {
 export interface SideSummary {
   accuracy: number;
   counts: Record<Category, number>;
+  /** Rough rating of how this side played this game, from its accuracy (see GAME_RATING). */
+  rating: number;
+  /** Accuracy in each part of the game; null when the side had no rated moves there. */
+  phases: Record<Phase, PhaseSummary>;
+}
+
+export interface PhaseSummary {
+  /** Accuracy of the moves that weren't book; null when every move was book, or none were played. */
+  accuracy: number | null;
+  /** Moves played in this phase, book moves included. */
+  moves: number;
 }
 
 export interface GameAnalysis {
@@ -80,21 +92,56 @@ export function moveWeights(moves: MoveAnalysis[]): number[] {
   });
 }
 
+/**
+ * Accuracy of a set of moves: the average of their weighted mean and a
+ * harmonic mean with a floor (see ACCURACY). Null when there are none.
+ * Book moves are left out: they are always accurate.
+ */
+function accuracyOf(moves: { m: MoveAnalysis; weight: number }[]): number | null {
+  const scored = moves.filter(({ m }) => m.category !== 'book');
+  if (!scored.length) return null;
+  const weighted =
+    scored.reduce((s, x) => s + x.m.accuracy * x.weight, 0) / scored.reduce((s, x) => s + x.weight, 0);
+  const harmonic =
+    scored.length / scored.reduce((s, x) => s + 1 / Math.max(x.m.accuracy, ACCURACY.HARMONIC_FLOOR), 0);
+  return (weighted + harmonic) / 2;
+}
+
+/**
+ * A rough rating for one side's play in one game, from its accuracy: a line
+ * through chess.com's Game Rating of one reviewed game (see GAME_RATING),
+ * rounded to 50 like chess.com's.
+ */
+export function gameRating(accuracy: number): number {
+  const r = GAME_RATING.BASE + (accuracy - GAME_RATING.AT_ACCURACY) * GAME_RATING.PER_POINT;
+  return Math.max(GAME_RATING.MIN, Math.min(GAME_RATING.MAX, Math.round(r / 50) * 50));
+}
+
+/** How a phase's accuracy reads as a rating, for its badge: Best down to Blunder. */
+export function accuracyGrade(accuracy: number): Category {
+  if (accuracy >= 99) return 'best';
+  if (accuracy >= 90) return 'excellent';
+  if (accuracy >= 80) return 'good';
+  if (accuracy >= 70) return 'inaccuracy';
+  if (accuracy >= 55) return 'mistake';
+  return 'blunder';
+}
+
 export function summarize(moves: MoveAnalysis[]): { w: SideSummary; b: SideSummary } {
   const weights = moveWeights(moves);
+  const phases = gamePhases(moves.map((m) => m.fenBefore));
   const side = (color: 'w' | 'b'): SideSummary => {
     const counts = emptyCounts();
     for (const m of moves) if (m.color === color) counts[m.category]++;
-    // Book moves are left out: they are always accurate.
-    const scored = moves.flatMap((m, i) =>
-      m.color === color && m.category !== 'book' ? [{ accuracy: m.accuracy, weight: weights[i] }] : [],
-    );
-    if (!scored.length) return { accuracy: 100, counts };
-    const weighted =
-      scored.reduce((s, m) => s + m.accuracy * m.weight, 0) / scored.reduce((s, m) => s + m.weight, 0);
-    const harmonic =
-      scored.length / scored.reduce((s, m) => s + 1 / Math.max(m.accuracy, ACCURACY.HARMONIC_FLOOR), 0);
-    return { accuracy: (weighted + harmonic) / 2, counts };
+    const mine = moves.flatMap((m, i) => (m.color === color ? [{ m, weight: weights[i], phase: phases[i] }] : []));
+    const accuracy = accuracyOf(mine) ?? 100;
+    const byPhase = Object.fromEntries(
+      PHASES.map((phase) => {
+        const inPhase = mine.filter((x) => x.phase === phase);
+        return [phase, { accuracy: accuracyOf(inPhase), moves: inPhase.length }];
+      }),
+    ) as Record<Phase, PhaseSummary>;
+    return { accuracy, counts, rating: gameRating(accuracy), phases: byPhase };
   };
   return { w: side('w'), b: side('b') };
 }

@@ -1,5 +1,5 @@
 import { CATEGORY_LABELS } from './classify';
-import type { GameAnalysis } from './gameAnalysis';
+import type { GameAnalysis, SideSummary } from './gameAnalysis';
 import type { Score } from '../engine/uci';
 
 const scoreJson = (s: Score) => (s.type === 'cp' ? { cp: s.value } : { mate: s.value });
@@ -30,15 +30,27 @@ export function analysisToJson(a: GameAnalysis, meta: { url?: string; generatedA
       winLoss: round(m.loss),
       accuracy: round(m.accuracy),
       classification: CATEGORY_LABELS[m.category],
+      ...(m.reason ? { reason: m.reason } : {}),
     })),
     summary: {
-      white: { accuracy: round(a.summary.w.accuracy), counts: a.summary.w.counts },
-      black: { accuracy: round(a.summary.b.accuracy), counts: a.summary.b.counts },
+      white: sideJson(a.summary.w),
+      black: sideJson(a.summary.b),
     },
   };
 }
 
 const round = (n: number) => Math.round(n * 10) / 10;
+
+function sideJson(s: SideSummary) {
+  return {
+    accuracy: round(s.accuracy),
+    gameRating: s.rating,
+    phases: Object.fromEntries(
+      Object.entries(s.phases).map(([phase, p]) => [phase, p.accuracy === null ? null : round(p.accuracy)]),
+    ),
+    counts: s.counts,
+  };
+}
 
 /** Start a download of the analysis as a .json file. */
 export function downloadJson(a: GameAnalysis, filename = 'vektra-analysis.json'): void {

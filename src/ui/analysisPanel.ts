@@ -1,5 +1,6 @@
 import { CATEGORIES, CATEGORY_LABELS } from '../analysis/classify';
-import { describeMoveAnalysis, type GameAnalysis } from '../analysis/gameAnalysis';
+import { accuracyGrade, describeMoveAnalysis, type GameAnalysis, type PhaseSummary } from '../analysis/gameAnalysis';
+import { PHASES, PHASE_LABELS } from '../analysis/phases';
 import { categoryBadge } from './categoryStyle';
 import { renderEvalGraph } from './evalGraph';
 import { BODY_FONT, THEME } from './theme';
@@ -67,6 +68,8 @@ export class AnalysisPanel {
   private placed = false;
   /** On a finished bot game the action is a review that jumps to your biggest mistake. */
   reviewMode = false;
+  /** Whether the legend of the board marks is open. */
+  private legendOpen = false;
   private readonly onResize = () => this.keepOnscreen();
 
   /** findBoard: the board element, to open beside it. */
@@ -328,9 +331,12 @@ export class AnalysisPanel {
       ['b', 'Black', THEME.ink, THEME.bone],
     ] as const) {
       const box = el('div', { background: bg, color: fg, padding: '10px 12px 11px' });
+      const rating = el('div', { fontSize: '11.5px', opacity: '0.7', marginTop: '3px', fontVariantNumeric: 'tabular-nums' }, `Game rating ~${a.summary[color].rating}`);
+      rating.title = 'A rough rating for how this side played this game, from its accuracy.';
       box.append(
         el('div', { fontSize: '12px', opacity: '0.7' }, `${label} accuracy`),
         el('div', { font: `750 28px/1.1 ${BODY_FONT}`, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }, `${a.summary[color].accuracy.toFixed(1)}%`),
+        rating,
       );
       acc.append(box);
     }
@@ -360,6 +366,7 @@ export class AnalysisPanel {
         : '';
       info.append(
         title,
+        ...(current.reason ? [el('div', { marginTop: '5px', fontSize: '13px' }, current.reason)] : []),
         el(
           'div',
           { marginTop: '4px', color: THEME.muted, fontSize: '12.5px', fontVariantNumeric: 'tabular-nums' },
@@ -396,6 +403,19 @@ export class AnalysisPanel {
       table.append(row);
     }
 
+    // Each part of the game, graded like a move.
+    const phases = el('table', { width: '100%', borderCollapse: 'collapse', fontSize: '13px' });
+    phases.append(head.cloneNode(true));
+    for (const phase of PHASES) {
+      const row = el('tr', { borderTop: `1px solid ${THEME.hairline}` });
+      row.append(
+        el('td', { padding: '4px 0' }, PHASE_LABELS[phase]),
+        phaseCell(a.summary.w.phases[phase]),
+        phaseCell(a.summary.b.phases[phase]),
+      );
+      phases.append(row);
+    }
+
     const actions = el('div', { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '14px' });
     actions.append(
       button('Export PDF', () => this.cb.onExportPdf(), true),
@@ -407,6 +427,8 @@ export class AnalysisPanel {
       acc,
       graphWrap,
       info,
+      heading('Phases'),
+      phases,
       heading('Move ratings'),
       table,
       actions,
@@ -415,13 +437,81 @@ export class AnalysisPanel {
         { marginTop: '10px', color: THEME.muted, fontSize: '11.5px', lineHeight: '1.45' },
         `${a.engine ?? 'Stockfish'}, depth ${a.depth}. Accuracy and ratings are engine estimates, not official ratings.`,
       ),
+      this.legendToggle(),
+      ...(this.legendOpen ? [legend()] : []),
     );
+  }
+
+  /** A link that opens or closes the legend of what Vektra draws. */
+  private legendToggle(): HTMLButtonElement {
+    const b = el('button', {
+      marginTop: '8px',
+      padding: '0',
+      border: '0',
+      background: 'none',
+      color: THEME.link,
+      font: `600 12px ${BODY_FONT}`,
+      cursor: 'pointer',
+      textDecoration: 'underline',
+      textUnderlineOffset: '2px',
+    }, this.legendOpen ? 'Hide what the board marks mean' : 'What do the arrows and numbers mean?');
+    b.type = 'button';
+    b.setAttribute('aria-expanded', String(this.legendOpen));
+    b.addEventListener('click', () => {
+      this.legendOpen = !this.legendOpen;
+      this.render();
+    });
+    return b;
   }
 
   destroy(): void {
     window.removeEventListener('resize', this.onResize);
     this.root.remove();
   }
+}
+
+/** One side's grade for a phase: a rating badge and its accuracy, Book, or a dash when it wasn't reached. */
+function phaseCell(p: PhaseSummary): HTMLTableCellElement {
+  const cell = el('td', { textAlign: 'right', width: '70px', fontVariantNumeric: 'tabular-nums', fontWeight: '600' });
+  if (!p.moves) {
+    cell.textContent = '–';
+    cell.style.color = THEME.muted;
+    return cell;
+  }
+  const wrap = el('span', { display: 'inline-flex', alignItems: 'center', gap: '6px' });
+  if (p.accuracy === null) wrap.append(categoryBadge('book', 14), el('span', {}, 'Book'));
+  else wrap.append(categoryBadge(accuracyGrade(p.accuracy), 14), el('span', {}, `${Math.round(p.accuracy)}%`));
+  cell.append(wrap);
+  return cell;
+}
+
+/** What the analysis draws on the board, and what the numbers are. */
+function legend(): HTMLDivElement {
+  const box = el('div', {
+    marginTop: '8px',
+    padding: '10px 12px',
+    border: `1px solid ${THEME.hairline}`,
+    borderRadius: '9px',
+    background: THEME.claret,
+    fontSize: '12.5px',
+    lineHeight: '1.5',
+  });
+  const items: [string, string][] = [
+    ['Numbered arrows', "The engine's best line from the position shown: 1 is the move to play, 2 the reply, 3 the move after."],
+    ['Score on arrow 1', "From White's side: +1.5 means White is 1.5 pawns better, -1.5 Black. M3 means mate in 3."],
+    ['Tinted squares', 'Where move 1 goes from and to.'],
+    ['Badge on a square', 'How the move just played was rated, Brilliant to Blunder.'],
+    ['Eval graph', "White's winning chances through the game. Click it to go to a move; dots mark the notable ones."],
+    ['Accuracy', "How close each side's moves were to the engine's, 0 to 100%. Fitted to land near Chess.com's Game Review."],
+    ['Game rating', 'A rough rating for how a side played this one game, from its accuracy.'],
+    ['Phases', "Accuracy in the opening, middlegame and endgame, with the badge it would get as a move. A dash: not reached."],
+  ];
+  for (const [term, text] of items) {
+    const row = el('div', { marginTop: term === items[0][0] ? '0' : '6px' });
+    row.append(el('b', { fontWeight: '650' }, `${term}. `), el('span', { color: THEME.muted }, text));
+    box.append(row);
+  }
+  return box;
 }
 
 /** "a mistake", "an inaccuracy", "the best move" style wording for a category label. */

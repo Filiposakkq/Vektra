@@ -305,6 +305,8 @@ if (runSuite('analysis')) {
   ]);
   const json = JSON.parse(readFileSync(await download.path(), 'utf8'));
   check(json.format === 'vektra-analysis' && json.moves.length === 7, `analysis: JSON export (${download.suggestedFilename()})`);
+  check(json.moves[5].reason === 'Allows mate in 1, starting with Qxf7#.', `analysis: the blunder says why (${json.moves[5].reason})`);
+  check(/Game rating ~\d+/.test(panelText) && /Middlegame/.test(panelText), 'analysis: panel shows game ratings and phases');
   const [pdf] = await Promise.all([
     p.waitForEvent('download', { timeout: 15000 }),
     p.click('#vektra-analysis-panel button:has-text("Export PDF")'),
@@ -314,7 +316,14 @@ if (runSuite('analysis')) {
   if (shotDir) await pdf.saveAs(join(shotDir, 'e2e-analysis.pdf'));
   const sqBadge = await p.$eval('.vektra-square-badge', (e) => e.dataset.square).catch(() => null);
   check(sqBadge === 'f7', `analysis: board icon on the last move's square (${sqBadge})`);
-  if (shotDir) await p.screenshot({ path: join(shotDir, 'e2e-game-analysis.png') });
+  if (shotDir) {
+    await p.$eval('#vektra-analysis-panel-content', (e) => { e.scrollTop = 0; });
+    await p.screenshot({ path: join(shotDir, 'e2e-game-analysis.png') });
+  }
+  await p.click('#vektra-analysis-panel button:has-text("What do the arrows and numbers mean?")');
+  check(/Numbered arrows/.test(await p.$eval('#vektra-analysis-panel', (e) => e.textContent)), 'analysis: the legend opens');
+  if (shotDir) await p.$eval('#vektra-analysis-panel-content', (e) => { e.scrollTop = e.scrollHeight; });
+  if (shotDir) await p.screenshot({ path: join(shotDir, 'e2e-analysis-legend.png') });
   // A reload shows the saved analysis without running the engine again.
   await p.reload();
   const cached = await p

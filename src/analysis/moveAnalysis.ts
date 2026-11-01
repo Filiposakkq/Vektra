@@ -11,6 +11,7 @@ import {
 import { ratingCp, ratingWinPercent } from './scoreScale';
 import { winPercent } from './winProbability';
 import { uciToSan } from './chessNotation';
+import { explainMove } from './explain';
 
 export interface PositionEval {
   fen: string;
@@ -38,6 +39,8 @@ export interface MoveAnalysis {
   loss: number;
   accuracy: number;
   category: Category;
+  /** Why the move was bad (allows mate, loses material...), when there is a concrete reason. */
+  reason?: string;
 }
 
 /** Opponent moves that hand the mover a chance, so failing to take it is a Miss. */
@@ -47,7 +50,8 @@ const OPPONENT_ERRORS = new Set<Category>(['inaccuracy', 'mistake', 'miss', 'blu
 export function describeMoveAnalysis(move: MoveAnalysis): string {
   const winChances = `${move.winBefore.toFixed(1)}% to ${move.winAfter.toFixed(1)}%`;
   const best = move.bestSan && move.bestMove !== move.uci ? ` Best was ${move.bestSan}.` : '';
-  return `${move.san}: ${move.category}; estimated move accuracy ${move.accuracy.toFixed(1)}%; ` +
+  const reason = move.reason ? ` ${move.reason}` : '';
+  return `${move.san}: ${move.category}.${reason} Estimated move accuracy ${move.accuracy.toFixed(1)}%; ` +
     `win chances ${winChances}.${best} Engine estimate, not an official rating.`;
 }
 
@@ -93,6 +97,8 @@ export function analyzeMove(
       !!new Chess(before.fen).get(move.uci.slice(2, 4) as Square),
   };
   const loss = winLoss(facts);
+  const category = classifyMove(facts);
+  const reason = explainMove(before, after, { uci: move.uci, color }, category);
   return {
     ply: move.ply,
     color,
@@ -106,6 +112,7 @@ export function analyzeMove(
     winAfter,
     loss,
     accuracy: moveAccuracy(loss),
-    category: classifyMove(facts),
+    category,
+    ...(reason ? { reason } : {}),
   };
 }
