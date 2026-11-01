@@ -238,9 +238,9 @@ src/
 tests/
   e2e/          browser tests against captured Chess.com markup
   fixtures/     captured markup and shared test fixtures
-  tools/        test utilities
+  tools/        dev-only tools: analyse a PGN, compare with Chess.com (never shipped)
 data/openings/  source opening TSVs; generated lookup is in src/analysis
-docs/           project documentation
+docs/           architecture, calibration plan, and reviewed games for tuning
 scripts/        engine asset copy and opening-data generation
 public/         extension assets copied into the production build
 ```
@@ -384,7 +384,9 @@ to download and run.
 
 Content scripts can't start a worker from the extension's origin, so the
 background service worker opens an offscreen document, and each chess.com tab
-connects to it over a port and gets its own Stockfish Web Worker. The
+connects to it over a port. Hints use three Stockfish Web Workers per tab
+(the main search, weaker moves and threats), or one in light mode; full-game
+analysis uses its own. The
 extension pages' CSP adds `wasm-unsafe-eval` for the WebAssembly. Nothing is
 injected into chess.com's own page context, so `web_accessible_resources`
 only lists what the content-script loader needs.
@@ -432,16 +434,25 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
   figurine notation) are untested.
 - The DOM-only fallback cannot know en passant rights or the move counters.
 - Positions in a variation of a variation fall back to reading the board.
-- Arrows along the same line overlap.
+- Move arrows along the same line can overlap; only the threat arrow is
+  shifted aside.
 - The eval bar sits just outside the board's left edge and may be hidden if a
   surrounding chess.com element clips it.
 - In bot games, "your side" is taken to be the side at the bottom of the board.
 - Game analysis covers the main line only.
-- The full engine uses about 100 MB of memory per engine worker; full-game
-  analysis can use more than one worker.
+- The full engine uses about 100 MB of memory per engine worker. Hints use
+  three workers unless light mode is on, and full-game analysis can use more
+  than one.
 - The sacrifice test for Brilliant checks material only (a static exchange
   on each piece, counting legal captures and recaptures); it does not look
   for compensation such as mating attacks, which the engine score covers.
+- The reason given for a bad move covers mates and material only, read from
+  the engine's lines; a move that only gives up position gets none.
+- Game rating is a rough line through one Chess.com Game Rating pair, and
+  the accuracy fit rests on three games; see docs/CALIBRATION.md.
+- Not yet tried on the live site: the promotion picker selectors, the board
+  on `/game/computer/<id>`, the Review button and Alt+Shift+A in a finished
+  bot game, and the popup's page warning.
 - In Elo or reduced-skill mode a provisional best line appears during search;
   the final weakened move replaces it when the search finishes.
 - With autoplay off, an eligible weaker alternative appears as the second,
