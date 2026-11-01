@@ -1,14 +1,17 @@
 # Vektra for Android: plan
 
-Status: milestone 1 done (2026-11-01). The app reads the board in Chess.com
-bot games and shows it; it draws nothing yet. This is the plan agreed on
+Status: milestone 2 done (2026-11-01). In Chess.com bot games the app shows
+the engine's best moves as arrows over the board, with scores and an eval
+strip, on the user's turn. This is the plan agreed on
 2026-11-01, after checking what the Chess.com Android app exposes.
 
 ## Building and installing
 
 You need Java 17, the Android SDK (platform 35, build tools 35.0.0) and adb.
 Put the SDK path in `android/local.properties` (`sdk.dir=E\:\\android-sdk`;
-the file is ignored by git), then from `android/`:
+the file is ignored by git). Build the overlay page from the repository root
+first: `npm run build:android-web` puts `android/web` and the shared core,
+with the Stockfish files, into the app's assets. Then from `android/`:
 
 ```bash
 JAVA_HOME=/e/jdk-17 ./gradlew testDebugUnitTest assembleDebug
@@ -144,6 +147,14 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    tested but not yet seen on a device.
 2. **Hints.** Shared core bundle and engine in the WebView; best-move arrows
    with scores and the eval bar in the overlay.
+   *Done:* the overlay page (`android/web`) runs the lite Stockfish and
+   `core/hints` in a see-through WebView window laid over the board
+   (`HintOverlay.kt`); arrows use the extension's shapes and colours
+   (`core/hints/arrowShapes.ts`). On the phone: depth 16 in 2-4 seconds, the
+   arrows on the right squares. Without the move history the position comes
+   from the pieces alone (`core/chess/position.ts`: castling guessed from
+   kings and rooks at home, no en passant, no repetitions). The eval strip is
+   hard to see on Chess.com's dark background when the user plays Black.
 3. **The rest of the hints.** Threat arrow, weaker moves, live ratings,
    settings screen.
 4. **Review.** Finished games from the public archive, with the analysis panel.

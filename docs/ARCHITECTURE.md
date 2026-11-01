@@ -6,7 +6,7 @@ Vektra has two apps that share one core:
 | --- | --- |
 | `core/` | Shared TypeScript: game analysis, hint logic, engine search types and the Stockfish driver, the settings model. No browser-extension or page APIs, so the Android app can run the same code. |
 | `extension/` | The Chrome extension (Manifest V3, built with Vite and crxjs). Imports the core as `@core/...`. |
-| `android/` | The Android app (Kotlin), an overlay on the Chess.com app; see [ANDROID.md](ANDROID.md). |
+| `android/` | The Android app (Kotlin), an overlay on the Chess.com app, with its overlay page in `android/web` (TypeScript on the core); see [ANDROID.md](ANDROID.md). |
 
 `tests/layers.test.ts` enforces the direction: `core/` never imports the
 extension and never uses `chrome.*`. Tests import the core as `@core/...` and
@@ -79,9 +79,9 @@ Paths below are under `extension/src/` unless they start with `core/`.
 | Path | Responsibility |
 | --- | --- |
 | `core/analysis/` | Position evaluation, classification (`classify.ts`), the reason a move was bad (`explain.ts`), game phases (`phases.ts`), accuracy and game rating (`gameAnalysis.ts`), tunable constants (`config.ts`), opening lookup |
-| `core/chess/` | Replaying a game's moves |
+| `core/chess/` | Replaying a game's moves; a FEN from the pieces alone |
 | `core/engine/` | UCI parsing, search request and result types, the worker-based UCI engine |
-| `core/hints/` | Hint logic: requests, arrows, game history and draws, weaker moves, live ratings, shared types |
+| `core/hints/` | Hint logic: requests, arrows and how they look (`arrowShapes.ts`), game history and draws, weaker moves, live ratings, shared types |
 | `core/settings.ts` | Every setting, its default, and how stored values are checked |
 | `extension/src/analysis/` | Saved analyses, JSON and PDF export |
 | `extension/src/background/` | Service worker, keyboard shortcuts and updates |
@@ -92,7 +92,7 @@ Paths below are under `extension/src/` unless they start with `core/`.
 | `extension/src/ui/` | Board controls, overlays, badges and analysis panel |
 | `extension/public/` | Static extension assets and the updater helper (`updater/`); engine assets are copied there before builds |
 | `extension/manifest.config.ts` | The extension manifest |
-| `android/` | The Android app |
+| `android/` | The Android app; `android/web` is its overlay page, built with `npm run build:android-web` |
 | `data/openings/` | Source opening TSVs used to generate `core/analysis/openings.json` |
 | `scripts/` | Build-time asset copying, build fingerprint and opening-data generation |
 | `tests/core/`, `tests/extension/` | Unit and integration tests for each; `tests/e2e/` fixture-based browser and full-engine tests; `tests/tools/` dev-only analysis tools that never ship |

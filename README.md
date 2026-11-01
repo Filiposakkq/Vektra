@@ -283,7 +283,7 @@ extension/        the Chrome extension
     ui/           board overlays, controls, analysis panel, floating settings
   public/         assets copied into the build, and the updater helper
   manifest.config.ts
-android/          the Android app (see docs/ANDROID.md)
+android/          the Android app (see docs/ANDROID.md); android/web is its overlay page
 tests/
   core/           tests of the shared core
   extension/      tests of the extension
