@@ -31,7 +31,7 @@ class MainActivity : Activity() {
         })
         layout.addView(TextView(this).apply {
             text = "Version ${packageManager.getPackageInfo(packageName, 0).versionName}. " +
-                "For now Vektra only reads the board in Chess.com bot games; it draws nothing yet."
+                "In Chess.com bot games Vektra shows the engine's best moves over the board on your turn."
         })
         serviceText = TextView(this).apply { setPadding(0, pad, 0, 0) }
         layout.addView(serviceText)

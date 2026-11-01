@@ -11,9 +11,9 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * Reads the board in Chess.com bot games (milestone 1: it only logs and shows
- * what it read). It turns off whenever Chess.com isn't in front or its screen
- * isn't a bot game, and it never taps, types or performs gestures.
+ * Reads the board in Chess.com bot games and shows hints over it (HintOverlay).
+ * It turns off whenever Chess.com isn't in front or its screen isn't a bot
+ * game, and it never taps, types or performs gestures.
  */
 class VektraAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
@@ -21,8 +21,10 @@ class VektraAccessibilityService : AccessibilityService() {
     private var chessScreen: String? = null
     private val isActivityCache = HashMap<String, Boolean>()
     private val check = Runnable { checkScreen() }
+    private var overlay: HintOverlay? = null
 
     override fun onServiceConnected() {
+        overlay = HintOverlay(this)
         report(PositionStore.State.Off("Waiting for a Chess.com bot game."))
     }
 
@@ -43,6 +45,8 @@ class VektraAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         handler.removeCallbacks(check)
         report(PositionStore.State.Off("Vektra's accessibility service isn't running."))
+        overlay?.destroy()
+        overlay = null
         super.onDestroy()
     }
 
@@ -87,6 +91,10 @@ class VektraAccessibilityService : AccessibilityService() {
 
     private fun report(state: PositionStore.State) {
         if (!PositionStore.update(state)) return
+        when (state) {
+            is PositionStore.State.On -> overlay?.show(state.reading)
+            is PositionStore.State.Off -> overlay?.hide()
+        }
         when (state) {
             is PositionStore.State.Off -> Log.i(TAG, "off: ${state.reason}")
             is PositionStore.State.On -> Log.i(

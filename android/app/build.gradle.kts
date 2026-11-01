@@ -41,5 +41,14 @@ kotlin {
 }
 
 dependencies {
+    implementation("androidx.webkit:webkit:1.12.1")
     testImplementation("junit:junit:4.13.2")
+}
+
+// The overlay page (android/web) is built from the shared TypeScript core.
+val overlayPage = file("src/main/assets/web/index.html")
+tasks.named("preBuild") {
+    doFirst {
+        check(overlayPage.exists()) { "The overlay page is missing: run `npm run build:android-web` in the repository root first." }
+    }
 }

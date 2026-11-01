@@ -7,6 +7,7 @@
     "dev": "vite",
     "prebuild": "node scripts/copy-engine.mjs",
     "build": "vite build",
+    "build:android-web": "node scripts/copy-engine.mjs && vite build --config android/web/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "calibrate:strength": "vitest run --config vitest.calibration.config.ts",

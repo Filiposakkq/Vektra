@@ -19,5 +19,5 @@
       "@ext/*": ["./extension/src/*"]
     }
   },
-  "include": ["core", "extension", "tests", "vite.config.ts"]
+  "include": ["core", "extension", "android/web", "tests", "vite.config.ts"]
 }

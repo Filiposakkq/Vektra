@@ -1,4 +1,5 @@
-import { Chess, validateFen, type Square } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
+import { fenFromBoard } from '@core/chess/position';
 import { replay } from '@core/chess/replay';
 import { placementToFenBoard, type Placement } from './boardDom';
 
@@ -151,22 +152,7 @@ export function isOnePieceLifted(placement: Placement, fen: string): boolean {
   return true;
 }
 
-/**
- * Build a FEN from piece placement only. Castling rights are inferred from
- * kings and rooks on their home squares; en passant is unknown and left "-".
- * Returns null if the result is not a legal FEN.
- */
+/** A FEN from piece placement only (see fenFromBoard in core/chess/position.ts). */
 export function fenFromPlacement(placement: Placement, turn: 'w' | 'b'): string | null {
-  const at = (sq: string) => placement.get(sq);
-  let castling = '';
-  if (at('e1') === 'wk') {
-    if (at('h1') === 'wr') castling += 'K';
-    if (at('a1') === 'wr') castling += 'Q';
-  }
-  if (at('e8') === 'bk') {
-    if (at('h8') === 'br') castling += 'k';
-    if (at('a8') === 'br') castling += 'q';
-  }
-  const fen = `${placementToFenBoard(placement)} ${turn} ${castling || '-'} - 0 1`;
-  return validateFen(fen).ok ? fen : null;
+  return fenFromBoard(placementToFenBoard(placement), turn);
 }
