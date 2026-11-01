@@ -1,5 +1,5 @@
 import type { Category } from '@core/analysis/classify';
-import { categoryIconGroup } from './categoryStyle';
+import { categoryIconGroup } from '@core/draw/categoryIcons';
 import type { Arrow } from '@core/hints/types';
 
 export type { Arrow } from '@core/hints/types';

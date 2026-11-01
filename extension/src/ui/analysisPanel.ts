@@ -1,7 +1,7 @@
 import { CATEGORIES, CATEGORY_LABELS } from '@core/analysis/classify';
 import { accuracyGrade, describeMoveAnalysis, type GameAnalysis, type PhaseSummary } from '@core/analysis/gameAnalysis';
 import { PHASES, PHASE_LABELS } from '@core/analysis/phases';
-import { categoryBadge } from './categoryStyle';
+import { categoryBadge } from '@core/draw/categoryIcons';
 import { renderEvalGraph } from './evalGraph';
 import { BODY_FONT, THEME } from './theme';
 

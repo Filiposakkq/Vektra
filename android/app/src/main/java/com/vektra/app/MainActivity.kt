@@ -9,10 +9,13 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
 
-/** Shows whether Vektra's accessibility service is on and what it last read. */
+/** Vektra's settings, whether its accessibility service is on, and what it last read. */
 class MainActivity : Activity() {
+    private lateinit var settings: HintSettings
     private lateinit var serviceText: TextView
     private lateinit var statusText: TextView
     private lateinit var boardText: TextView
@@ -39,6 +42,8 @@ class MainActivity : Activity() {
             text = "Open accessibility settings"
             setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         })
+        settings = SettingsStore.load(this)
+        addSettings(layout, pad)
         statusText = TextView(this).apply { setPadding(0, pad, 0, 0) }
         layout.addView(statusText)
         boardText = TextView(this).apply {
@@ -48,6 +53,62 @@ class MainActivity : Activity() {
         }
         layout.addView(boardText)
         setContentView(ScrollView(this).apply { addView(layout) })
+    }
+
+    /** The settings, saved as soon as one changes; the overlay picks them up at once. */
+    private fun addSettings(layout: LinearLayout, pad: Int) {
+        layout.addView(TextView(this).apply {
+            text = "Settings"
+            textSize = 20f
+            setPadding(0, pad, 0, pad / 4)
+        })
+        fun save(next: HintSettings) {
+            settings = next
+            SettingsStore.save(this, next)
+        }
+        fun toggle(label: String, value: Boolean, change: (Boolean) -> HintSettings): Switch =
+            Switch(this).apply {
+                text = label
+                isChecked = value
+                setPadding(0, pad / 3, 0, pad / 3)
+                setOnCheckedChangeListener { _, checked -> save(change(checked)) }
+                layout.addView(this)
+            }
+        fun slider(label: (Int) -> String, min: Int, max: Int, step: Int, value: Int, change: (Int) -> HintSettings): SeekBar {
+            val caption = TextView(this).apply { text = label(value) }
+            layout.addView(caption)
+            return SeekBar(this).apply {
+                this.max = (max - min) / step
+                progress = (value - min) / step
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
+                        caption.text = label(min + progress * step)
+                    }
+                    override fun onStartTrackingTouch(bar: SeekBar) {}
+                    override fun onStopTrackingTouch(bar: SeekBar) = save(change(min + bar.progress * step))
+                })
+                layout.addView(this)
+            }
+        }
+
+        toggle("Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
+        slider({ "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
+        toggle("Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
+        toggle("Show the bot's threats", settings.showThreats) { settings.copy(showThreats = it) }
+        toggle("Show a weaker move (violet arrow)", settings.occasionalWeakerMoves) { settings.copy(occasionalWeakerMoves = it) }
+        toggle("Rate my moves", settings.liveRatings) { settings.copy(liveRatings = it) }
+        slider({ "Search depth: $it (deeper is stronger but slower)" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
+            settings.copy(depth = it)
+        }
+        lateinit var elo: SeekBar
+        toggle("Play at an approximate Elo", settings.limitStrength) {
+            elo.isEnabled = it
+            settings.copy(limitStrength = it)
+        }
+        elo = slider({ "Approximate Elo: $it" }, HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo) {
+            settings.copy(elo = it)
+        }
+        elo.isEnabled = settings.limitStrength
     }
 
     override fun onResume() {

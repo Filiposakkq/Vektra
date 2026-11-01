@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -22,9 +23,14 @@ class VektraAccessibilityService : AccessibilityService() {
     private val isActivityCache = HashMap<String, Boolean>()
     private val check = Runnable { checkScreen() }
     private var overlay: HintOverlay? = null
+    /** When the screen first changed since the last read, and how long the last read came after it. */
+    private var changedAt = 0L
+    private var readDelayMs = 0L
+    private val settingsListener: (HintSettings) -> Unit = { settings -> handler.post { overlay?.applySettings(settings) } }
 
     override fun onServiceConnected() {
         overlay = HintOverlay(this)
+        SettingsStore.addListener(settingsListener)
         report(PositionStore.State.Off("Waiting for a Chess.com bot game."))
     }
 
@@ -36,6 +42,7 @@ class VektraAccessibilityService : AccessibilityService() {
             if (cls != null && isChessActivity(cls)) chessScreen = cls
         }
         // Boards change often; read once things settle.
+        if (changedAt == 0L) changedAt = SystemClock.uptimeMillis()
         handler.removeCallbacks(check)
         handler.postDelayed(check, SETTLE_MS)
     }
@@ -45,12 +52,15 @@ class VektraAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         handler.removeCallbacks(check)
         report(PositionStore.State.Off("Vektra's accessibility service isn't running."))
+        SettingsStore.removeListener(settingsListener)
         overlay?.destroy()
         overlay = null
         super.onDestroy()
     }
 
     private fun checkScreen() {
+        readDelayMs = SystemClock.uptimeMillis() - changedAt
+        changedAt = 0L
         val root = rootInActiveWindow
         if (root?.packageName?.toString() != BotGameGuard.CHESS_PACKAGE) {
             report(PositionStore.State.Off("Chess.com isn't in front."))
@@ -99,13 +109,15 @@ class VektraAccessibilityService : AccessibilityService() {
             is PositionStore.State.Off -> Log.i(TAG, "off: ${state.reason}")
             is PositionStore.State.On -> Log.i(
                 TAG,
-                "bot game: ${state.reading.fenStart} flipped=${state.reading.board.flipped} moves=${state.reading.moves.tokens.joinToString(" ")}",
+                "bot game: ${state.reading.fenStart} flipped=${state.reading.board.flipped} " +
+                    "moves=${state.reading.moves.tokens.joinToString(" ")} (read ${readDelayMs} ms after the screen changed)",
             )
         }
     }
 
     private companion object {
         const val TAG = "Vektra"
-        const val SETTLE_MS = 300L
+        /** Short: a move should clear the old arrows at once, but a move animation sends a burst of events. */
+        const val SETTLE_MS = 120L
     }
 }

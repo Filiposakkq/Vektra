@@ -1,7 +1,6 @@
 import { EngineClient } from '../engine/client';
 import type { AnalyzeRequest, SearchResult } from '../engine/protocol';
-import { whitePov, type PvLine, type Score } from '@core/engine/uci';
-import { winPercent } from '@core/analysis/winProbability';
+import { whitePov, type PvLine } from '@core/engine/uci';
 import { DEFAULT_SETTINGS, type Settings } from '../shared/settings';
 import { EvalBar } from '../ui/evalBar';
 import { BoardOverlay, type Arrow } from '../ui/overlay';
@@ -9,7 +8,7 @@ import type { BoardState } from './boardReader';
 import type { PageKind } from './pageScope';
 import { describeMoveAnalysis, type MoveAnalysis, type PositionEval } from '@core/analysis/moveAnalysis';
 import { handleStaleExtension } from './extensionUpdate';
-import { arrowScoreLabel, hintMoveArrows, isStrengthLimited, scoreArrows, steadyLines } from '@core/hints/hintArrows';
+import { arrowScoreLabel, hintArrows, hintMoveArrows, isStrengthLimited, steadyLines, type Threat } from '@core/hints/hintArrows';
 import { drawAvoidingLine, drawsAfter, extendHistory, fenAfterMove, gameHistory, type GameHistory } from '@core/hints/gameHistory';
 import { buildRequest, buildThreatRequest, buildWeakerRequest } from '@core/hints/hintRequests';
 import { LiveRatings, userMoveToRate } from '@core/hints/liveRatings';
@@ -61,7 +60,7 @@ export class HintController {
   /** 0: hidden (on demand), 1: only the piece to move, 2: the full hint. */
   private revealStage: 0 | 1 | 2 = 0;
   /** The bot's threat in this position, when it is worth showing. */
-  private threat: { move: string; score: Score } | null = null;
+  private threat: Threat | null = null;
 
   private ratings = new LiveRatings();
 
@@ -365,7 +364,7 @@ export class HintController {
 
   /**
    * Search the position as if the user passed. The bot's best move there is
-   * its threat; whether it is worth showing is judged in threatMove against
+   * its threat; whether it is worth showing is judged (threatWorthShowing) against
    * the latest evaluation, so it can show before the main search settles.
    */
   private searchThreat(state: BoardState, stale: () => boolean, engine: EngineClient): Promise<void> {
@@ -379,15 +378,6 @@ export class HintController {
         this.threat = { move: result.bestmove, score: line.score };
         this.redraw();
       });
-  }
-
-  /** The threat, when allowing it would cost the user enough win chance. */
-  private threatMove(): string | null {
-    const best = [...this.lines].sort((a, b) => a.multipv - b.multipv)[0];
-    if (!this.threat || !best) return null;
-    // The user's win chance now, against after the bot's free move.
-    const loss = winPercent(best.score) - (100 - winPercent(this.threat.score));
-    return loss >= this.settings.threatWinLoss ? this.threat.move : null;
   }
 
   private autoPlayCurrent(): void {
@@ -425,22 +415,18 @@ export class HintController {
 
   private arrowsFor(state: BoardState, kind: PageKind): Arrow[] {
     if (this.revealStage === 0 || !shouldHint(state, kind)) return [];
-    const threatMove = this.threatMove();
-    const threat: Arrow[] = threatMove ? [{ move: threatMove, rank: 0, threat: true }] : [];
-    if (this.revealStage < 2) return threat;
-    const turn = state.fen.split(' ')[1] as 'w' | 'b';
-    const searching = this.bestmove === undefined;
-    // The weaker move's score may only be in the weaker-move search's lines.
-    const lines = [
-      ...this.lines,
-      ...this.weakerLines.filter((line) => !this.lines.some((main) => main.pv[0] === line.pv[0])),
-    ];
-    const moves = scoreArrows(this.moveArrows(state, kind), lines, turn, {
-      showScores: this.settings.arrowScores,
-      hideWorse: !this.settings.weakenedShowsTopMoves,
-      maxWinLoss: this.settings.hideWorseWinLoss,
-    }).map((arrow) => (searching ? { ...arrow, provisional: true } : arrow));
-    return [...threat, ...moves];
+    return hintArrows({
+      kind,
+      fen: state.fen,
+      settings: this.settings,
+      lines: this.lines,
+      weakerLines: this.weakerLines,
+      bestmove: this.bestmove,
+      moveChoice: this.moveChoice,
+      threat: this.threat,
+      // On demand, the first press shows the threat and the piece only.
+      showMoves: this.revealStage >= 2,
+    });
   }
 
   /** The move arrows for the position, before scores are added. */

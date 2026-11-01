@@ -1,4 +1,6 @@
+import type { Category } from '@core/analysis/classify';
 import { winPercent } from '@core/analysis/winProbability';
+import { categoryIconGroup } from '@core/draw/categoryIcons';
 import type { Score } from '@core/engine/uci';
 import {
   ARROW_STYLES,
@@ -17,6 +19,13 @@ import {
 import type { Arrow } from '@core/hints/types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** A move rating shown on a square (Best, Mistake...). */
+export interface Badge {
+  square: string;
+  category: Category;
+  title: string;
+}
 
 function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>): SVGElementTagNameMap[K] {
   const node = document.createElementNS(SVG_NS, tag);
@@ -40,7 +49,7 @@ export class BoardLayer {
     this.evalStrip.classList.remove('shown');
   }
 
-  draw(arrows: Arrow[], flipped: boolean): void {
+  draw(arrows: Arrow[], flipped: boolean, badge: Badge | null = null): void {
     const tints: SVGElement[] = [];
     const shapes: SVGElement[] = [];
     const labels: SVGElement[] = [];
@@ -87,7 +96,24 @@ export class BoardLayer {
       shapes.push(g);
       if (arrow.label) labels.push(this.scoreLabel(arrow.label, to, color, Math.max(opacity, 0.85)));
     }
-    this.svg.replaceChildren(this.shadowFilter(), ...tints, ...shapes, ...labels);
+    const badges = badge ? [this.badge(badge, flipped)] : [];
+    this.svg.replaceChildren(this.shadowFilter(), ...tints, ...shapes, ...labels, ...badges);
+  }
+
+  /** A rating icon in the square's top-right corner, overlapping the edge like Chess.com's. */
+  private badge(badge: Badge, flipped: boolean): SVGElement {
+    const [cx, cy] = squareCenter(badge.square, flipped);
+    const size = 0.44;
+    const holder = el('svg', {
+      x: cx + 0.5 - size * 0.75,
+      y: cy - 0.5 - size * 0.25,
+      width: size,
+      height: size,
+      viewBox: '0 0 20 20',
+      overflow: 'visible',
+    });
+    holder.append(categoryIconGroup(badge.category, true));
+    return holder;
   }
 
   /** The eval strip above the board: the user's share of the win chance on the left. */

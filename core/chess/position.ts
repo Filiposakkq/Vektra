@@ -1,4 +1,4 @@
-import { validateFen } from 'chess.js';
+import { Chess, validateFen } from 'chess.js';
 
 /**
  * A full FEN from the pieces alone (a FEN piece placement, rank 8 first) and
@@ -34,4 +34,25 @@ export function fenFromBoard(board: string, turn: 'w' | 'b'): string | null {
   }
   const fen = `${board} ${turn} ${castling || '-'} - 0 1`;
   return validateFen(fen).ok ? fen : null;
+}
+
+/**
+ * The legal move that turns the position `fen` into the piece placement
+ * `board`, or null if no single move does (two moves were made, or the board
+ * was misread).
+ */
+export function moveBetween(fen: string, board: string): { uci: string; san: string } | null {
+  let chess: Chess;
+  try {
+    chess = new Chess(fen);
+  } catch {
+    return null;
+  }
+  for (const move of chess.moves({ verbose: true })) {
+    chess.move(move);
+    const placement = chess.fen().split(' ')[0];
+    chess.undo();
+    if (placement === board) return { uci: move.from + move.to + (move.promotion ?? ''), san: move.san };
+  }
+  return null;
 }

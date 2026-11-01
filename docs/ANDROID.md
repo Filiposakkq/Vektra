@@ -1,8 +1,9 @@
 # Vektra for Android: plan
 
-Status: milestone 2 done (2026-11-01). In Chess.com bot games the app shows
-the engine's best moves as arrows over the board, with scores and an eval
-strip, on the user's turn. This is the plan agreed on
+Status: milestone 3 done (2026-11-01). In Chess.com bot games the app shows
+the engine's best moves as arrows over the board on the user's turn, with
+scores, the bot's threat, an optional weaker move, an eval strip and a rating
+of each of the user's moves, and has a settings screen. This is the plan agreed on
 2026-11-01, after checking what the Chess.com Android app exposes.
 
 ## Building and installing
@@ -157,6 +158,18 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    hard to see on Chess.com's dark background when the user plays Black.
 3. **The rest of the hints.** Threat arrow, weaker moves, live ratings,
    settings screen.
+   *Done:* the threat check and the full arrow list are shared with the
+   extension (`threatWorthShowing`, `hintArrows` in `core/hints/hintArrows.ts`),
+   as are the rating icons (`core/draw/categoryIcons.ts`). The user's move is
+   found by comparing the board before and after (`moveBetween` in
+   `core/chess/position.ts`) and rated from the first usable depth, since
+   bots reply fast; whether it was a book move is judged from the position
+   reached only. While the bot thinks, the positions after its two likeliest
+   replies are searched ahead, and the user's search carries on from there.
+   The settings (`HintSettings.kt`) use the extension's names and defaults.
+   Still to improve: arrows clear and appear a moment after a move (reading
+   waits about 0.2 s for the board to settle, plus Chess.com's animation);
+   the search-ahead isn't measured on the phone yet.
 4. **Review.** Finished games from the public archive, with the analysis panel.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 

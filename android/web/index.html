@@ -7,7 +7,8 @@
     <style>
       /* Laid over the Chess.com board: an eval strip, then the board itself. */
       html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
-      #eval { display: flex; height: 8px; opacity: 0; transition: opacity .2s; }
+      /* Outlined, so the dark side still shows on Chess.com's dark background. */
+      #eval { display: flex; height: 8px; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, .55); border-radius: 2px; overflow: hidden; opacity: 0; transition: opacity .2s; }
       #eval.shown { opacity: 0.9; }
       #eval i { display: block; height: 100%; transition: flex-grow .3s ease; }
       #board { display: block; width: 100vw; height: 100vw; }

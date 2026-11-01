@@ -165,3 +165,46 @@ export function hintMoveArrows({ kind, fen, settings, lines, weakerLines, bestmo
   }
   return arrowsFromLines(lines, settings.weakenedShowsTopMoves ? WEAKER_MOVE_MULTIPV : settings.arrows);
 }
+
+/** The opponent's threat: its best move if the user passed, and that line's score for the opponent. */
+export interface Threat {
+  move: string;
+  score: Score;
+}
+
+/**
+ * True when allowing the threat would cost the user at least
+ * settings.threatWinLoss points of win chance: the user's win chance now
+ * (the best line), against after the opponent's free move.
+ */
+export function threatWorthShowing(lines: readonly PvLine[], threat: Threat | null, settings: Settings): boolean {
+  const best = [...lines].sort((a, b) => a.multipv - b.multipv)[0];
+  if (!threat || !best) return false;
+  return winPercent(best.score) - (100 - winPercent(threat.score)) >= settings.threatWinLoss;
+}
+
+/**
+ * Every arrow of a hint on the user's turn: the threat when it is worth
+ * showing, then the move arrows with their scores (only the threat when
+ * `showMoves` is off). Arrows are provisional while the search runs.
+ */
+export function hintArrows(input: HintArrowInput & { threat: Threat | null; showMoves: boolean }): Arrow[] {
+  const { settings, threat } = input;
+  const shownThreat: Arrow[] = threat && threatWorthShowing(input.lines, threat, settings)
+    ? [{ move: threat.move, rank: 0, threat: true }]
+    : [];
+  if (!input.showMoves) return shownThreat;
+  const turn = input.fen.split(' ')[1] as 'w' | 'b';
+  const searching = input.bestmove === undefined;
+  // The weaker move's score may only be in the weaker-move search's lines.
+  const lines = [
+    ...input.lines,
+    ...input.weakerLines.filter((line) => !input.lines.some((main) => main.pv[0] === line.pv[0])),
+  ];
+  const moves = scoreArrows(hintMoveArrows(input), lines, turn, {
+    showScores: settings.arrowScores,
+    hideWorse: !settings.weakenedShowsTopMoves,
+    maxWinLoss: settings.hideWorseWinLoss,
+  }).map((arrow) => (searching ? { ...arrow, provisional: true } : arrow));
+  return [...shownThreat, ...moves];
+}

@@ -1,7 +1,11 @@
-import type { Category } from '@core/analysis/classify';
-import { CATEGORY_STYLE } from '../shared/categoryStyle';
+import type { Category } from '../analysis/classify';
+import { CATEGORY_STYLE } from '../analysis/categoryStyle';
 
-/** SVG and HTML badges for move categories; colours and symbols are in shared/categoryStyle.ts. */
+/**
+ * SVG and HTML badges for move categories, drawn with the standard DOM (the
+ * extension and the Android overlay page both have it). Colours and symbols
+ * are in analysis/categoryStyle.ts.
+ */
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

@@ -1,4 +1,4 @@
-import type { Category } from '@core/analysis/classify';
+import type { Category } from './classify';
 
 /**
  * Colour and plain-text symbol for each move category. The colours follow

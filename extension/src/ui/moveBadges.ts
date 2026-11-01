@@ -1,5 +1,5 @@
 import { describeMoveAnalysis, type MoveAnalysis } from '@core/analysis/gameAnalysis';
-import { categoryBadge } from './categoryStyle';
+import { categoryBadge } from '@core/draw/categoryIcons';
 
 const BADGE_CLASS = 'vektra-move-badge';
 

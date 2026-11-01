@@ -39,8 +39,10 @@ class HintOverlay(private val context: Context) {
         PixelFormat.TRANSLUCENT,
     ).apply { gravity = Gravity.TOP or Gravity.START }
     private var pageReady = false
-    /** The latest call, made once the page has loaded. */
-    private var pending: String? = null
+    /** Calls made before the page loaded, run once it has. */
+    private val pending = ArrayList<String>()
+    /** The user's settings, sent again whenever the page (re)loads. */
+    private var settingsJson = SettingsStore.load(context).toJson()
 
     fun show(reading: GameReading) {
         val view = web ?: create()
@@ -59,6 +61,12 @@ class HintOverlay(private val context: Context) {
         }
         val turn = reading.moves.sideToMove?.let { "\"$it\"" } ?: "null"
         call("vektra.show({board:\"${reading.board.placement}\",turn:$turn,flipped:${reading.board.flipped}})")
+    }
+
+    /** Sends the user's settings to the page; the shown hints are worked out again. */
+    fun applySettings(settings: HintSettings) {
+        settingsJson = settings.toJson()
+        call("vektra.settings($settingsJson)")
     }
 
     /** Clears the arrows and hides the window; the engine stays loaded for the next bot game. */
@@ -94,8 +102,9 @@ class HintOverlay(private val context: Context) {
 
                 override fun onPageFinished(view: WebView, url: String) {
                     pageReady = true
-                    pending?.let { view.evaluateJavascript(it, null) }
-                    pending = null
+                    view.evaluateJavascript("vektra.settings($settingsJson)", null)
+                    pending.forEach { view.evaluateJavascript(it, null) }
+                    pending.clear()
                 }
             }
             webChromeClient = object : WebChromeClient() {
@@ -114,7 +123,7 @@ class HintOverlay(private val context: Context) {
 
     private fun call(script: String) {
         val view = web ?: return
-        if (pageReady) view.evaluateJavascript(script, null) else pending = script
+        if (pageReady) view.evaluateJavascript(script, null) else pending += script
     }
 
     /** The board's area on screen: from its top-left square to its bottom-right one. */
