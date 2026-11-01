@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vektra</string>
+    <string name="accessibility_description">Reads the board in Chess.com bot games, so Vektra can show engine hints there. It turns off in every other game and app, and never taps or types for you.</string>
+</resources>

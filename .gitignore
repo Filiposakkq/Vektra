@@ -2,3 +2,10 @@ node_modules
 dist
 *.log
 extension/public/engine
+
+# Android build output and local SDK path
+android/.gradle
+android/.kotlin
+android/build
+android/app/build
+android/local.properties
