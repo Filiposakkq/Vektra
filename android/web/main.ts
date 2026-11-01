@@ -60,7 +60,11 @@ function engineRestarted(): void {
   if (lastReading) show(lastReading);
 }
 
-/** The main search; the helper runs the quick weaker-move and threat passes beside it. */
+/**
+ * The main search; the helper runs the quick weaker-move and threat passes
+ * and the search ahead beside it. In light mode only the main engine works,
+ * one search after another, leaving the phone's fast cores free for drawing.
+ */
 let main: UciEngine;
 let helper: UciEngine;
 const startMain = () => {
@@ -157,6 +161,7 @@ const PONDER_KEPT = 20;
  */
 interface Pondering {
   fen: string;
+  engine: UciEngine;
   latest: PvLine[];
   onUpdate: ((lines: PvLine[]) => void) | null;
   result: Promise<SearchResult | null>;
@@ -185,8 +190,10 @@ async function ponder(fen: string, lines: PvLine[], user: 'w' | 'b', stale: () =
   for (const reply of replies) {
     const next = fenAfterReply(fen, reply, user);
     if (!next || pondered.has(next) || stale()) continue;
-    const job: Pondering = { fen: next, latest: [], onUpdate: null, result: Promise.resolve(null) };
-    job.result = helper.analyze(buildRequest(next, settings, null), (update) => {
+    // In light mode the one engine searches ahead once the bot's position is done.
+    const engine = settings.lightMode ? main : helper;
+    const job: Pondering = { fen: next, engine, latest: [], onUpdate: null, result: Promise.resolve(null) };
+    job.result = engine.analyze(buildRequest(next, settings, null), (update) => {
       job.latest = update;
       job.onUpdate?.(update);
     });
@@ -231,11 +238,9 @@ function show(reading: Reading): void {
   lastFen = fen;
   // A search done ahead for exactly this position goes on; everything else stops.
   const continued = pondering && pondering.fen === fen ? pondering : null;
-  main.stop();
-  if (!continued) {
-    helper.stop();
-    pondering = null;
-  }
+  if (continued?.engine !== main) main.stop();
+  if (continued?.engine !== helper) helper.stop();
+  if (!continued) pondering = null;
   layer.clear();
   shownArrows = [];
   const user = reading.flipped ? 'b' : 'w';
@@ -259,13 +264,16 @@ function show(reading: Reading): void {
         remember(fen, lines);
         void rateMove(beforeFen, fen);
       }
-      if (!ponderStarted && lines[0]?.depth >= PONDER_FROM_DEPTH) {
+      // Beside this search on the helper; in light mode after it, on the one engine.
+      if (!ponderStarted && !settings.lightMode && lines[0]?.depth >= PONDER_FROM_DEPTH) {
         ponderStarted = true;
         void ponder(fen, lines, user, stale);
       }
     };
     void main.analyze(buildRequest(fen, settings, null), use).then((result) => {
-      if (result) use(result.lines);
+      if (!result) return;
+      use(result.lines);
+      if (settings.lightMode && !stale()) void ponder(fen, result.lines, user, stale);
     });
     return;
   }
@@ -323,21 +331,24 @@ function show(reading: Reading): void {
 
   // The main search: done ahead already, going on from a search ahead, or new.
   const done = pondered.get(fen);
-  let quick: UciEngine = helper;
+  let mainSearch: Promise<unknown> = Promise.resolve();
   if (done) {
     onResult(done, 'searched ahead');
   } else if (continued) {
-    // The helper carries on with it; the quick passes use the main engine.
-    quick = main;
     continued.onUpdate = onUpdate;
     if (continued.latest.length) onUpdate(continued.latest);
-    void continued.result.then((result) => onResult(result, 'continued from the search ahead'));
+    mainSearch = continued.result.then((result) => onResult(result, 'continued from the search ahead'));
   } else {
-    void main.analyze(buildRequest(fen, settings, null), onUpdate).then((result) => onResult(result, 'new search'));
+    mainSearch = main.analyze(buildRequest(fen, settings, null), onUpdate).then((result) => onResult(result, 'new search'));
   }
+  // The quick passes run beside the main search on the other engine, or in
+  // light mode after it, on the same one.
+  const quick: UciEngine = settings.lightMode ? (continued?.engine ?? main) : continued?.engine === helper ? main : helper;
 
   // The quick passes, one after the other.
   void (async () => {
+    if (settings.lightMode) await mainSearch;
+    if (stale()) return;
     if (settings.occasionalWeakerMoves) {
       const weaker = await quick.analyze(buildWeakerRequest(fen, settings, null), (update) => {
         if (stale() || !(update[0]?.depth >= WEAKER_DRAW_DEPTH)) return;

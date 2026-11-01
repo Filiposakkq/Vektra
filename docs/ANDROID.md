@@ -167,9 +167,15 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    reached only. While the bot thinks, the positions after its two likeliest
    replies are searched ahead, and the user's search carries on from there.
    The settings (`HintSettings.kt`) use the extension's names and defaults.
-   Still to improve: arrows clear and appear a moment after a move (reading
-   waits about 0.2 s for the board to settle, plus Chess.com's animation);
-   the search-ahead isn't measured on the phone yet.
+   Speed, measured on the phone: the board is read 0.1 s after the screen
+   starts changing (and once more when it settles); first arrows 0-70 ms
+   after that, instantly when the bot plays a move searched ahead. Whose turn
+   it is follows from the board (one legal move on from the last position)
+   before Chess.com's move list catches up; boards read mid-animation are
+   ignored (`fenFromBoard` rejects impossible positions). Smoothness: two
+   engines took the phone's two fast cores and the arrows lagged, so light
+   mode (one engine, searches one after another) is on by default; arrows
+   appear and leave without fades, and the overlay window uses the GPU.
 4. **Review.** Finished games from the public archive, with the analysis panel.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 

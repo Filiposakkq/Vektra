@@ -100,6 +100,7 @@ class MainActivity : Activity() {
         slider({ "Search depth: $it (deeper is stronger but slower)" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
             settings.copy(depth = it)
         }
+        toggle("Light mode: one engine (smoother, hints a bit slower)", settings.lightMode) { settings.copy(lightMode = it) }
         lateinit var elo: SeekBar
         toggle("Play at an approximate Elo", settings.limitStrength) {
             elo.isEnabled = it

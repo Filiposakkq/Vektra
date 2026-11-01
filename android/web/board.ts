@@ -19,8 +19,6 @@ import {
 import type { Arrow } from '@core/hints/types';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-/** How long leaving arrows take to fade out. */
-const FADE_MS = 160;
 
 /** A move rating shown on a square (Best, Mistake...). */
 export interface Badge {
@@ -55,7 +53,7 @@ export class BoardLayer {
     svg.replaceChildren(this.tintLayer, this.arrowLayer, this.labelLayer, this.badgeLayer);
   }
 
-  /** Fade everything out (a new position, or Vektra turning off). */
+  /** Remove everything (a new position, or Vektra turning off). */
   clear(): void {
     this.draw([], false, null);
     this.evalStrip.classList.remove('shown');
@@ -63,7 +61,8 @@ export class BoardLayer {
 
   /**
    * Draw the arrows. The engine sends many updates while it searches, so an
-   * arrow that is still there keeps its element; gone ones fade out.
+   * arrow that is still there keeps its element. Arrows appear and leave at
+   * once: fades looked laggy on the phone.
    */
   draw(arrows: Arrow[], flipped: boolean, badge: Badge | null = null): void {
     const tints: SVGElement[] = [];
@@ -98,10 +97,8 @@ export class BoardLayer {
       }
       const shape = arrowGeometry(from, to, style.width, corner, 0.42);
       const key = `${arrow.threat ? 'threat' : arrow.weaker ? 'weaker' : 'move'}:${arrow.move}:${flipped}`;
-      // New arrows show at once (a fade-in looked laggy on the phone); only leaving ones fade.
       const g = this.arrowNodes.get(key) ?? el('g', {});
-      g.style.transition = '';
-      g.style.opacity = String(opacity);
+      g.setAttribute('opacity', String(opacity));
       const shaft = el('path', {
         d: shape.shaft,
         fill: 'none',
@@ -113,8 +110,8 @@ export class BoardLayer {
       // Dashed while the engine may still change its mind; solid once final.
       if (arrow.provisional) shaft.setAttribute('stroke-dasharray', `${style.width * 0.9} ${style.width * 1.1}`);
       // A dark edge under the arrow keeps it readable on light squares and white
-      // pieces. A plain outline, not the extension's drop-shadow filter: a phone
-      // redraws a filter on every frame of a fade.
+      // pieces. A plain outline, not the extension's drop-shadow filter, which
+      // is slow to draw on a phone.
       const edge = { stroke: BOARD_COLORS.ink, 'stroke-opacity': 0.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
       const shaftEdge = el('path', { ...edge, d: shape.shaft, fill: 'none', 'stroke-width': style.width + 0.035 });
       if (arrow.provisional) shaftEdge.setAttribute('stroke-dasharray', shaft.getAttribute('stroke-dasharray')!);
@@ -130,15 +127,7 @@ export class BoardLayer {
       next.set(key, g);
       if (arrow.label) labels.push(this.scoreLabel(arrow.label, to, color, Math.max(opacity, 0.85)));
     }
-    // Arrows that are gone fade out, then leave (unless they come back meanwhile).
-    for (const [key, old] of this.arrowNodes) {
-      if (next.has(key)) continue;
-      old.style.transition = `opacity ${FADE_MS}ms ease-in`;
-      old.style.opacity = '0';
-      setTimeout(() => {
-        if (this.arrowNodes.get(key) !== old) old.remove();
-      }, FADE_MS + 40);
-    }
+    for (const [key, old] of this.arrowNodes) if (!next.has(key)) old.remove();
     this.arrowNodes = next;
     this.tintLayer.replaceChildren(...tints);
     this.labelLayer.replaceChildren(...labels);

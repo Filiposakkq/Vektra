@@ -5,7 +5,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The settings the app offers, a subset of the extension's (core/settings.ts),
- * with the same names and defaults. The overlay page fills in the rest and
+ * with the same names and defaults (except light mode, on by default here). The overlay page fills in the rest and
  * checks every value again (sanitizeSettings).
  */
 data class HintSettings(
@@ -23,12 +23,18 @@ data class HintSettings(
     /** Play at an approximate Elo instead of full strength. */
     val limitStrength: Boolean = false,
     val elo: Int = 2000,
+    /**
+     * One engine instead of two: smoother drawing, but threats and the search
+     * ahead come later. On by default here (off in the extension): two engines
+     * take a phone's fast cores and the arrows lag.
+     */
+    val lightMode: Boolean = true,
 ) {
     /** As JSON for the overlay page, with the extension's setting names. */
     fun toJson(): String =
         "{\"enabled\":$enabled,\"arrows\":$arrows,\"arrowScores\":$arrowScores,\"showThreats\":$showThreats," +
             "\"occasionalWeakerMoves\":$occasionalWeakerMoves,\"liveRatings\":$liveRatings,\"depth\":$depth," +
-            "\"limitStrength\":$limitStrength,\"elo\":$elo}"
+            "\"limitStrength\":$limitStrength,\"elo\":$elo,\"lightMode\":$lightMode}"
 
     companion object {
         const val DEPTH_MIN = 8
@@ -59,6 +65,7 @@ object SettingsStore {
             depth = p.getInt("depth", d.depth).coerceIn(HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX),
             limitStrength = p.getBoolean("limitStrength", d.limitStrength),
             elo = p.getInt("elo", d.elo).coerceIn(HintSettings.ELO_MIN, HintSettings.ELO_MAX),
+            lightMode = p.getBoolean("lightMode", d.lightMode),
         )
     }
 
@@ -73,6 +80,7 @@ object SettingsStore {
             .putInt("depth", settings.depth)
             .putBoolean("limitStrength", settings.limitStrength)
             .putInt("elo", settings.elo)
+            .putBoolean("lightMode", settings.lightMode)
             .apply()
         listeners.forEach { it(settings) }
     }
