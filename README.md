@@ -357,6 +357,9 @@ PGN=game.pgn DEPTH=12 npx vitest run tests/tools --silent=false
 It prints Vektra's rating of each move beside Chess.com's and how many of
 the rated moves agree.
 
+The reviewed games used for tuning, and the plan for calibrating on more,
+are in [docs/CALIBRATION.md](docs/CALIBRATION.md).
+
 ## Engine
 
 Vektra ships the single-threaded Stockfish 19 lite build from the `stockfish`
