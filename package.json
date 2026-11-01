@@ -1,6 +1,6 @@
 {
   "name": "vektra",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stockfish hints and game analysis for chess.com games and finished-game review",
   "scripts": {
     "predev": "node scripts/copy-engine.mjs",
