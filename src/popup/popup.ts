@@ -287,9 +287,9 @@ function renderUpdates() {
 }
 
 /** Ask the background worker for the update state; it checks GitHub if it hasn't lately. */
-async function refreshUpdates(type: typeof UPDATE_CHECK | typeof UPDATE_INSTALL = UPDATE_CHECK) {
+async function refreshUpdates(type: typeof UPDATE_CHECK | typeof UPDATE_INSTALL = UPDATE_CHECK, force = false) {
   try {
-    const state = (await chrome.runtime.sendMessage({ type })) as UpdateState | undefined;
+    const state = (await chrome.runtime.sendMessage(force ? { type, force } : { type })) as UpdateState | undefined;
     if (state) updateState = state;
   } catch {
     // The worker is restarting; the stored state still shows below.
@@ -333,9 +333,10 @@ async function initializePopup() {
     panel.hidden = !panel.hidden;
     (event.currentTarget as HTMLElement).setAttribute('aria-expanded', String(!panel.hidden));
   });
-  document.querySelector('input[name="updateCheck"]')!.addEventListener('change', () => {
+  document.querySelector<HTMLInputElement>('input[name="updateCheck"]')!.addEventListener('change', (event) => {
     // Turned on: look for a new version now rather than next time.
-    void flushSettings().then(() => refreshUpdates());
+    const on = (event.target as HTMLInputElement).checked;
+    void flushSettings().then(() => refreshUpdates(UPDATE_CHECK, on));
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !(FULL_ENGINE_STATUS_KEY in changes)) return;

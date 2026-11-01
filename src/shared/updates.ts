@@ -12,7 +12,10 @@ export const UPDATER_HOST = 'com.vektra.updater';
 
 /** Where the background worker keeps the UpdateState, in chrome.storage.local. */
 export const UPDATE_STATE_KEY = 'updateState';
-/** Popup -> background: check now (unless checked recently); replies with the UpdateState. */
+/**
+ * Popup -> background: check now, unless checked recently and `force` isn't
+ * set; replies with the UpdateState.
+ */
 export const UPDATE_CHECK = 'vektra:update-check';
 /** Popup -> background: install the new release through the helper. */
 export const UPDATE_INSTALL = 'vektra:update-install';

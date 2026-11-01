@@ -40,8 +40,8 @@ analysis only once they have finished.
    the settings interface, which is also embedded as a floating window.
    Shared settings and message names are in `src/shared/`.
 6. Updates: `src/background/updates.ts` asks GitHub for the latest release
-   (on Chrome start, after a reload, and when the popup opens, at most every
-   six hours) and keeps the result in `chrome.storage.local` for the popup.
+   (on Chrome start, after a reload, and when the popup opens, at most once
+   an hour) and keeps the result in `chrome.storage.local` for the popup.
    Extensions can't write their own files, so installing goes through the
    updater helper in `public/updater`: a PowerShell script Chrome starts by
    native messaging once `install-updater.ps1` has registered it. It

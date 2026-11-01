@@ -17,8 +17,8 @@ import {
  * no bot game is in progress.
  */
 
-/** GitHub is asked at most this often, however often the popup opens. */
-export const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/** Opening the popup asks GitHub at most this often. */
+export const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 export const RELOAD_ALARM = 'vektra-update-reload';
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -174,9 +174,10 @@ export function installUpdate(): Promise<UpdateState> {
 
 /** Wire the update checks into the background worker; call once. */
 export function startUpdates(): void {
-  // Each time Chrome starts, and after Vektra is installed, updated or reloaded.
-  chrome.runtime.onStartup.addListener(() => void checkForUpdate());
-  chrome.runtime.onInstalled.addListener(() => void checkForUpdate());
+  // Each time Chrome starts, and after Vektra is installed, updated or
+  // reloaded; these are rare, so GitHub is always asked.
+  chrome.runtime.onStartup.addListener(() => void checkForUpdate({ force: true }));
+  chrome.runtime.onInstalled.addListener(() => void checkForUpdate({ force: true }));
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === RELOAD_ALARM) void reloadWhenIdle();
   });

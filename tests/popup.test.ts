@@ -233,6 +233,14 @@ describe('settings popup', () => {
       expect(fake.runtime.reload).toHaveBeenCalled();
     });
 
+    it('checks at once when "Check for updates" is ticked again', async () => {
+      await openPopup({ ...DEFAULT_SETTINGS, updateCheck: false }, { updateState: idle });
+      input('updateCheck').click();
+      await vi.waitFor(() =>
+        expect(fake.runtime.sendMessage).toHaveBeenCalledWith({ type: 'vektra:update-check', force: true }),
+      );
+    });
+
     it('shows no new version when the update check is off', async () => {
       await openPopup({ ...DEFAULT_SETTINGS, updateCheck: false }, { updateState: { ...idle, latest: release } });
       await vi.waitFor(() => expect(document.getElementById('update-version')!.textContent).toBe('Vektra 0.2.0'));

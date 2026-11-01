@@ -87,7 +87,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (handleSettingsMessage(msg, sendResponse)) return true;
   if (msg?.type === UPDATE_CHECK || msg?.type === UPDATE_INSTALL) {
-    (msg.type === UPDATE_CHECK ? checkForUpdate() : installUpdate()).then(sendResponse, (error: unknown) => {
+    (msg.type === UPDATE_CHECK ? checkForUpdate({ force: msg.force === true }) : installUpdate()).then(sendResponse, (error: unknown) => {
       console.error('[Vektra] Update check failed:', error);
       sendResponse(undefined);
     });

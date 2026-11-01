@@ -53,7 +53,7 @@ export interface Settings {
   autoPlayMaxDelaySec: number;
   /** Use the downloaded full-strength engine instead of the bundled lite one. */
   engine: 'lite' | 'full';
-  /** Ask GitHub for the latest Vektra release (at most every few hours). */
+  /** Ask GitHub for the latest Vektra release (on start, and at most hourly from the popup). */
   updateCheck: boolean;
   /** Install a new release through the updater helper as soon as it is found. */
   autoUpdate: boolean;

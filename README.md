@@ -74,8 +74,9 @@ if `dist` is missing that file or was built from different sources (including
 
 Chrome doesn't update an extension loaded unpacked on its own, so Vektra
 checks its [GitHub releases](https://github.com/Filiposakkq/Vektra/releases)
-itself: when Chrome starts and when the settings open, at most every six
-hours. The check sends nothing about you; it is a plain request for the latest
+itself: when Chrome starts, when Vektra is reloaded, and when the settings
+open (at most once an hour). Ticking **Check for updates** again checks at
+once. The check sends nothing about you; it is a plain request for the latest
 release. Turn it off under **Updates** at the bottom of the settings.
 
 - **One click (Windows):** run `updater\install-updater.bat` in your Vektra

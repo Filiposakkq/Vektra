@@ -121,7 +121,7 @@ describe('background updates', () => {
     expect(updateRequests()).toBe(1);
   });
 
-  it('asks GitHub at most every few hours', async () => {
+  it('asks GitHub at most hourly from the popup', async () => {
     const { mod, githubCalls } = await updates();
     await mod.checkForUpdate();
     await mod.checkForUpdate();
@@ -175,10 +175,13 @@ describe('background updates', () => {
   });
 
   it('checks when Chrome starts and reloads from the alarm once the game is over', async () => {
-    const { mod, fake, githubCalls } = await updates();
+    const { mod, fake, githubCalls } = await updates({ state: { checkedAt: Date.now() } });
     mod.startUpdates();
+    // Even right after a check: starting and reloading are rare.
     fake.runtime.onStartup.emit();
     await vi.waitFor(() => expect(githubCalls()).toBe(1));
+    fake.runtime.onInstalled.emit({ reason: 'update' });
+    await vi.waitFor(() => expect(githubCalls()).toBe(2));
     fake.chrome.alarms.onAlarm.emit({ name: mod.RELOAD_ALARM });
     await vi.waitFor(() => expect(fake.runtime.reload).toHaveBeenCalled());
   });
