@@ -534,6 +534,18 @@ if (runSuite('settings')) {
       (await settings.locator('[data-tab="look"], #panel-look, input[type="color"]').count()) === 0,
     'settings: removes the unnecessary Display tab and arrow customization',
   );
+  const updatesLink = settings.locator('#toggle-updates');
+  await updatesLink.click();
+  // Shown once the background worker has looked for the helper (not installed here).
+  await settings.locator('#helper-note').waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  check(
+    (await settings.locator('input[name="updateCheck"]').isChecked()) &&
+      (await settings.locator('input[name="autoUpdate"]').isChecked()) &&
+      /^Vektra \d+\.\d+\.\d+/.test((await settings.locator('#update-version').textContent()) ?? '') &&
+      (await settings.locator('#helper-note').isVisible()),
+    'settings: update toggles are on, the version shows, and the updater helper is suggested',
+  );
+  await updatesLink.click();
 
   const floatingRect = await game.locator('#vektra-floating-settings').boundingBox();
   const floatingHeader = await game.locator('#vektra-floating-settings').locator('header').boundingBox();

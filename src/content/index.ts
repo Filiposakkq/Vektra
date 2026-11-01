@@ -13,12 +13,13 @@ import { EngineErrorNotice } from '../ui/engineErrorNotice';
 import { AutoPlayScheduler } from './autoPlay';
 import { readBoardState, watchBoard, type BoardState } from './boardReader';
 import { HintController } from './hints';
-import { isGameOver, resolveScope, type Scope } from './pageScope';
+import { isGameOver, isLiveGamePath, resolveScope, type Scope } from './pageScope';
 import { uciToSan } from '../analysis/chessNotation';
 import type { AnalysisController } from './analysisController';
 import { reportAnalysisLoadFailure, setReloadNotice } from './extensionUpdate';
 import { checkPage } from './pageHealth';
 import { PAGE_HEALTH, type PageHealth } from '../shared/pageHealth';
+import { GAME_IN_PROGRESS } from '../shared/updates';
 
 /**
  * Content script entry: decide whether Vektra may run on this page and, where
@@ -254,6 +255,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       problems: performance.now() < PAGE_SETTLE_MS ? [] : checkPage(location.pathname),
     };
     sendResponse(health);
+  }
+  if (msg?.type === GAME_IN_PROGRESS) {
+    // An update waits for this to be false before reloading Vektra.
+    const scope = resolveScope(location.pathname, document);
+    sendResponse(
+      scope.status === 'enabled' && scope.kind === 'game' && isLiveGamePath(location.pathname) && !isGameOver(document),
+    );
   }
   if (msg?.type === OPEN_SETTINGS) {
     floatingSettings ??= new FloatingSettings(

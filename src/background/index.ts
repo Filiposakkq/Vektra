@@ -6,14 +6,17 @@ import {
 } from '../engine/fullEngine';
 import { ENSURE_ENGINE } from '../engine/protocol';
 import { SHOW_HINT, applySettingsPatch, becomeSettingsWriter, handleSettingsMessage } from '../shared/settings';
+import { UPDATE_CHECK, UPDATE_INSTALL } from '../shared/updates';
+import { checkForUpdate, installUpdate, startUpdates } from './updates';
 
 /**
  * Background service worker. Starts the offscreen document that hosts the
- * Stockfish workers, and handles the keyboard shortcuts.
+ * Stockfish workers, handles the keyboard shortcuts, and checks for updates.
  */
 
 // All settings changes are written here, one at a time (see settings.ts).
 becomeSettingsWriter();
+startUpdates();
 
 const OFFSCREEN_URL = 'src/engine/offscreen.html';
 let creating: Promise<void> | null = null;
@@ -63,6 +66,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return;
   }
   if (handleSettingsMessage(msg, sendResponse)) return true;
+  if (msg?.type === UPDATE_CHECK || msg?.type === UPDATE_INSTALL) {
+    (msg.type === UPDATE_CHECK ? checkForUpdate() : installUpdate()).then(sendResponse, (error: unknown) => {
+      console.error('[Vektra] Update check failed:', error);
+      sendResponse(undefined);
+    });
+    return true;
+  }
   if (msg?.type !== ENSURE_ENGINE) return;
   ensureOffscreen().then(
     () => sendResponse({ ok: true }),

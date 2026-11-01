@@ -39,20 +39,34 @@ analysis only once they have finished.
 5. `src/ui/` contains the board overlays and controls; `src/popup/` contains
    the settings interface, which is also embedded as a floating window.
    Shared settings and message names are in `src/shared/`.
+6. Updates: `src/background/updates.ts` asks GitHub for the latest release
+   (on Chrome start, after a reload, and when the popup opens, at most every
+   six hours) and keeps the result in `chrome.storage.local` for the popup.
+   Extensions can't write their own files, so installing goes through the
+   updater helper in `public/updater`: a PowerShell script Chrome starts by
+   native messaging once `install-updater.ps1` has registered it. It
+   downloads the release zip, checks its checksum and copies it over the
+   extension folder without deleting anything (pages still running the old
+   version may load its files); files only the old version had are removed
+   on the next update. The worker then sees the newer `manifest.json` on
+   disk, asks each Chess.com tab whether a bot game is in progress
+   (`GAME_IN_PROGRESS`), and reloads Vektra once none is, checking again
+   every minute by alarm. A version unzipped over the folder by hand is
+   picked up the same way.
 
 ## Source layout
 
 | Path | Responsibility |
 | --- | --- |
 | `src/analysis/` | Position evaluation, classification (`classify.ts`), the reason a move was bad (`explain.ts`), game phases (`phases.ts`), accuracy and game rating (`gameAnalysis.ts`), tunable constants (`config.ts`), exports, opening lookup |
-| `src/background/` | Extension service worker and keyboard shortcuts |
+| `src/background/` | Extension service worker, keyboard shortcuts and updates |
 | `src/content/` | Chess.com page scope, board reading, hints, autoplay, analysis lifecycle |
 | `src/engine/` | Engine protocol, worker host, full-engine download and UCI implementation |
 | `src/popup/` | Settings markup, styles and behavior |
 | `src/shared/` | Validated settings and cross-context message constants |
 | `src/ui/` | Board controls, overlays, badges and analysis panel |
 | `data/openings/` | Source opening TSVs used to generate `src/analysis/openings.json` |
-| `public/` | Static extension assets; engine assets are copied before builds |
+| `public/` | Static extension assets and the updater helper (`public/updater`); engine assets are copied before builds |
 | `scripts/` | Build-time asset copying and opening-data generation |
 | `tests/` | Unit, integration, fixture-based browser and full-engine tests; `tests/tools` holds dev-only analysis tools that never ship |
 | `docs/calibration/` | Chess.com-reviewed games used to tune the ratings (see [CALIBRATION.md](CALIBRATION.md)) |

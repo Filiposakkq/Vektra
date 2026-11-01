@@ -53,6 +53,10 @@ export interface Settings {
   autoPlayMaxDelaySec: number;
   /** Use the downloaded full-strength engine instead of the bundled lite one. */
   engine: 'lite' | 'full';
+  /** Ask GitHub for the latest Vektra release (at most every few hours). */
+  updateCheck: boolean;
+  /** Install a new release through the updater helper as soon as it is found. */
+  autoUpdate: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -82,6 +86,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoPlayMinDelaySec: 0.5,
   autoPlayMaxDelaySec: 2,
   engine: 'lite',
+  updateCheck: true,
+  autoUpdate: true,
 };
 
 /**
@@ -229,6 +235,8 @@ export function sanitizeSettings(raw: unknown): Settings {
       legacyRangeOnly ? legacyDelay : Math.max(autoPlayMinDelaySec, d.autoPlayMaxDelaySec),
     ),
     engine: oneOf(r.engine, ['lite', 'full'] as const, d.engine),
+    updateCheck: bool(r.updateCheck, d.updateCheck),
+    autoUpdate: bool(r.autoUpdate, d.autoUpdate),
     analysisDepth: clampInt(r.analysisDepth, ANALYSIS_DEPTH_MIN, ANALYSIS_DEPTH_MAX, d.analysisDepth),
   };
 }

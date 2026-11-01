@@ -18,6 +18,14 @@ import {
   saveSettings,
   type Settings,
 } from '../shared/settings';
+import {
+  RELEASES_URL,
+  UPDATE_CHECK,
+  UPDATE_INSTALL,
+  UPDATE_STATE_KEY,
+  updateAvailable,
+  type UpdateState,
+} from '../shared/updates';
 
 /** Settings update the UI immediately; slider writes are coalesced before saving. */
 
@@ -31,7 +39,8 @@ let settingsSaveTimer: number | null = null;
 let settingsSaveQueue: Promise<void> = Promise.resolve();
 let settingsSaveError: string | null = null;
 
-const inputs = () => document.querySelectorAll<HTMLInputElement>('form input[name], header input[name]');
+const inputs = () =>
+  document.querySelectorAll<HTMLInputElement>('form input[name], header input[name], footer input[name]');
 
 function valueFor(name: string): unknown {
   return settings[name as Key];
@@ -74,6 +83,7 @@ function render() {
     el.hidden = String(settings[key as Key]) !== value;
   }
   if (document.getElementById('engine-status')) renderEngine();
+  if (document.getElementById('update-banner')) renderUpdates();
   const status = document.getElementById('status')!;
   status.textContent = settingsSaveError ?? (settings.enabled ? 'On' : 'Paused');
   status.classList.toggle('on', settings.enabled);
@@ -240,6 +250,53 @@ function renderEngine() {
   }[st.state];
 }
 
+/** Kept by the background worker (see background/updates.ts); null until it answers. */
+let updateState: UpdateState | null = null;
+
+function renderUpdates() {
+  const running = chrome.runtime.getManifest().version;
+  const state = updateState;
+  const available = settings.updateCheck && !!state && updateAvailable(state, running);
+  let text = '';
+  let canInstall = false;
+  let canDownload = false;
+  let canReload = false;
+  if (state?.phase === 'waiting') {
+    text = `Vektra ${state.installed} is installed. It reloads by itself once no bot game is in progress.`;
+    canReload = true;
+  } else if (state?.phase === 'installing') {
+    text = `Installing Vektra ${state.latest?.version ?? ''}…`;
+  } else if (available) {
+    const version = state.latest!.version;
+    if (state.phase === 'error') text = `Updating to Vektra ${version} failed: ${state.error}`;
+    else if (state.helper) text = `Vektra ${version} is available.`;
+    else text = `Vektra ${version} is available. Download it and unzip it over your Vektra folder.`;
+    canInstall = state.helper;
+    canDownload = !state.helper || state.phase === 'error';
+  }
+  document.getElementById('update-banner')!.hidden = !text;
+  document.getElementById('update-text')!.textContent = text;
+  document.getElementById('update-now')!.hidden = !canInstall;
+  const download = document.getElementById('update-download') as HTMLAnchorElement;
+  download.hidden = !canDownload;
+  download.href = state?.latest?.url ?? RELEASES_URL;
+  document.getElementById('update-reload')!.hidden = !canReload;
+  const upToDate = settings.updateCheck && !!state?.checkedAt && !available && state.phase === 'idle';
+  document.getElementById('update-version')!.textContent = `Vektra ${running}${upToDate ? ', up to date' : ''}`;
+  document.getElementById('helper-note')!.hidden = !settings.updateCheck || !state || state.helper;
+}
+
+/** Ask the background worker for the update state; it checks GitHub if it hasn't lately. */
+async function refreshUpdates(type: typeof UPDATE_CHECK | typeof UPDATE_INSTALL = UPDATE_CHECK) {
+  try {
+    const state = (await chrome.runtime.sendMessage({ type })) as UpdateState | undefined;
+    if (state) updateState = state;
+  } catch {
+    // The worker is restarting; the stored state still shows below.
+  }
+  renderUpdates();
+}
+
 async function startDownload() {
   // Must run in the click handler: Chrome only shows the permission prompt for a user gesture.
   const granted = await chrome.permissions.request({ origins: [...FULL_ENGINE.origins] });
@@ -263,6 +320,22 @@ async function initializePopup() {
   // downloaded or removed (see recordEngineStatus); the popup only shows it.
   document.getElementById('engine-remove')!.addEventListener('click', () => {
     void chrome.runtime.sendMessage({ type: FULL_ENGINE_REMOVE });
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !(UPDATE_STATE_KEY in changes)) return;
+    updateState = (changes[UPDATE_STATE_KEY].newValue as UpdateState | undefined) ?? null;
+    renderUpdates();
+  });
+  document.getElementById('update-now')!.addEventListener('click', () => void refreshUpdates(UPDATE_INSTALL));
+  document.getElementById('update-reload')!.addEventListener('click', () => chrome.runtime.reload());
+  document.getElementById('toggle-updates')!.addEventListener('click', (event) => {
+    const panel = document.getElementById('updates')!;
+    panel.hidden = !panel.hidden;
+    (event.currentTarget as HTMLElement).setAttribute('aria-expanded', String(!panel.hidden));
+  });
+  document.querySelector('input[name="updateCheck"]')!.addEventListener('change', () => {
+    // Turned on: look for a new version now rather than next time.
+    void flushSettings().then(() => refreshUpdates());
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !(FULL_ENGINE_STATUS_KEY in changes)) return;
@@ -329,6 +402,9 @@ async function initializePopup() {
     ((await chrome.storage.local.get(FULL_ENGINE_STATUS_KEY))[FULL_ENGINE_STATUS_KEY] as FullEngineStatus | undefined) ??
     { state: 'missing' };
   renderEngine();
+  updateState = ((await chrome.storage.local.get(UPDATE_STATE_KEY))[UPDATE_STATE_KEY] as UpdateState | undefined) ?? null;
+  renderUpdates();
+  void refreshUpdates();
   void renderPageHealth();
   void chrome.runtime
     .sendMessage({ type: ENSURE_ENGINE })

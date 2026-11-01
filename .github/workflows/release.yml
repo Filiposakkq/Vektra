@@ -1,0 +1,67 @@
+name: Release
+
+# Push a tag like v0.2.0 (npm version minor && git push --follow-tags) to
+# publish that version: the checks run, then the built extension is attached
+# to a GitHub release as vektra-<version>.zip with a SHA-256 checksum. The
+# updater helper (public/updater) and the popup's update check read it from
+# there.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Only bot-only is released; main is the older version.
+      - name: Check the tag
+        run: |
+          version=$(jq -r .version package.json)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -qx '  origin/bot-only'; then
+            echo "::error::$GITHUB_REF_NAME is not on the bot-only branch"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Install Chromium for the browser tests
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: xvfb-run -a npm run e2e
+
+      # manifest.json at the top of the zip, so unzipping it over the Vektra
+      # folder updates it in place.
+      - name: Package
+        run: |
+          rm -f dist/vektra-build.json
+          (cd dist && zip -r -X "../vektra-$VERSION.zip" .)
+          sha256sum "vektra-$VERSION.zip" > "vektra-$VERSION.zip.sha256"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "vektra-$VERSION.zip" "vektra-$VERSION.zip.sha256" \
+            --title "Vektra $VERSION" --generate-notes

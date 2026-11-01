@@ -22,6 +22,14 @@
     </header>
     <div class="board-edge" aria-hidden="true"></div>
     <p class="page-warning" id="page-warning" role="status" aria-live="polite" hidden></p>
+    <div class="update-banner" id="update-banner" hidden>
+      <p id="update-text" role="status" aria-live="polite"></p>
+      <div class="update-actions">
+        <button type="button" id="update-now" class="action" hidden>Update now</button>
+        <a id="update-download" class="action" target="_blank" rel="noopener" hidden>Download</a>
+        <button type="button" id="update-reload" class="action" hidden>Reload now</button>
+      </div>
+    </div>
 
     <nav class="tabs" role="tablist">
       <button type="button" role="tab" id="tab-hints" aria-controls="panel-hints" data-tab="hints">Hints</button>
@@ -225,7 +233,23 @@
       <div class="shortcuts" id="shortcuts"></div>
       <div class="footer-actions">
         <button type="button" id="edit-shortcuts" class="link">Change shortcuts</button>
+        <button type="button" id="toggle-updates" class="link" aria-expanded="false" aria-controls="updates">Updates</button>
         <button type="button" id="reset-settings" class="link reset-link">Reset settings</button>
+      </div>
+      <!-- Behind a link: the in-page window is already as tall as the Hints tab allows. -->
+      <div class="updates" id="updates" hidden>
+        <p class="note" id="update-version"></p>
+        <label class="row inline check">
+          <span>Check for updates</span>
+          <input type="checkbox" name="updateCheck" />
+        </label>
+        <label class="row inline check" data-show="updateCheck=true">
+          <span>Update automatically<small>Installs a new version and reloads Vektra, never during a game.</small></span>
+          <input type="checkbox" name="autoUpdate" />
+        </label>
+        <p class="note" id="helper-note" hidden>
+          To update with one click, run <b>updater\install-updater.bat</b> in your Vektra folder once.
+        </p>
       </div>
       <p>Suggestions and ratings are engine estimates.</p>
     </footer>

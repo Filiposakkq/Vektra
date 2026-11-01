@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../src/shared/settings';
+import type { UpdateState } from '../src/shared/updates';
 import { installFakeChrome, type FakeChrome } from './fixtures/chrome';
 
 const POPUP_HTML = readFileSync(join(import.meta.dirname, '../src/popup/index.html'), 'utf8');
@@ -16,7 +17,11 @@ const documentListeners: Parameters<typeof document.addEventListener>[] = [];
  */
 async function openPopup(
   stored = { ...DEFAULT_SETTINGS },
-  { tab = { url: 'https://www.chess.com/play/online' }, pageHealth }: { tab?: Partial<chrome.tabs.Tab>; pageHealth?: unknown } = {},
+  {
+    tab = { url: 'https://www.chess.com/play/online' },
+    pageHealth,
+    updateState,
+  }: { tab?: Partial<chrome.tabs.Tab>; pageHealth?: unknown; updateState?: UpdateState } = {},
 ) {
   vi.resetModules();
   const background = await import('../src/shared/settings');
@@ -25,7 +30,9 @@ async function openPopup(
     sync: { settings: stored },
     onSendMessage: (msg) =>
       new Promise((resolve) => {
-        if (!background.handleSettingsMessage(msg, resolve)) resolve(undefined);
+        // The background worker's update check answers with the update state.
+        if ((msg as { type?: string }).type === 'vektra:update-check') resolve(updateState);
+        else if (!background.handleSettingsMessage(msg, resolve)) resolve(undefined);
       }),
   });
   fake.chrome.tabs.query.mockResolvedValue([tab as chrome.tabs.Tab]);
@@ -176,5 +183,61 @@ describe('settings popup', () => {
     input('liveRatings').checked = false;
     input('liveRatings').dispatchEvent(new Event('input', { bubbles: true }));
     await vi.waitFor(() => expect(document.getElementById('status')?.textContent).toBe('Settings could not be saved'));
+  });
+
+  describe('updates', () => {
+    const idle: UpdateState = { checkedAt: Date.now(), latest: null, helper: false, phase: 'idle' };
+    const release = { version: '0.3.0', url: 'https://github.com/Filiposakkq/Vektra/releases/tag/v0.3.0' };
+    const banner = () => document.getElementById('update-banner')!;
+    const shown = (id: string) => !document.getElementById(id)!.hidden;
+
+    it('says Vektra is up to date', async () => {
+      await openPopup(undefined, { updateState: idle });
+      await vi.waitFor(() => expect(document.getElementById('update-version')!.textContent).toBe('Vektra 0.2.0, up to date'));
+      expect(banner().hidden).toBe(true);
+      expect(shown('helper-note')).toBe(true);
+    });
+
+    it('offers a download without the updater helper', async () => {
+      await openPopup(undefined, { updateState: { ...idle, latest: release } });
+      await vi.waitFor(() => expect(banner().hidden).toBe(false));
+      expect(document.getElementById('update-text')!.textContent).toMatch(/0.3.0 is available. Download it/);
+      expect(shown('update-download')).toBe(true);
+      expect(shown('update-now')).toBe(false);
+      expect((document.getElementById('update-download') as HTMLAnchorElement).href).toBe(release.url);
+    });
+
+    it('installs through the helper on "Update now"', async () => {
+      await openPopup(undefined, { updateState: { ...idle, latest: release, helper: true } });
+      await vi.waitFor(() => expect(shown('update-now')).toBe(true));
+      expect(shown('update-download')).toBe(false);
+      expect(shown('helper-note')).toBe(false);
+      document.getElementById('update-now')!.click();
+      await vi.waitFor(() =>
+        expect(fake.runtime.sendMessage).toHaveBeenCalledWith({ type: 'vektra:update-install' }),
+      );
+    });
+
+    it('shows a failed update with a download link', async () => {
+      const failed: UpdateState = { ...idle, latest: release, helper: true, phase: 'error', error: 'No network.', failedVersion: '0.3.0' };
+      await openPopup(undefined, { updateState: failed });
+      await vi.waitFor(() => expect(document.getElementById('update-text')!.textContent).toBe('Updating to Vektra 0.3.0 failed: No network.'));
+      expect(shown('update-now')).toBe(true);
+      expect(shown('update-download')).toBe(true);
+    });
+
+    it('offers to reload when a new version is installed', async () => {
+      await openPopup(undefined, { updateState: { ...idle, latest: release, phase: 'waiting', installed: '0.3.0' } });
+      await vi.waitFor(() => expect(shown('update-reload')).toBe(true));
+      document.getElementById('update-reload')!.click();
+      expect(fake.runtime.reload).toHaveBeenCalled();
+    });
+
+    it('shows no new version when the update check is off', async () => {
+      await openPopup({ ...DEFAULT_SETTINGS, updateCheck: false }, { updateState: { ...idle, latest: release } });
+      await vi.waitFor(() => expect(document.getElementById('update-version')!.textContent).toBe('Vektra 0.2.0'));
+      expect(banner().hidden).toBe(true);
+      expect(input('autoUpdate').closest('label')!.hidden).toBe(true);
+    });
   });
 });

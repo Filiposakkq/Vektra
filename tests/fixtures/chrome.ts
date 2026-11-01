@@ -115,8 +115,16 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     id: 'test',
     lastError: undefined as { message: string } | undefined,
     getURL: (path: string) => `${options.baseUrl ?? 'chrome-extension://test/'}${path}`,
+    getManifest: vi.fn(() => ({ version: '0.2.0' }) as chrome.runtime.Manifest),
     sendMessage: vi.fn(async (msg: unknown) => options.onSendMessage?.(msg)),
+    /** The updater helper; by default not installed. */
+    sendNativeMessage: vi.fn(async (_host: string, _msg: unknown): Promise<unknown> => {
+      throw new Error('Specified native messaging host not found.');
+    }),
+    reload: vi.fn(),
     onMessage: new FakeEvent<(msg: never, sender: unknown, sendResponse: (reply: unknown) => void) => unknown>(),
+    onStartup: new FakeEvent<() => void>(),
+    onInstalled: new FakeEvent<(details: unknown) => void>(),
     onConnect: new FakeEvent<(port: FakePort) => void>(),
     /** Ports the code under test opened with chrome.runtime.connect. */
     ports: [] as FakePort[],
@@ -138,6 +146,10 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       create: vi.fn(async () => ({})),
     },
     permissions: { request: vi.fn(async () => true) },
+    alarms: {
+      create: vi.fn(async (_name: string, _info: unknown) => {}),
+      onAlarm: new FakeEvent<(alarm: { name: string }) => void>(),
+    },
   };
 
   /** A port the code under test receives through chrome.runtime.onConnect. */

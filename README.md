@@ -25,6 +25,7 @@ guarantees of playing strength, or a substitute for your own review.
 ## Contents
 
 - [Install and development](#install-load-unpacked)
+- [Updates](#updates)
 - [Important notices](#important-notices)
 - [Settings](#settings)
 - [Project layout](#layout)
@@ -37,6 +38,11 @@ guarantees of playing strength, or a substitute for your own review.
 - [Third-party licenses](#third-party-licenses)
 
 ## Install (load unpacked)
+
+To use a released version, download `vektra-<version>.zip` from the
+[releases page](https://github.com/Filiposakkq/Vektra/releases), unzip it into
+a folder you will keep, and load that folder as in step 3. To build it
+yourself:
 
 1. `npm ci` (or `npm install` if you are changing dependencies)
 2. `npm run build`
@@ -63,6 +69,38 @@ Each production build records a fingerprint of its sources in
 `dist/vektra-build.json`; the browser checks stop with a list of changed files
 if `dist` is missing that file or was built from different sources (including
 `npm run dev` output), so run `npm run build` again first.
+
+## Updates
+
+Chrome doesn't update an extension loaded unpacked on its own, so Vektra
+checks its [GitHub releases](https://github.com/Filiposakkq/Vektra/releases)
+itself: when Chrome starts and when the settings open, at most every six
+hours. The check sends nothing about you; it is a plain request for the latest
+release. Turn it off under **Updates** at the bottom of the settings.
+
+- **One click (Windows):** run `updater\install-updater.bat` in your Vektra
+  folder once. It registers a small helper with Chrome for your Windows user
+  (no admin rights). Vektra can then install a new version itself: with
+  **Update automatically** on (the default) it does so as soon as it finds one;
+  otherwise the settings show **Update now**. The helper downloads the release
+  zip, checks its SHA-256 checksum, and copies it over the folder. Vektra then
+  reloads itself, waiting until no bot game is in progress; open Chess.com tabs
+  ask to be reloaded afterwards. Run `install-updater.bat -Uninstall` to remove
+  the helper, and run the installer again if you move the folder. The helper
+  logs to `updater\update.log`.
+- **By hand:** without the helper, the settings show a **Download** link when a
+  new version is out. Unzip it over your Vektra folder (the same folder, so
+  nothing is lost); Vektra notices the new files and reloads itself.
+
+Vektra has a fixed extension ID (`omhnocnlghbmiboddipdodbdikbgdabb`, from the
+`key` in `manifest.config.ts`), so its settings don't depend on the folder it
+is loaded from, and the helper accepts requests from that extension only.
+
+To publish a version: `npm version minor` (or `patch`), then
+`git push --follow-tags` on `bot-only`. The release workflow
+(`.github/workflows/release.yml`) checks that the tag matches `package.json`
+and is on `bot-only`, runs every check, and attaches the zip and its checksum
+to a GitHub release.
 
 ## Important notices
 
@@ -242,7 +280,7 @@ tests/
 data/openings/  source opening TSVs; generated lookup is in src/analysis
 docs/           architecture, calibration plan, and reviewed games for tuning
 scripts/        engine asset copy and opening-data generation
-public/         extension assets copied into the production build
+public/         extension assets copied into the production build, and the updater helper
 ```
 
 For module responsibilities and runtime flow, see
