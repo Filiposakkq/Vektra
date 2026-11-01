@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { replay } from '../src/chess/replay';
-import {
-  buildRequest,
-  drawAvoidingLine,
-  drawsAfter,
-  extendHistory,
-  searchHistory,
-  type GameHistory,
-} from '../src/content/hints';
+import { buildRequest } from '../src/content/hintRequests';
+import { drawAvoidingLine, drawsAfter, extendHistory, searchHistory, type GameHistory } from '../src/content/gameHistory';
 import { biggestMistake } from '../src/content/analysisController';
 import type { MoveAnalysis } from '../src/analysis/moveAnalysis';
 import type { PvLine } from '../src/engine/uci';

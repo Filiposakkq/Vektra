@@ -1,19 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-  arrowsFromLines,
-  buildRequest,
-  buildWeakerRequest,
-  capLines,
-  chooseWeakerMove,
-  isStrengthLimited,
-  pickWeakerCandidate,
-  previewWeakerMove,
-  shouldHint,
-  userMoveToRate,
-  weakerMoveCandidates,
-  weakerPickArrow,
-  weakenedArrows,
-} from '../src/content/hints';
+import { arrowsFromLines, isStrengthLimited, weakenedArrows } from '../src/content/hintArrows';
+import { buildRequest, buildWeakerRequest, capLines } from '../src/content/hintRequests';
+import { chooseWeakerMove, pickWeakerCandidate, previewWeakerMove, weakerMoveCandidates, weakerPickArrow } from '../src/content/weakerMoves';
+import { shouldHint } from '../src/content/userSide';
+import { userMoveToRate } from '../src/content/liveRatings';
 import { fenAfter as fenAfterMoves } from './fixtures/dom';
 import type { BoardState } from '../src/content/boardReader';
 import { DEFAULT_SETTINGS } from '../src/shared/settings';

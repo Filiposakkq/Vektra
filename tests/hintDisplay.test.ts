@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  arrowScoreLabel,
-  steadyLines,
-  fenAfterMove,
-  nullMoveFen,
-  scoreArrows,
-} from '../src/content/hints';
+import { arrowScoreLabel, steadyLines, scoreArrows } from '../src/content/hintArrows';
+import { fenAfterMove, nullMoveFen } from '../src/content/gameHistory';
 import type { PvLine } from '../src/engine/uci';
 import { DEFAULT_SETTINGS } from '../src/shared/settings';
 import { fenAfter } from './fixtures/dom';

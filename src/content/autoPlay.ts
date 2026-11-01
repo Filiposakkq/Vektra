@@ -3,7 +3,7 @@ import { autoPlayDelayMs, type Settings } from '../shared/settings';
 import type { BoardState } from './boardReader';
 import type { PageKind, Scope } from './pageScope';
 import { isGameOver } from './pageScope';
-import { shouldHint } from './hints';
+import { shouldHint } from './userSide';
 import { squareCenter } from '../ui/overlay';
 import { SELECTORS, queryFirst } from './selectors';
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildPdf } from '../src/analysis/pdfExport';
 import { analyzeGame, type Analyzer } from '../src/analysis/gameAnalysis';
-import { weakenedArrows } from '../src/content/hints';
+import { weakenedArrows } from '../src/content/hintArrows';
 import { knightCorner, squareCenter } from '../src/ui/overlay';
 import type { PvLine } from '../src/engine/uci';
 

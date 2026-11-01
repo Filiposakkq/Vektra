@@ -20,13 +20,18 @@ analysis only once they have finished.
    `src/engine/offscreen.ts` hosts one Stockfish worker per connected client.
    `src/engine/uciEngine.ts` handles UCI searches. A client that loses its
    port reconnects once and resends the searches it was waiting for.
-4. `src/content/hints.ts` manages position searches and live move ratings,
-   using `src/analysis/moveAnalysis.ts` without loading full-game analysis.
-   It runs three engine clients side by side: the main search, the weaker
-   move search and the threat search (one client in light mode). It sends
-   the game's moves since the last capture or pawn move, so the engine sees
-   repetitions, keeps a cache of finished searches, searches ahead on the
-   bot's turn, and can swap a best move that draws on the spot.
+4. `src/content/hints.ts` (the `HintController`) runs the position searches
+   and draws their results. It runs three engine clients side by side: the
+   main search, the weaker move search and the threat search (one client in
+   light mode). It keeps a cache of finished searches, searches ahead on the
+   bot's turn, and can swap a best move that draws on the spot. The pieces it
+   uses are pure modules beside it: `hintRequests.ts` (what each search asks
+   the engine), `hintArrows.ts` (which arrows to draw, their scores, keeping
+   them steady), `gameHistory.ts` (the game's moves since the last capture or
+   pawn move, sent so the engine sees repetitions; draws), `weakerMoves.ts`,
+   `userSide.ts` (whose turn the hints are for) and `liveRatings.ts` (rating
+   the user's moves with `src/analysis/moveAnalysis.ts`, without loading
+   full-game analysis).
    `src/content/autoPlay.ts` validates and schedules optional move submission.
    `src/content/analysisController.ts` runs full-game review on demand and
    caches completed analyses locally. Each saved analysis records the engine
