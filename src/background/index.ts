@@ -18,6 +18,26 @@ import { checkForUpdate, installUpdate, startUpdates } from './updates';
 becomeSettingsWriter();
 startUpdates();
 
+/**
+ * The toolbar button opens the settings on chess.com only; elsewhere it is
+ * greyed out and does nothing. Chrome keeps the rule between restarts, so it
+ * is set again only when Vektra is installed, updated or reloaded.
+ */
+function limitActionToChesscom(): void {
+  void chrome.action.disable();
+  chrome.declarativeContent.onPageChanged.removeRules(undefined, () => {
+    chrome.declarativeContent.onPageChanged.addRules([
+      {
+        conditions: [
+          new chrome.declarativeContent.PageStateMatcher({ pageUrl: { hostEquals: 'www.chess.com', schemes: ['https'] } }),
+        ],
+        actions: [new chrome.declarativeContent.ShowAction()],
+      },
+    ]);
+  });
+}
+chrome.runtime.onInstalled.addListener(limitActionToChesscom);
+
 const OFFSCREEN_URL = 'src/engine/offscreen.html';
 let creating: Promise<void> | null = null;
 

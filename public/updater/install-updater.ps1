@@ -1,5 +1,6 @@
 <#
-  Registers the Vektra updater helper with Chrome, for the current Windows
+  Registers the Vektra updater helper with Chrome (and Brave, Edge and
+  Chromium), for the current Windows
   user only (no admin rights needed), so Vektra can install its updates
   itself. Run it once from the updater folder inside your Vektra folder;
   install-updater.bat does that on a double-click.
@@ -12,11 +13,17 @@ param([switch]$Uninstall)
 $ErrorActionPreference = 'Stop'
 
 $HostName = 'com.vektra.updater'
-$RegistryKey = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName"
+# Each Chromium browser looks for native helpers under its own key.
+$RegistryKeys = @(
+  'HKCU:\Software\Google\Chrome',
+  'HKCU:\Software\BraveSoftware\Brave-Browser',
+  'HKCU:\Software\Microsoft\Edge',
+  'HKCU:\Software\Chromium'
+) | ForEach-Object { "$_\NativeMessagingHosts\$HostName" }
 $HostManifest = Join-Path $PSScriptRoot "$HostName.json"
 
 if ($Uninstall) {
-  if (Test-Path $RegistryKey) { Remove-Item -Path $RegistryKey -Force }
+  foreach ($key in $RegistryKeys) { if (Test-Path $key) { Remove-Item -Path $key -Force } }
   if (Test-Path $HostManifest) { Remove-Item -Path $HostManifest -Force }
   Write-Host 'The Vektra updater is removed. Vektra will show a download link for new versions instead.'
   exit 0
@@ -38,8 +45,10 @@ $hostConfig = [ordered]@{
   allowed_origins = @("chrome-extension://$id/")
 }
 Set-Content -Path $HostManifest -Value ($hostConfig | ConvertTo-Json) -Encoding ASCII
-New-Item -Path $RegistryKey -Force | Out-Null
-Set-ItemProperty -Path $RegistryKey -Name '(Default)' -Value $HostManifest
+foreach ($key in $RegistryKeys) {
+  New-Item -Path $key -Force | Out-Null
+  Set-ItemProperty -Path $key -Name '(Default)' -Value $HostManifest
+}
 
 Write-Host "The Vektra updater is installed for extension $id."
 Write-Host 'Vektra can now update itself. Keep this Vektra folder where it is; run this again if you move it.'

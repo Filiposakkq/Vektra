@@ -3,10 +3,11 @@
 // Build first with: VEKTRA_E2E_FULL_ENGINE=1 npm run build
 // (grants the download hosts so no permission prompt is needed).
 import { chromium } from 'playwright';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { assertFreshBuild } from './assertFreshBuild.mjs';
+import { testCopy } from './testCopy.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const dist = join(root, 'dist');
@@ -14,13 +15,17 @@ const fixture = (n) => readFileSync(join(root, 'tests/fixtures/chesscom', `${n}.
 const proxy = process.env.HTTPS_PROXY;
 
 assertFreshBuild({ fullEngine: true });
+const extension = testCopy(dist);
 
-const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'vektra-full-')), {
+const userDataDir = mkdtempSync(join(tmpdir(), 'vektra-full-'));
+// The browser profile holds the 99 MB engine download; don't leave it behind.
+process.on('exit', () => rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3 }));
+const ctx = await chromium.launchPersistentContext(userDataDir, {
   headless: true,
   channel: 'chromium',
   args: [
-    `--disable-extensions-except=${dist}`,
-    `--load-extension=${dist}`,
+    `--disable-extensions-except=${extension}`,
+    `--load-extension=${extension}`,
     ...(proxy ? [`--proxy-server=${proxy}`, '--ignore-certificate-errors'] : []),
   ],
 });

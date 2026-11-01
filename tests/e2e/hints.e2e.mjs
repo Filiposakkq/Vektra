@@ -2,10 +2,11 @@
 // chess.com markup at real chess.com URLs (no network), and checks that the
 // engine runs and arrows are drawn. Run with `npm run e2e` after `npm run build`.
 import { chromium } from 'playwright';
-import { readFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { assertFreshBuild } from './assertFreshBuild.mjs';
+import { testCopy } from './testCopy.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const dist = join(root, 'dist');
@@ -39,12 +40,15 @@ const PAGES = {
 };
 
 assertFreshBuild();
+const extension = testCopy(dist);
 
 const userDataDir = mkdtempSync(join(tmpdir(), 'vektra-e2e-'));
+// The browser profile is about 11 MB; don't leave one behind per run.
+process.on('exit', () => rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3 }));
 const ctx = await chromium.launchPersistentContext(userDataDir, {
   headless: true,
   channel: 'chromium',
-  args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
+  args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
 });
 await ctx.route('https://www.chess.com/**', (route) => {
   const url = route.request().url().split('?')[0];
@@ -355,6 +359,13 @@ if (runSuite('settings')) {
     ),
     'weaker moves: board toggle immediately reflects enabled state',
   );
+
+  // chrome.action.isEnabled() can't see a button enabled by a page rule, so
+  // only the rule is checked here; tests/background.test.ts checks its content.
+  const actionRules = await sw.evaluate(
+    () => new Promise((resolve) => chrome.declarativeContent.onPageChanged.getRules((rules) => resolve(rules.length))),
+  );
+  check(actionRules === 1, 'toolbar button: enabled by a chess.com page rule');
 
   await sw.evaluate(async () => {
     const [tab] = await chrome.tabs.query({ url: 'https://www.chess.com/play/computer' });

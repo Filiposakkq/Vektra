@@ -13,7 +13,8 @@ export default defineManifest({
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwmPetwyqec7jrvIpQPzR0M4Dkn/LnIndWq4swf0wcu+dGiSXx2aBM5BWQCuAExKe5g7qJYRScEPjwYyovyNXv0eN2DG1jFcTZGHXVxsj4rCp58iA1i3RDFzavgO43aHXe9eTbLtas3FJp1Xpv1pvcIA44JQh8PFooNC2bPuFN/pBjBj59XnURGxP/Y2E5n061EVXY+YdKbwPhWqRk7GuWSQHxyWH6By+FJuwqwBlouWWNFyvXU6gBQJ1HupgJev4BUr9bDzmfSSvW2oCLDKau1UdJCbiYkna9uDJaRGm8jEaOH6XLbRpWkVxzsuRs7+UNkOYxvn6xblm2bjNewHjDwIDAQAB',
   // alarms: wait for a bot game to end before reloading after an update.
   // nativeMessaging: ask the updater helper to install an update.
-  permissions: ['storage', 'offscreen', 'unlimitedStorage', 'alarms', 'nativeMessaging'],
+  // declarativeContent: enable the toolbar button on chess.com only.
+  permissions: ['storage', 'offscreen', 'unlimitedStorage', 'alarms', 'nativeMessaging', 'declarativeContent'],
   // VEKTRA_E2E_FULL_ENGINE grants the download hosts up front so the
   // full-engine end-to-end test can run without clicking a permission prompt.
   host_permissions: ['https://www.chess.com/*', ...(process.env.VEKTRA_E2E_FULL_ENGINE ? FULL_ENGINE.origins : [])],

@@ -70,3 +70,22 @@ describe('background full engine status', () => {
     expect(fake.sync.set).not.toHaveBeenCalled();
   });
 });
+
+describe('toolbar button', () => {
+  it('is enabled on chess.com only', async () => {
+    const { fake } = await background('lite');
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ version: '0.2.0' })));
+    fake.runtime.onInstalled.emit({ reason: 'install' });
+    const { action, declarativeContent } = fake.chrome;
+    expect(action.disable).toHaveBeenCalledWith();
+    expect(declarativeContent.onPageChanged.addRules).toHaveBeenCalledTimes(1);
+    const [rule] = declarativeContent.onPageChanged.addRules.mock.calls[0][0] as {
+      conditions: { options: unknown }[];
+      actions: unknown[];
+    }[];
+    expect(rule.conditions.map((c) => c.options)).toEqual([{ pageUrl: { hostEquals: 'www.chess.com', schemes: ['https'] } }]);
+    expect(rule.actions[0]).toBeInstanceOf(declarativeContent.ShowAction);
+    // Installing also checks for an update; let it finish before the fake chrome goes.
+    await vi.waitFor(() => expect((fake.local.data.updateState as { checkedAt: number } | undefined)?.checkedAt).toBeGreaterThan(0));
+  });
+});

@@ -150,6 +150,17 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
       create: vi.fn(async (_name: string, _info: unknown) => {}),
       onAlarm: new FakeEvent<(alarm: { name: string }) => void>(),
     },
+    action: { disable: vi.fn(async () => {}) },
+    declarativeContent: {
+      onPageChanged: {
+        removeRules: vi.fn((_ids: unknown, done?: () => void) => done?.()),
+        addRules: vi.fn((_rules: unknown[]) => {}),
+      },
+      PageStateMatcher: class {
+        constructor(readonly options: unknown) {}
+      },
+      ShowAction: class {},
+    },
   };
 
   /** A port the code under test receives through chrome.runtime.onConnect. */

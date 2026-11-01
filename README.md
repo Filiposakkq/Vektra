@@ -79,8 +79,8 @@ hours. The check sends nothing about you; it is a plain request for the latest
 release. Turn it off under **Updates** at the bottom of the settings.
 
 - **One click (Windows):** run `updater\install-updater.bat` in your Vektra
-  folder once. It registers a small helper with Chrome for your Windows user
-  (no admin rights). Vektra can then install a new version itself: with
+  folder once. It registers a small helper with Chrome, Brave, Edge and
+  Chromium for your Windows user (no admin rights). Vektra can then install a new version itself: with
   **Update automatically** on (the default) it does so as soon as it finds one;
   otherwise the settings show **Update now**. The helper downloads the release
   zip, checks its SHA-256 checksum, and copies it over the folder. Vektra then
@@ -136,8 +136,8 @@ to a GitHub release.
 
 Click the Vektra icon in the toolbar (pin it from the puzzle-piece menu) to
 open settings in a content-sized window over Chess.com. Drag its title bar to
-move it and use the close button to dismiss it. On other pages, the regular
-toolbar popup remains available. Settings are saved in `chrome.storage.sync`
+move it and use the close button to dismiss it. On other sites the icon is
+greyed out and opens nothing. Settings are saved in `chrome.storage.sync`
 and apply to open tabs straight away. Settings have three tabs: **Hints**
 (presets and bot-game controls), **Engine** (engine choice, strength and search
 limits) and **Analysis** (full-game analysis depth). Less-used engine and timing
