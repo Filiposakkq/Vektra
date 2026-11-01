@@ -10,9 +10,8 @@ export const BUILD_STAMP_FILE = 'vektra-build.json';
 
 /** Files and folders, relative to the project root, that the build reads. */
 export const FINGERPRINT_INPUTS = [
-  'src',
-  'public',
-  'manifest.config.ts',
+  'core',
+  'extension',
   'vite.config.ts',
   'tsconfig.json',
   'package.json',
@@ -22,11 +21,11 @@ export const FINGERPRINT_INPUTS = [
 
 /**
  * Paths that are never inputs, at any depth below an input folder. dist is
- * the build output (it holds the stamp itself); public/engine is copied from
+ * the build output (it holds the stamp itself); extension/public/engine is copied from
  * node_modules by scripts/copy-engine.mjs, and package-lock.json already
  * pins the version it comes from.
  */
-export const FINGERPRINT_EXCLUDES = ['dist', 'node_modules', 'public/engine'];
+export const FINGERPRINT_EXCLUDES = ['dist', 'node_modules', 'extension/public/engine'];
 
 /** Operating-system clutter that is not part of the sources. */
 const IGNORED_NAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);

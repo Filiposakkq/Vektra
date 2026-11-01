@@ -1,8 +1,12 @@
 import { relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { crx } from '@crxjs/vite-plugin';
-import manifest from './manifest.config.ts';
+import manifest from './extension/manifest.config.ts';
 import { BUILD_STAMP_FILE, computeFingerprint } from './scripts/build-fingerprint.mjs';
+
+/** The repository root; the extension's own files are under extension/. */
+const repo = fileURLToPath(new URL('.', import.meta.url));
 
 /**
  * Writes dist/vektra-build.json with a fingerprint of the build inputs, so the
@@ -17,8 +21,9 @@ function buildStamp(): Plugin {
     name: 'vektra-build-stamp',
     apply: 'build',
     configResolved(config) {
-      root = config.root;
-      outDir = relative(root, resolve(root, config.build.outDir));
+      // The inputs include core/ and package.json, outside the Vite root.
+      root = repo;
+      outDir = relative(root, resolve(config.root, config.build.outDir));
     },
     buildStart() {
       // The output folder is never an input, wherever it is configured.
@@ -40,13 +45,19 @@ function buildStamp(): Plugin {
   };
 }
 
+// The Vite root is extension/, so built paths (src/popup/index.html...) are
+// the same as before the repository had core/ and android/.
 export default defineConfig({
+  root: resolve(repo, 'extension'),
+  resolve: { alias: { '@core': resolve(repo, 'core') } },
   plugins: [crx({ manifest }), buildStamp()],
   build: {
     target: 'es2022',
+    outDir: resolve(repo, 'dist'),
+    emptyOutDir: true,
     rollupOptions: {
       // Not referenced from the manifest, so listed here to be built.
-      input: { offscreen: 'src/engine/offscreen.html' },
+      input: { offscreen: resolve(repo, 'extension/src/engine/offscreen.html') },
     },
   },
 });

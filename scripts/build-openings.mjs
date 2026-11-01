@@ -1,11 +1,11 @@
-// Builds src/analysis/openings.json from the Lichess opening TSVs in
+// Builds core/analysis/openings.json from the Lichess opening TSVs in
 // data/openings: a map from position key to opening name. Every position on
 // the way to a named line is included, so all of them count as book moves.
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { Chess } from 'chess.js';
 
 const dir = new URL('../data/openings/', import.meta.url);
-const out = new URL('../src/analysis/openings.json', import.meta.url);
+const out = new URL('../core/analysis/openings.json', import.meta.url);
 
 /** Position key: placement, side to move and castling rights. */
 const key = (fen) => fen.split(' ').slice(0, 3).join(' ');

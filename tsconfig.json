@@ -13,7 +13,11 @@
     "resolveJsonModule": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@core/*": ["./core/*"],
+      "@ext/*": ["./extension/src/*"]
+    }
   },
-  "include": ["src", "tests", "vite.config.ts", "manifest.config.ts"]
+  "include": ["core", "extension", "tests", "vite.config.ts"]
 }

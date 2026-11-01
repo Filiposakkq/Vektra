@@ -266,22 +266,33 @@ on the shortcuts page if one shows as "not set" in the popup.
 ## Layout
 
 ```
-src/
-  analysis/     position evaluation, move classification, reports, opening names
-  background/   extension service worker and keyboard shortcuts
-  content/      page detection, board reading, hints, autoplay, analysis lifecycle
-  engine/       engine clients, Stockfish worker host, UCI protocol
-  popup/        settings UI, also embedded in the floating window
-  shared/       validated settings and shared message constants
-  ui/           board overlays, controls, analysis panel, floating settings
+core/             shared by the extension and the Android app (no extension APIs)
+  analysis/       position evaluation, move classification, accuracy, opening names
+  chess/          replaying a game's moves
+  engine/         UCI parsing, search types, the worker-based Stockfish driver
+  hints/          hint logic: requests, arrows, draws, weaker moves, live ratings
+  settings.ts     every setting, its default and checks
+extension/        the Chrome extension
+  src/
+    analysis/     saved analyses, JSON and PDF export
+    background/   service worker, keyboard shortcuts, updates
+    content/      page detection, board reading, the hint controller, autoplay
+    engine/       engine messaging, Stockfish worker host, full-engine download
+    popup/        settings UI, also embedded in the floating window
+    shared/       settings storage, page health, update messages
+    ui/           board overlays, controls, analysis panel, floating settings
+  public/         assets copied into the build, and the updater helper
+  manifest.config.ts
+android/          the Android app (see docs/ANDROID.md)
 tests/
-  e2e/          browser tests against captured Chess.com markup
-  fixtures/     captured markup and shared test fixtures
-  tools/        dev-only tools: analyse a PGN, compare with Chess.com (never shipped)
-data/openings/  source opening TSVs; generated lookup is in src/analysis
-docs/           architecture, calibration and Android plans, reviewed games for tuning
-scripts/        engine asset copy and opening-data generation
-public/         extension assets copied into the production build, and the updater helper
+  core/           tests of the shared core
+  extension/      tests of the extension
+  e2e/            browser tests against captured Chess.com markup
+  fixtures/       captured markup and shared test fixtures
+  tools/          dev-only tools: analyse a PGN, compare with Chess.com (never shipped)
+data/openings/    source opening TSVs; generated lookup is in core/analysis
+docs/             architecture, calibration and Android plans, reviewed games for tuning
+scripts/          engine asset copy, build fingerprint, opening-data generation
 ```
 
 For module responsibilities and runtime flow, see
@@ -290,7 +301,7 @@ For module responsibilities and runtime flow, see
 ## Where Vektra runs
 
 This branch is limited to games against Chess.com's bots. The rules live in
-`src/content/pageScope.ts`:
+`extension/src/content/pageScope.ts`:
 
 | Page | Behavior |
 | --- | --- |
@@ -365,7 +376,7 @@ Completed analyses are cached locally for up to 12 games.
 Evals are turned into win % with
 `win% = 50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)`. A move's loss is
 the mover's win % with the best move minus their win % after the move
-played. All thresholds are in `src/analysis/config.ts`:
+played. All thresholds are in `core/analysis/config.ts`:
 
 | Category | Rule (defaults) |
 | --- | --- |
@@ -446,10 +457,10 @@ search.
 
 ## Updating selectors
 
-Every Chess.com selector is in `src/content/selectors.ts`. Each entry is a
+Every Chess.com selector is in `extension/src/content/selectors.ts`. Each entry is a
 list tried in order, so add new markup first and keep old selectors as
 fallbacks. Entries marked CONFIRMED match markup captured on 2026-10-29 (saved
-in `tests/fixtures/chesscom` and tested by `tests/chesscomMarkup.test.ts`).
+in `tests/fixtures/chesscom` and tested by `tests/extension/chesscomMarkup.test.ts`).
 UNCONFIRMED selectors have not been verified against live markup.
 
 To see the current markup, open a chess.com game, open DevTools, and run:
@@ -502,7 +513,7 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
 ## Third-party licenses
 
 - Stockfish is distributed under GPL-3.0; see
-  [`public/engine/STOCKFISH-LICENSE.txt`](public/engine/STOCKFISH-LICENSE.txt)
+  `extension/public/engine/STOCKFISH-LICENSE.txt` (copied there by `npm run build`)
   and the [stockfish.js source](https://github.com/nmrugg/stockfish.js).
 - Opening names come from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings),
   released under CC0; see [`data/openings/README.md`](data/openings/README.md).

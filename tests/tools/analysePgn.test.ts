@@ -15,9 +15,9 @@ import {
   gameOpening,
   summarize,
   type GameAnalysis,
-} from '../../src/analysis/gameAnalysis';
-import { replay } from '../../src/chess/replay';
-import { UciEngine } from '../../src/engine/uciEngine';
+} from '@core/analysis/gameAnalysis';
+import { replay } from '@core/chess/replay';
+import { UciEngine } from '@core/engine/uciEngine';
 
 const pgnPath = process.env.PGN;
 

@@ -68,10 +68,9 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    rating badges on the square positions, plus a small Vektra button for
    settings. It is cleared the moment the screen stops being a bot game.
 3. **Shared core in a WebView.** A hidden WebView runs a bundle built from
-   `src/`: replaying moves, building engine requests, choosing and scoring
-   arrows, weaker moves, live ratings and full-game analysis
-   (`src/content/hint*.ts`, `weakerMoves.ts`, `liveRatings.ts`,
-   `src/analysis/`). Kotlin passes it the board and moves and draws what it
+   `core/`: replaying moves, building engine requests, choosing and scoring
+   arrows, weaker moves, live ratings and full-game analysis (`core/hints/`,
+   `core/analysis/`). Kotlin passes it the board and moves and draws what it
    returns. Rules aren't rewritten in Kotlin, so the two versions can't drift.
 4. **Engine.** First the same Stockfish WebAssembly build in that WebView
    (identical behaviour, one runtime). If it is too slow on phones, a native
@@ -79,14 +78,14 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 5. **Review screen.** Enter a Chess.com username, pick a finished game from the
    public archive (`api.chess.com/pub/player/<name>/games/archives`, no login),
    and see the analysis panel, rendered from the same code in a WebView.
-6. **Settings.** The extension's settings model (`src/shared/settings.ts`,
-   `sanitizeSettings`) is shared; the screen shows the subset the app uses.
+6. **Settings.** The settings model (`core/settings.ts`, `sanitizeSettings`)
+   is shared; the screen shows the subset the app uses.
 
 ### Repository layout
 
 - `android/`: the Gradle project (Kotlin).
-- `src/core/`: the entry point for the shared bundle; a Vite library build
-  writes it into `android/app/src/main/assets/`.
+- `core/`: the shared TypeScript. A Vite library build (milestone 2) bundles
+  it into `android/app/src/main/assets/`.
 - Tests: board-label parsing tested against saved screen dumps (bot game,
   and a live game with player names removed), JVM unit tests for the shell,
   and the existing unit tests for the shared core.

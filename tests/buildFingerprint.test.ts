@@ -24,10 +24,11 @@ function write(root: string, rel: string, content: string) {
 }
 
 const SOURCES = {
-  'src/content/index.ts': 'export {};',
-  'src/analysis/deep/nested/config.ts': 'export const A = 1;',
-  'public/fonts/OFL.txt': 'licence',
-  'manifest.config.ts': 'export default {};',
+  'extension/src/content/index.ts': 'export {};',
+  'extension/src/analysis/deep/nested/config.ts': 'export const A = 1;',
+  'core/analysis/config.ts': 'export const B = 1;',
+  'extension/public/fonts/OFL.txt': 'licence',
+  'extension/manifest.config.ts': 'export default {};',
   'package.json': '{}',
 };
 
@@ -35,7 +36,7 @@ describe('build fingerprint', () => {
   it('ignores modification times', () => {
     const root = project(SOURCES);
     const before = computeFingerprint(root);
-    utimesSync(join(root, 'src/content/index.ts'), new Date(2000, 0, 1), new Date(2000, 0, 1));
+    utimesSync(join(root, 'extension/src/content/index.ts'), new Date(2000, 0, 1), new Date(2000, 0, 1));
     expect(computeFingerprint(root)).toEqual(before);
   });
 
@@ -48,32 +49,33 @@ describe('build fingerprint', () => {
     const root = project(SOURCES);
     const base = computeFingerprint(root);
 
-    write(root, 'src/analysis/deep/nested/config.ts', 'export const A = 2;');
+    write(root, 'extension/src/analysis/deep/nested/config.ts', 'export const A = 2;');
     const edited = computeFingerprint(root);
     expect(edited.fingerprint).not.toBe(base.fingerprint);
     expect(diffFingerprintFiles(base.files, edited.files)).toEqual({
       added: [],
       removed: [],
-      changed: ['src/analysis/deep/nested/config.ts'],
+      changed: ['extension/src/analysis/deep/nested/config.ts'],
     });
 
-    write(root, 'src/ui/new/panel.ts', 'export {};');
-    unlinkSync(join(root, 'public/fonts/OFL.txt'));
+    write(root, 'extension/src/ui/new/panel.ts', 'export {};');
+    unlinkSync(join(root, 'extension/public/fonts/OFL.txt'));
     const moved = computeFingerprint(root);
     expect(diffFingerprintFiles(edited.files, moved.files)).toEqual({
-      added: ['src/ui/new/panel.ts'],
-      removed: ['public/fonts/OFL.txt'],
+      added: ['extension/src/ui/new/panel.ts'],
+      removed: ['extension/public/fonts/OFL.txt'],
       changed: [],
     });
   });
 
   it('uses forward-slash paths relative to the project', () => {
     expect(Object.keys(computeFingerprint(project(SOURCES)).files)).toEqual([
-      'manifest.config.ts',
+      'core/analysis/config.ts',
+      'extension/manifest.config.ts',
+      'extension/public/fonts/OFL.txt',
+      'extension/src/analysis/deep/nested/config.ts',
+      'extension/src/content/index.ts',
       'package.json',
-      'public/fonts/OFL.txt',
-      'src/analysis/deep/nested/config.ts',
-      'src/content/index.ts',
     ]);
   });
 
@@ -82,22 +84,23 @@ describe('build fingerprint', () => {
     const base = computeFingerprint(root);
     write(root, 'dist/vektra-build.json', '{"fingerprint":"x"}');
     write(root, 'dist/assets/index.js', 'built');
-    write(root, 'public/engine/stockfish.wasm', 'generated');
-    write(root, 'public/engine/nested/more.js', 'generated');
+    write(root, 'extension/public/engine/stockfish.wasm', 'generated');
+    write(root, 'extension/public/engine/nested/more.js', 'generated');
     write(root, 'node_modules/stockfish/package.json', '{}');
-    write(root, 'src/.DS_Store', 'clutter');
+    write(root, 'extension/src/.DS_Store', 'clutter');
     write(root, 'README.md', 'not a build input');
+    write(root, 'android/app/build.gradle.kts', 'not an extension input');
     expect(computeFingerprint(root)).toEqual(base);
   });
 
   it('excludes a configured output folder even inside an input folder', () => {
     const root = project(SOURCES);
-    const base = computeFingerprint(root, { exclude: ['src/out/'] });
-    write(root, 'src/out/vektra-build.json', '{}');
-    write(root, 'src/out/deep/chunk.js', 'built');
-    expect(computeFingerprint(root, { exclude: ['src/out/'] })).toEqual(base);
-    // Only whole path segments are excluded: src/outline.ts is still an input.
-    write(root, 'src/outline.ts', 'export {};');
-    expect(computeFingerprint(root, { exclude: ['src/out'] }).files).toHaveProperty(['src/outline.ts']);
+    const base = computeFingerprint(root, { exclude: ['extension/src/out/'] });
+    write(root, 'extension/src/out/vektra-build.json', '{}');
+    write(root, 'extension/src/out/deep/chunk.js', 'built');
+    expect(computeFingerprint(root, { exclude: ['extension/src/out/'] })).toEqual(base);
+    // Only whole path segments are excluded: extension/src/outline.ts is still an input.
+    write(root, 'extension/src/outline.ts', 'export {};');
+    expect(computeFingerprint(root, { exclude: ['extension/src/out'] }).files).toHaveProperty(['extension/src/outline.ts']);
   });
 });
