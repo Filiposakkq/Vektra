@@ -62,20 +62,39 @@ export const CLASSIFICATION = {
   GREAT_MAX_WIN_BEFORE: 90,
 
   /**
-   * Miss: after the opponent's Mistake or Blunder, failing to take advantage
-   * (loss above GOOD_MAX_LOSS) while still keeping a playable position.
+   * Miss: after the opponent's Inaccuracy or worse, failing to take advantage
+   * (loss above GOOD_MAX_LOSS) from a position at least this good, however
+   * much it gives back: not taking a hung queen is a Miss on chess.com, not
+   * a Blunder.
    */
   MISS_MIN_WIN_BEFORE: 60,
-  MISS_MIN_WIN_AFTER: 40,
 } as const;
 
 /**
  * Per-move accuracy from win % loss: A * exp(-B * loss) - C, clamped to 0-100.
- * A and C are Lichess's; B is steeper than Lichess's 0.04354 so that a game
- * score (the harmonic mean, see summarize) lands close to chess.com's
- * accuracy. Calibrated on filip's games against chess.com's Game Review.
+ * A and C are Lichess's; B is steeper than Lichess's 0.04354.
+ *
+ * A side's game accuracy (see summarize) is, like Lichess's, the average of
+ * a weighted mean and a harmonic mean of its move accuracies. Each move is
+ * weighted by how much the win % swung in the WINDOW positions up to it
+ * (standard deviation, clamped to WEIGHT_MIN-WEIGHT_MAX): moves in a sharp
+ * game count more. In the harmonic mean no move counts below HARMONIC_FLOOR,
+ * so one or two moves that throw the game away pull the score down without
+ * sinking it to nothing.
+ *
+ * B and HARMONIC_FLOOR were fitted at depth 12 to chess.com's Game Review of
+ * three of filip's games (six accuracies, average error 2 points).
  */
-export const ACCURACY = { A: 103.1668, B: 0.08, C: 3.1669 } as const;
+export const ACCURACY = {
+  A: 103.1668,
+  B: 0.075,
+  C: 3.1669,
+  HARMONIC_FLOOR: 20,
+  WINDOW_MIN: 2,
+  WINDOW_MAX: 8,
+  WEIGHT_MIN: 0.5,
+  WEIGHT_MAX: 12,
+} as const;
 
 /** Book moves: only within the first this many plies, and only while every earlier move was book. */
 export const BOOK_MAX_PLY = 30;

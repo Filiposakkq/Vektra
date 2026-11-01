@@ -67,8 +67,10 @@ describe('classifyMove by win % loss', () => {
     const f = { winBefore: 80, winAfter: 60, opponentErred: true };
     expect(classifyMove(facts(f))).toBe('miss');
     expect(classifyMove(facts({ ...f, opponentErred: false }))).toBe('mistake');
-    // Throwing the game away is still a blunder.
-    expect(classifyMove(facts({ ...f, winAfter: 20 }))).toBe('blunder');
+    // However much it gives back, as chess.com rates not taking a hung queen.
+    expect(classifyMove(facts({ ...f, winAfter: 20 }))).toBe('miss');
+    // From a position that wasn't good, it is judged by its loss.
+    expect(classifyMove(facts({ ...f, winBefore: 50, winAfter: 20 }))).toBe('blunder');
   });
 });
 

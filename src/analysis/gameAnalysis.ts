@@ -1,6 +1,6 @@
 import type { AnalyzeRequest, SearchResult } from '../engine/protocol';
 import { whitePov } from '../engine/uci';
-import { ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
+import { ACCURACY, ANALYSIS_HASH_MB, ANALYSIS_MAX_MOVETIME_MS, ANALYSIS_MULTIPV } from './config';
 import { openingName } from './openings';
 import { isBookLineWith } from './openingBook';
 import { replay } from '../chess/replay';
@@ -58,16 +58,43 @@ export function emptyCounts(): Record<Category, number> {
   return Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>;
 }
 
+function standardDeviation(xs: number[]): number {
+  const mean = xs.reduce((s, x) => s + x, 0) / xs.length;
+  return Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / xs.length);
+}
+
+/**
+ * How much each move counts towards game accuracy: how much White's win %
+ * swung in the positions up to the move (not after it, so a blunder doesn't
+ * weigh itself up). See ACCURACY in config.ts.
+ */
+export function moveWeights(moves: MoveAnalysis[]): number[] {
+  if (!moves.length) return [];
+  const white = (m: MoveAnalysis, win: number) => (m.color === 'w' ? win : 100 - win);
+  const series = [white(moves[0], moves[0].winBefore), ...moves.map((m) => white(m, m.winAfter))];
+  const size = Math.max(ACCURACY.WINDOW_MIN, Math.min(ACCURACY.WINDOW_MAX, Math.floor(series.length / 10)));
+  return moves.map((_, i) => {
+    const from = Math.max(0, i + 1 - size);
+    const deviation = standardDeviation(series.slice(from, Math.max(i + 1, from + 2)));
+    return Math.max(ACCURACY.WEIGHT_MIN, Math.min(ACCURACY.WEIGHT_MAX, deviation));
+  });
+}
+
 export function summarize(moves: MoveAnalysis[]): { w: SideSummary; b: SideSummary } {
+  const weights = moveWeights(moves);
   const side = (color: 'w' | 'b'): SideSummary => {
-    const mine = moves.filter((m) => m.color === color);
     const counts = emptyCounts();
-    for (const m of mine) counts[m.category]++;
-    // Harmonic mean, so a few bad moves pull the score down the way they do
-    // on chess.com. Book moves are left out: they are always accurate.
-    const scored = mine.filter((m) => m.category !== 'book');
-    const accuracy = scored.length ? scored.length / scored.reduce((s, m) => s + 1 / Math.max(m.accuracy, 1), 0) : 100;
-    return { accuracy, counts };
+    for (const m of moves) if (m.color === color) counts[m.category]++;
+    // Book moves are left out: they are always accurate.
+    const scored = moves.flatMap((m, i) =>
+      m.color === color && m.category !== 'book' ? [{ accuracy: m.accuracy, weight: weights[i] }] : [],
+    );
+    if (!scored.length) return { accuracy: 100, counts };
+    const weighted =
+      scored.reduce((s, m) => s + m.accuracy * m.weight, 0) / scored.reduce((s, m) => s + m.weight, 0);
+    const harmonic =
+      scored.length / scored.reduce((s, m) => s + 1 / Math.max(m.accuracy, ACCURACY.HARMONIC_FLOOR), 0);
+    return { accuracy: (weighted + harmonic) / 2, counts };
   };
   return { w: side('w'), b: side('b') };
 }

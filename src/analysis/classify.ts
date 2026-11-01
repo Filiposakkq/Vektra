@@ -50,7 +50,7 @@ export interface MoveFacts {
   forced: boolean;
   /** The move gives up material (see isSacrifice). */
   sacrifice: boolean;
-  /** The opponent's previous move was a Mistake or Blunder. */
+  /** The opponent's previous move was an Inaccuracy, Mistake, Miss or Blunder. */
   opponentErred: boolean;
   /** The move captures the piece the opponent just moved (a recapture, or taking a piece that moved en prise). */
   recapture?: boolean;
@@ -101,7 +101,7 @@ export function classifyMove(f: MoveFacts): Category {
   if (loss <= C.EXCELLENT_MAX_LOSS) return 'excellent';
   if (loss <= C.GOOD_MAX_LOSS) return 'good';
 
-  if (f.opponentErred && f.winBefore >= C.MISS_MIN_WIN_BEFORE && f.winAfter >= C.MISS_MIN_WIN_AFTER) {
+  if (f.opponentErred && f.winBefore >= C.MISS_MIN_WIN_BEFORE) {
     return 'miss';
   }
 

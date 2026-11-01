@@ -322,7 +322,7 @@ played. All thresholds are in `src/analysis/config.ts`:
 | Best | Engine's top move, another engine line scored within 5 cp of it, or the only legal move |
 | Excellent | Win-chance loss up to 2 percentage points |
 | Good | Loss up to 5 percentage points |
-| Miss | After an opponent mistake/blunder, fails to capitalize (loss over 5 points) from a 60%+ position while still at 40%+ |
+| Miss | After an opponent inaccuracy or worse, fails to capitalize (loss over 5 points) from a 60%+ position, however much it gives back (not taking a hung queen is a Miss, as on Chess.com) |
 | Inaccuracy | Loss up to 10 percentage points |
 | Mistake | Loss up to 20 percentage points |
 | Blunder | Loss over 20 percentage points |
@@ -330,9 +330,17 @@ played. All thresholds are in `src/analysis/config.ts`:
 These are Vektra's heuristics, not Chess.com's classification rules. Win
 chances are derived from engine evaluations using the curve above; mate scores
 are handled separately. Per-move accuracy uses
-`103.1668 * exp(-0.08 * loss) - 3.1669`, clamped to 0-100. Side accuracy is
-the harmonic mean of that side's non-book move accuracies (or 100 if there are
-no such moves).
+`103.1668 * exp(-0.075 * loss) - 3.1669`, clamped to 0-100. Side accuracy,
+like Lichess's, is the average of two means of that side's non-book move
+accuracies (100 if there are none):
+
+- a weighted mean, where each move counts by how much the win chance swung
+  in the few positions before it (sharp games count more), and
+- a harmonic mean in which no move counts below 20%, so one or two moves
+  that throw the game away pull the score down without sinking it to nothing.
+
+The constants were fitted at depth 12 to Chess.com's Game Review of three
+games: the six accuracies came within 3 points (2 on average).
 
 ### Comparing with Chess.com
 

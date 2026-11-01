@@ -40,6 +40,9 @@ export interface MoveAnalysis {
   category: Category;
 }
 
+/** Opponent moves that hand the mover a chance, so failing to take it is a Miss. */
+const OPPONENT_ERRORS = new Set<Category>(['inaccuracy', 'mistake', 'miss', 'blunder']);
+
 /** A concise explanation shared by move-list, board and analysis-panel badges. */
 export function describeMoveAnalysis(move: MoveAnalysis): string {
   const winChances = `${move.winBefore.toFixed(1)}% to ${move.winAfter.toFixed(1)}%`;
@@ -83,7 +86,7 @@ export function analyzeMove(
     isTopMove: bestMove === move.uci,
     forced: new Chess(before.fen).moves().length === 1,
     sacrifice: isSacrifice(before.fen, move.uci),
-    opponentErred: context.previous === 'mistake' || context.previous === 'blunder',
+    opponentErred: !!context.previous && OPPONENT_ERRORS.has(context.previous),
     wonEitherWay: !!second && winPercent(second.score) >= CLASSIFICATION.BRILLIANT_MAX_WIN_BEFORE,
     recapture: !!context.previousUci &&
       context.previousUci.slice(2, 4) === move.uci.slice(2, 4) &&
