@@ -279,7 +279,7 @@ tests/
   fixtures/     captured markup and shared test fixtures
   tools/        dev-only tools: analyse a PGN, compare with Chess.com (never shipped)
 data/openings/  source opening TSVs; generated lookup is in src/analysis
-docs/           architecture, calibration plan, and reviewed games for tuning
+docs/           architecture, calibration and Android plans, reviewed games for tuning
 scripts/        engine asset copy and opening-data generation
 public/         extension assets copied into the production build, and the updater helper
 ```
