@@ -110,6 +110,25 @@ describe.skipIf(!hasShell)('updater helper', { timeout: 120_000 }, () => {
     expect(version(ext)).toBe('0.1.0');
   });
 
+  it('waits while another update holds the lock', async () => {
+    const ext = folder('ext-locked', '0.1.0', {});
+    const v2 = release('0.2.2', { 'a.js': 'a' });
+    // Another update holding the lock for four seconds.
+    const holder = spawn(shell, [
+      '-NoProfile',
+      '-Command',
+      `$f = [IO.File]::Open('${join(ext, 'updater', 'update.lock')}', 'OpenOrCreate', 'ReadWrite', 'None'); 'locked'; Start-Sleep -Seconds 4; $f.Dispose()`,
+    ]);
+    await new Promise<void>((resolve) => holder.stdout.once('data', () => resolve()));
+    const started = Date.now();
+    const result = install(ext, v2.zip, v2.sha);
+    expect(result.status, result.stderr).toBe(0);
+    expect(Date.now() - started).toBeGreaterThan(3000);
+    expect(version(ext)).toBe('0.2.2');
+    // The lock file is the helper's own, not something to clean up later.
+    expect(existsSync(join(ext, 'updater/leftovers.txt'))).toBe(false);
+  });
+
   it('answers Chrome with one framed reply', async () => {
     const ext = folder('ext-native', '0.2.0', {});
     expect(await nativeMessage(ext, { type: 'ping' })).toEqual({ ok: true, version: '0.2.0' });

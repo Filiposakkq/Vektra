@@ -25,11 +25,29 @@ $Repo = 'Filiposakkq/Vektra'
 $ExtDir = Split-Path -Parent $PSScriptRoot
 $LogFile = Join-Path $PSScriptRoot 'update.log'
 $LeftoversFile = Join-Path $PSScriptRoot 'leftovers.txt'
+$LockFile = Join-Path $PSScriptRoot 'update.lock'
 # Written here by the installer or this script, not part of a release.
-$LocalFiles = @('updater/update.log', 'updater/leftovers.txt', 'updater/com.vektra.updater.json')
+$LocalFiles = @('updater/update.log', 'updater/leftovers.txt', 'updater/update.lock', 'updater/com.vektra.updater.json')
 
 function Write-Log([string]$Text) {
   try { Add-Content -Path $LogFile -Value "$(Get-Date -Format s) $Text" -Encoding UTF8 } catch { }
+}
+
+<#
+  One update at a time: two browsers running Vektra from this folder may both
+  find a new release at once. The second waits for the first, then finds
+  Vektra up to date. Windows releases the lock if this script dies.
+#>
+function Lock-Update {
+  $deadline = (Get-Date).AddMinutes(2)
+  while ($true) {
+    try {
+      return [IO.File]::Open($LockFile, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    } catch [IO.IOException] {
+      if ((Get-Date) -gt $deadline) { throw 'Another Vektra update is still running.' }
+      Start-Sleep -Milliseconds 250
+    }
+  }
 }
 
 function Get-ManifestVersion([string]$Dir) {
@@ -166,8 +184,13 @@ if ($zipIndex -ge 0) {
   $shaIndex = [Array]::IndexOf($args, '-ShaPath')
   $zip = (Resolve-Path $args[$zipIndex + 1]).Path
   $sha = if ($shaIndex -ge 0) { (Resolve-Path $args[$shaIndex + 1]).Path } else { '' }
-  Remove-Leftovers
-  $version = Install-Zip $zip $sha ''
+  $lock = Lock-Update
+  try {
+    Remove-Leftovers
+    $version = Install-Zip $zip $sha ''
+  } finally {
+    $lock.Dispose()
+  }
   Write-Log "Installed $version from $zip"
   Write-Output "Installed Vektra $version into $ExtDir"
   exit 0
@@ -181,8 +204,13 @@ try {
   switch ([string]$message.type) {
     'ping' { $script:Reply = @{ ok = $true; version = (Get-ManifestVersion $ExtDir) } }
     'update' {
-      # Anything a command leaves in the pipeline would corrupt the reply.
-      $script:Reply = (Install-Latest | Select-Object -Last 1)
+      $lock = Lock-Update
+      try {
+        # Anything a command leaves in the pipeline would corrupt the reply.
+        $script:Reply = (Install-Latest | Select-Object -Last 1)
+      } finally {
+        $lock.Dispose()
+      }
     }
     default { $script:Reply = @{ ok = $false; error = "Unknown request: $($message.type)" } }
   }
