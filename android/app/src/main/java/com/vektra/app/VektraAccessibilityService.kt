@@ -36,11 +36,13 @@ class VektraAccessibilityService : AccessibilityService() {
     private var announcementsSeen = false
     /** The coach was seen on this game screen: Vektra stays off until another screen opens. */
     private var coachGame = false
+    /** Until then (uptime ms) the board isn't checked: the user is thinking (holdChecks). */
+    private var holdUntil = 0L
     private val settingsListener: (HintSettings) -> Unit = { settings -> handler.post { overlay?.applySettings(settings) } }
 
     override fun onServiceConnected() {
         PositionStore.serviceRunning = true
-        overlay = HintOverlay(this)
+        overlay = HintOverlay(this).apply { onApplied = ::holdChecks }
         SettingsStore.addListener(settingsListener)
         report(PositionStore.State.Off("Waiting for a Chess.com bot game."))
     }
@@ -84,8 +86,10 @@ class VektraAccessibilityService : AccessibilityService() {
         // during a move holds the announcement back. Once announcements come
         // through, moves arrive that way and the board is only read when the
         // screen has gone quiet (or, if it never does, MAX_WAIT_MS after the
-        // change), to check them.
+        // change), to check them. While the user thinks after the bot's move
+        // came in that way, no check at all (see onApplied).
         if (announcementsSeen) {
+            if (now < holdUntil) return
             if (!readScheduled) {
                 readScheduled = true
                 handler.postDelayed(check, MAX_WAIT_MS)
@@ -118,6 +122,23 @@ class VektraAccessibilityService : AccessibilityService() {
         overlay?.destroy()
         overlay = null
         super.onDestroy()
+    }
+
+    /**
+     * After an announced move was applied. When the bot's move came in and it
+     * is the user's turn, the board isn't checked until they move (or for
+     * HOLD_MS): a check then would hold back the announcement of their move,
+     * and reads take half a second or more on a busy screen. A move that
+     * couldn't be applied, or the user's own, lets checks run again.
+     */
+    private fun holdChecks(userToMove: Boolean) {
+        holdUntil = if (userToMove) SystemClock.uptimeMillis() + HOLD_MS else 0L
+        if (!userToMove) return
+        handler.removeCallbacks(check)
+        handler.removeCallbacks(settledCheck)
+        // One check when the hold ends, if the user hasn't moved by then.
+        readScheduled = true
+        handler.postDelayed(check, HOLD_MS)
     }
 
     private fun checkScreen() {
@@ -223,5 +244,7 @@ class VektraAccessibilityService : AccessibilityService() {
         const val QUIET_MS = 250L
         /** ...and the longest wait for a check while the screen keeps changing. */
         const val MAX_WAIT_MS = 1000L
+        /** How long the board goes unchecked while the user thinks after the bot's announced move. */
+        const val HOLD_MS = 4000L
     }
 }

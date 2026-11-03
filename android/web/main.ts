@@ -399,7 +399,10 @@ function show(reading: Reading): void {
  * the move used is the one legal move that fits them.
  */
 function played(move: { squares: string[]; color: 'w' | 'b' | null; piece: string }): void {
-  const skip = (why: string) => console.info(`[Vektra] announced ${move.color ?? '?'} ${move.piece} ${move.squares.join(' ')} not used: ${why}`);
+  const skip = (why: string) => {
+    console.info(`[Vektra] announced ${move.color ?? '?'} ${move.piece} ${move.squares.join(' ')} not used: ${why}`);
+    window.VektraNative?.applied?.(false);
+  };
   if (!settings.enabled) return;
   if (!lastFen || !lastReading) return skip('no position yet');
   // Captures name no colour: then it is the side to move.
@@ -417,6 +420,8 @@ function played(move: { squares: string[]; color: 'w' | 'b' | null; piece: strin
   if (fits.length !== 1) return skip(`${fits.length} legal moves fit in ${lastFen}`);
   chess.move(fits[0]);
   show({ board: chess.fen().split(' ')[0], turn: chess.turn(), flipped: lastReading.flipped });
+  // The bot's move is in: the app holds its board checks while the user thinks.
+  window.VektraNative?.applied?.(chess.turn() === (lastReading.flipped ? 'b' : 'w'));
 }
 
 function clear(): void {

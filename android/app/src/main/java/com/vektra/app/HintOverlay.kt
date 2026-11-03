@@ -80,6 +80,9 @@ class HintOverlay(private val context: Context) {
         call("vektra.show({board:\"${reading.board.placement}\",turn:$turn,flipped:${reading.board.flipped}})")
     }
 
+    /** Told whether each announced move was applied; true when it is now the user's turn. */
+    var onApplied: ((userToMove: Boolean) -> Unit)? = null
+
     /** A move Chess.com announced: the page applies it to the position it shows, before the board is read. */
     fun played(move: MoveAnnouncement) {
         // The user's own move: their arrows are out of date this instant.
@@ -125,6 +128,12 @@ class HintOverlay(private val context: Context) {
         /** The bot game so far, kept for "Review your last bot game". */
         @JavascriptInterface
         fun game(json: String) = LastGame.save(context, json)
+
+        /** An announced move was applied (true: it is the user's turn now) or not used (false). */
+        @JavascriptInterface
+        fun applied(userToMove: Boolean) {
+            handler.post { onApplied?.invoke(userToMove) }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
