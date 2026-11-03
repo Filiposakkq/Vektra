@@ -1,43 +1,38 @@
 package com.vektra.app
 
-import android.app.Activity
 import android.graphics.Typeface
-import android.os.Bundle
-import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
 
 /**
- * Vektra's settings, saved as soon as one changes; the overlay picks them up
- * at once. Each group holds what belongs together, and a setting that only
+ * The settings, saved as soon as one changes; the overlay picks them up at
+ * once. Each group holds what belongs together, and a setting that only
  * matters while a switch is on sits under that switch, shown only then.
  */
-class SettingsActivity : Activity() {
-    private val ui by lazy { Ui(this) }
-    private lateinit var settings: HintSettings
+class SettingsScreen(private val app: MainActivity) : MainActivity.Screen {
+    private val ui = app.ui
+    private var settings = SettingsStore.load(app)
+    private val page = ui.column().apply { setPadding(ui.pad, ui.dp(18), ui.pad, ui.dp(28)) }
+    override val view: View = ScrollView(app).apply {
+        isVerticalScrollBarEnabled = false
+        addView(page)
+    }
 
     private fun save(next: HintSettings) {
         settings = next
-        SettingsStore.save(this, next)
+        SettingsStore.save(app, next)
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        settings = SettingsStore.load(this)
-        val layout = ui.column().apply { setPadding(ui.pad, ui.pad, ui.pad, ui.pad * 2) }
+    override fun shown() {
+        // Built afresh each time, so it shows what the home's switch changed.
+        settings = SettingsStore.load(app)
+        page.removeAllViews()
+        ui.screenTitle(page, "Settings")
 
-        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(ui.text("←", 24f).apply {
-            setPadding(0, 0, ui.pad, 0)
-            contentDescription = "Back"
-            setOnClickListener { finish() }
-        })
-        header.addView(ui.text("Settings", 22f, bold = true))
-        layout.addView(header)
-
-        ui.section(layout, "Arrows")
-        val arrows = ui.card(layout)
+        ui.section(page, "Arrows")
+        val arrows = ui.card(page)
         arrows.addView(ui.text("How many best moves", 14f, Ui.MUTED))
         ui.segmented(arrows, listOf("1", "2", "3"), settings.arrows - 1) { save(settings.copy(arrows = it + 1)) }
         ui.switchRow(arrows, "Scores on arrows", "+1.5 means you're 1.5 pawns better", settings.arrowScores) {
@@ -50,8 +45,8 @@ class SettingsActivity : Activity() {
             save(settings.copy(avoidDraws = it))
         }
 
-        ui.section(layout, "Threats")
-        val threats = ui.card(layout)
+        ui.section(page, "Threats")
+        val threats = ui.card(page)
         lateinit var threatMore: LinearLayout
         ui.switchRow(threats, "Show the bot's threats", "What it would play if it were its move", settings.showThreats) {
             threatMore.visibility = if (it) View.VISIBLE else View.GONE
@@ -62,8 +57,8 @@ class SettingsActivity : Activity() {
             save(settings.copy(threatWinLoss = it))
         }
 
-        ui.section(layout, "Weaker move")
-        val weaker = ui.card(layout)
+        ui.section(page, "Weaker move")
+        val weaker = ui.card(page)
         lateinit var weakerMore: LinearLayout
         ui.switchRow(weaker, "Show a weaker move", "A second, violet arrow: good, but not the best", settings.occasionalWeakerMoves) {
             weakerMore.visibility = if (it) View.VISIBLE else View.GONE
@@ -74,41 +69,39 @@ class SettingsActivity : Activity() {
             save(settings.copy(weakerMoveMaxLossCp = it))
         }
 
-        ui.section(layout, "Your moves")
-        val yours = ui.card(layout)
+        ui.section(page, "Your moves")
+        val yours = ui.card(page)
         ui.switchRow(yours, "Rate my moves", "Best, Mistake… on the board after you move", settings.liveRatings) {
             save(settings.copy(liveRatings = it))
         }
 
-        addStrength(layout)
+        addStrength()
 
-        ui.section(layout, "Game review")
-        val review = ui.card(layout)
+        ui.section(page, "Analysis")
+        val review = ui.card(page)
         review.addView(ui.text("How deep each move is analysed", 14f, Ui.MUTED))
         val depths = listOf(12, 16, 20)
         ui.segmented(review, listOf("Quick", "Normal", "Deep"), depths.indexOf(settings.analysisDepth)) {
             save(settings.copy(analysisDepth = depths[it]))
         }
         review.addView(ui.text("Deeper rates moves more exactly, and takes longer", 13f, Ui.MUTED).apply {
-            setPadding(0, ui.dp(8), 0, 0)
+            setPadding(0, ui.dp(10), 0, 0)
         })
 
-        ui.section(layout, "App")
-        val app = ui.card(layout)
-        ui.switchRow(app, "Check for updates", "When Vektra opens", settings.updateCheck) { save(settings.copy(updateCheck = it)) }
-        addDiagnostics(app)
-
-        setContentView(ScrollView(this).apply { addView(layout) })
+        ui.section(page, "App")
+        val appCard = ui.card(page)
+        ui.switchRow(appCard, "Check for updates", "When Vektra opens", settings.updateCheck) { save(settings.copy(updateCheck = it)) }
+        addDiagnostics(appCard)
     }
 
     /**
-     * How strong the suggested moves are, as before the new look: either the
-     * full engine, set by its search depth, or an approximate Elo (presets from
-     * core/settings.ts ELO_PRESETS, or exact). Light mode sits here too.
+     * How strong the suggested moves are: either the full engine, set by its
+     * search depth, or an approximate Elo (presets from core/settings.ts
+     * ELO_PRESETS, or exact). Light mode sits here too.
      */
-    private fun addStrength(layout: LinearLayout) {
-        ui.section(layout, "Strength")
-        val card = ui.card(layout)
+    private fun addStrength() {
+        ui.section(page, "Strength")
+        val card = ui.card(page)
         card.addView(ui.text("How strong the suggested moves are", 14f, Ui.MUTED))
         lateinit var engineRows: LinearLayout
         lateinit var eloRows: LinearLayout
@@ -127,7 +120,7 @@ class SettingsActivity : Activity() {
         eloRows = ui.dependent(card, settings.limitStrength)
         val presets = listOf(1400, 1800, 2400)
         val names = listOf("Beginner", "Club", "Strong")
-        lateinit var elo: android.widget.SeekBar
+        lateinit var elo: SeekBar
         val select = ui.segmented(eloRows, names, presets.indexOf(settings.elo)) { i ->
             save(settings.copy(elo = presets[i]))
             elo.progress = (presets[i] - HintSettings.ELO_MIN) / 10
@@ -145,7 +138,7 @@ class SettingsActivity : Activity() {
 
     /** What Vektra last read, for finding out why hints don't show; folded until opened. */
     private fun addDiagnostics(card: LinearLayout) {
-        val toggle = ui.text("Show what Vektra last read", 13f, Ui.LINK).apply { setPadding(0, ui.dp(12), 0, 0) }
+        val toggle = ui.text("Show what Vektra last read", 14f, Ui.LINK).apply { setPadding(0, ui.dp(12), 0, 0) }
         card.addView(toggle)
         val body = ui.dependent(card, false)
         val state = PositionStore.state
@@ -182,11 +175,5 @@ class SettingsActivity : Activity() {
             appendLine("Moves on screen: ${reading.moves.tokens.joinToString(" ").ifEmpty { "none" }}")
             append("FEN start: ${reading.fenStart}")
         }
-    }
-
-    override fun finish() {
-        super.finish()
-        @Suppress("DEPRECATION")
-        overridePendingTransition(R.anim.screen_back_in, R.anim.screen_back_out)
     }
 }

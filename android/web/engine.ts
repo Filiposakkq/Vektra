@@ -1,4 +1,5 @@
 import { Chess } from 'chess.js';
+import { CATEGORY_STYLE } from '@core/analysis/categoryStyle';
 import { CATEGORIES, CATEGORY_LABELS, type Category } from '@core/analysis/classify';
 import { accuracyGrade, analyzeGame, type GameAnalysis } from '@core/analysis/gameAnalysis';
 import { PHASES, PHASE_LABELS } from '@core/analysis/phases';
@@ -118,7 +119,7 @@ function summary(a: GameAnalysis) {
     depth: a.depth,
     white: side('w'),
     black: side('b'),
-    categories: CATEGORIES.map((c) => ({ id: c, label: CATEGORY_LABELS[c] })),
+    categories: CATEGORIES.map((c) => ({ id: c, label: CATEGORY_LABELS[c], color: CATEGORY_STYLE[c].color })),
     phases: PHASES.map((p) => PHASE_LABELS[p]),
     // White's win chance after each ply (0 = the start), for the graph.
     wins: a.positions.map((p) => winPercent(p.score)),

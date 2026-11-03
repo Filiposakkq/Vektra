@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 /**
- * Builds the Android app's pages (android/web: the overlay and the game review) with the shared core
+ * Builds the Android app's pages (android/web: the hint overlay and the engine page behind the app's screens) with the shared core
  * into the app's assets. `npm run build:android-web` runs it, after copying
  * the Stockfish files the extension also ships.
  */
@@ -21,7 +21,7 @@ export default defineConfig({
     outDir,
     emptyOutDir: true,
     target: 'es2022',
-    rollupOptions: { input: [resolve(repo, 'android/web/index.html'), resolve(repo, 'android/web/review.html'), resolve(repo, 'android/web/engine.html')] },
+    rollupOptions: { input: [resolve(repo, 'android/web/index.html'), resolve(repo, 'android/web/engine.html')] },
   },
   plugins: [
     {

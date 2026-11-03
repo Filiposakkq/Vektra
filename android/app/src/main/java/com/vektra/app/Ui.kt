@@ -2,11 +2,12 @@ package com.vektra.app
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Canvas
+import android.content.res.ColorStateList
 import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
@@ -15,18 +16,20 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 
 /**
- * Vektra's look on Android, shared by its screens: the extension's palette
- * (extension/src/ui/theme.ts, also in themes.xml) and the pieces the screens
- * are built from, with a little motion so they feel alive.
+ * Vektra's look on Android, shared by every screen: a deep night palette,
+ * gold from the logo for Vektra's main actions and your results, the
+ * engine's blue for arrows and what is active, big rounded surfaces, pill
+ * buttons, bold headlines, and Android's ripple under the finger.
  */
 class Ui(private val context: Context) {
-    val pad = dp(16)
+    val pad = dp(20)
 
     fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
 
@@ -36,59 +39,92 @@ class Ui(private val context: Context) {
         stroke?.let { setStroke(dp(1), it) }
     }
 
-    fun text(value: CharSequence, size: Float = 15f, color: Int = TEXT, bold: Boolean = false, display: Boolean = false) = TextView(context).apply {
+    /** A surface that ripples under the finger. */
+    fun ripple(content: Drawable, radiusDp: Int) =
+        RippleDrawable(ColorStateList.valueOf(Color.argb(40, 255, 255, 255)), content, rounded(Color.WHITE, radiusDp))
+
+    fun text(value: CharSequence, size: Float = 15f, color: Int = TEXT, weight: Weight = Weight.REGULAR) = TextView(context).apply {
         text = value
         textSize = size
         setTextColor(color)
-        if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        if (display) typeface = DISPLAY
+        typeface = weight.typeface
+        if (weight == Weight.HEADLINE) letterSpacing = -0.02f
     }
 
-    /** A vertical column. */
+    enum class Weight(val typeface: Typeface) {
+        REGULAR(Typeface.create("sans-serif", Typeface.NORMAL)),
+        MEDIUM(Typeface.create("sans-serif-medium", Typeface.NORMAL)),
+        /** Big titles: Roboto at its heaviest, tightly set. */
+        HEADLINE(Typeface.create("sans-serif-black", Typeface.NORMAL)),
+        /** Numbers, like a scoreboard. */
+        NUMBER(Typeface.create("sans-serif-condensed", Typeface.BOLD)),
+    }
+
     fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
-    private fun fullWidth(top: Int = 0) =
+    fun row() = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
+
+    fun fullWidth(top: Int = 0) =
         LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = top }
 
-    /** A rounded card; its rows go in the returned column. */
-    fun card(parent: ViewGroup, color: Int = CARD, border: Int? = null): LinearLayout {
+    fun weighted() = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+
+    /** A vector icon (drawable/ic_*), tinted. */
+    fun icon(res: Int, color: Int, sizeDp: Int = 24) = ImageView(context).apply {
+        setImageResource(res)
+        imageTintList = ColorStateList.valueOf(color)
+        layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
+    }
+
+    /** A screen's big title. */
+    fun screenTitle(parent: ViewGroup, title: String) =
+        parent.addView(text(title, 32f, weight = Weight.HEADLINE).apply { setPadding(0, dp(8), 0, dp(4)) })
+
+    /** A small heading above a group. */
+    fun section(parent: ViewGroup, title: String) =
+        parent.addView(text(title, 14f, MUTED, Weight.MEDIUM).apply { setPadding(dp(4), dp(26), 0, dp(10)) })
+
+    /** A rounded surface; its rows go in the returned column. */
+    fun card(parent: ViewGroup, color: Int = SURFACE, border: Int? = null, top: Int = 0): LinearLayout {
         val card = column().apply {
-            setPadding(pad, pad * 7 / 8, pad, pad * 7 / 8)
-            background = rounded(color, 18, border)
-            // Rows that appear or go (steps, Advanced) slide in.
+            setPadding(dp(18), dp(16), dp(18), dp(16))
+            background = rounded(color, 24, border)
             layoutTransition = android.animation.LayoutTransition()
         }
-        parent.addView(card, fullWidth(dp(12)))
+        parent.addView(card, fullWidth(top))
         return card
     }
 
-    /** A small heading above a group of cards. */
-    fun section(parent: ViewGroup, title: String) =
-        parent.addView(text(title, 13f, MUTED, bold = true).apply { setPadding(dp(4), dp(20), 0, 0) })
-
-    /** A full-width button: accent, or quiet. */
-    fun button(parent: ViewGroup, label: String, color: Int = ACCENT, textColor: Int = Color.WHITE, onClick: () -> Unit) =
-        text(label, 15f, textColor, bold = true).apply {
+    /** A pill button: gold (Vektra's main action), blue (the engine's) or quiet. */
+    fun button(parent: ViewGroup, label: String, style: Button = Button.QUIET, onClick: () -> Unit) =
+        text(label, 16f, style.text, Weight.MEDIUM).apply {
             gravity = Gravity.CENTER
-            setPadding(pad, dp(12), pad, dp(12))
-            background = rounded(color, 12)
+            minHeight = dp(52)
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            background = ripple(rounded(style.fill, 26), 26)
             setOnClickListener { onClick() }
             pressable()
-            parent.addView(this, fullWidth(dp(10)))
+            parent.addView(this, fullWidth(dp(12)))
         }
+
+    enum class Button(val fill: Int, val text: Int) {
+        GOLD(Ui.GOLD, Color.parseColor("#241a05")),
+        ENGINE(Ui.ACCENT, Color.WHITE),
+        QUIET(Ui.SURFACE_HIGH, Ui.TEXT),
+        WARN(Ui.WARN_FILL, Ui.WARN_ON),
+    }
 
     /** A setting that is on or off, with an optional line explaining it. */
     fun switchRow(parent: ViewGroup, title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit): Switch {
-        val row = LinearLayout(context).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(10), 0, dp(10))
-        }
+        val row = row().apply { setPadding(0, dp(12), 0, dp(12)) }
         val words = column()
-        words.addView(text(title, 15f))
-        subtitle?.let { words.addView(text(it, 13f, MUTED)) }
-        row.addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        words.addView(text(title, 16f))
+        subtitle?.let { words.addView(text(it, 13f, MUTED).apply { setPadding(0, dp(2), 0, 0) }) }
+        row.addView(words, weighted())
         val switch = Switch(context).apply {
             isChecked = checked
+            thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(Color.WHITE, MUTED))
+            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(ACCENT, LINE))
             setOnCheckedChangeListener { _, on -> onChange(on) }
         }
         row.addView(switch)
@@ -105,18 +141,18 @@ class Ui(private val context: Context) {
      */
     fun segmented(parent: ViewGroup, labels: List<String>, selected: Int, onSelect: (Int) -> Unit): (Int) -> Unit {
         val frame = FrameLayout(context).apply {
-            background = rounded(INK, 12)
-            setPadding(dp(3), dp(3), dp(3), dp(3))
+            background = rounded(BG, 22)
+            setPadding(dp(4), dp(4), dp(4), dp(4))
         }
-        val pill = View(context).apply { background = rounded(ACCENT, 10) }
+        val pill = View(context).apply { background = rounded(ACCENT, 18) }
         val row = LinearLayout(context)
         val options = labels.map { label ->
-            text(label, 14f, MUTED, bold = true).apply {
+            text(label, 14f, MUTED, Weight.MEDIUM).apply {
                 gravity = Gravity.CENTER
-                setPadding(0, dp(9), 0, dp(9))
+                setPadding(0, dp(10), 0, dp(10))
             }
         }
-        options.forEach { row.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
+        options.forEach { row.addView(it, weighted()) }
         frame.addView(pill, FrameLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT))
         frame.addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         var current = selected
@@ -130,7 +166,7 @@ class Ui(private val context: Context) {
             if (pill.layoutParams.width != target.width) pill.layoutParams = pill.layoutParams.apply { width = target.width }
             pill.visibility = View.VISIBLE
             if (animate) {
-                pill.animate().translationX(target.left.toFloat()).setDuration(260).setInterpolator(OvershootInterpolator(0.9f))
+                pill.animate().translationX(target.left.toFloat()).setDuration(280).setInterpolator(OvershootInterpolator(0.9f))
             } else {
                 pill.translationX = target.left.toFloat()
             }
@@ -144,7 +180,7 @@ class Ui(private val context: Context) {
             }
         }
         row.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place(animate = false) }
-        parent.addView(frame, fullWidth(dp(6)))
+        parent.addView(frame, fullWidth(dp(8)))
         return { i ->
             if (i != current) {
                 current = i
@@ -165,11 +201,14 @@ class Ui(private val context: Context) {
         parent: ViewGroup, caption: (Int) -> String, min: Int, max: Int, step: Int, value: Int,
         onMove: (Int) -> Unit = {}, onChange: (Int) -> Unit,
     ): SeekBar {
-        val label = text(caption(value), 14f).apply { setPadding(0, dp(12), 0, 0) }
+        val label = text(caption(value), 15f).apply { setPadding(0, dp(14), 0, 0) }
         parent.addView(label)
         return SeekBar(context).apply {
             this.max = (max - min) / step
             progress = (value - min) / step
+            progressTintList = ColorStateList.valueOf(ACCENT)
+            thumbTintList = ColorStateList.valueOf(Color.WHITE)
+            progressBackgroundTintList = ColorStateList.valueOf(LINE)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
                     label.text = caption(min + progress * step)
@@ -178,90 +217,55 @@ class Ui(private val context: Context) {
                 override fun onStartTrackingTouch(bar: SeekBar) {}
                 override fun onStopTrackingTouch(bar: SeekBar) = onChange(min + bar.progress * step)
             })
-            parent.addView(this, fullWidth(dp(4)))
+            parent.addView(this, fullWidth(dp(6)))
         }
     }
 
-    /** The screen's cards come in one after another, rising a little. */
-    fun enter(views: List<View>) {
-        views.forEachIndexed { i, view ->
-            view.alpha = 0f
-            view.translationY = dp(18).toFloat()
-            view.animate().alpha(1f).translationY(0f).setStartDelay(45L * i).setDuration(360)
-                .setInterpolator(DecelerateInterpolator(2f))
-        }
-    }
-
-    /** A plain row in a list (no card): a symbol, a title and a line under it, darkening under the finger. */
-    fun listRow(parent: ViewGroup, symbol: String, symbolColor: Int, title: String, onClick: () -> Unit): TextView {
-        val row = LinearLayout(context).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(16), dp(4), dp(16))
-            background = android.graphics.drawable.StateListDrawable().apply {
-                addState(intArrayOf(android.R.attr.state_pressed), rounded(CARD, 14))
-            }
+    /**
+     * A row to tap: an icon on a tinted tile, a title, a line under it and a
+     * chevron. Returns the line under the title, to fill in.
+     */
+    fun linkRow(parent: ViewGroup, iconRes: Int, tint: Int, title: String, onClick: () -> Unit): TextView {
+        val row = row().apply {
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = ripple(rounded(SURFACE, 22), 22)
             setOnClickListener { onClick() }
         }
-        row.addView(text(symbol, 20f, symbolColor).apply {
-            gravity = Gravity.CENTER
-            minWidth = dp(40)
-        })
-        val words = column().apply { setPadding(dp(10), 0, 0, 0) }
-        words.addView(text(title, 17f, bold = true))
-        val subtitle = text("", 13f, MUTED)
+        val tile = FrameLayout(context).apply { background = rounded(Color.argb(38, Color.red(tint), Color.green(tint), Color.blue(tint)), 14) }
+        tile.addView(icon(iconRes, tint, 22), FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+        row.addView(tile, LinearLayout.LayoutParams(dp(44), dp(44)))
+        val words = column().apply { setPadding(dp(14), 0, dp(8), 0) }
+        words.addView(text(title, 16f, weight = Weight.MEDIUM))
+        val subtitle = text("", 13f, MUTED).apply { setPadding(0, dp(2), 0, 0) }
         words.addView(subtitle)
-        row.addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(text("›", 26f, MUTED))
-        parent.addView(row, fullWidth())
+        row.addView(words, weighted())
+        row.addView(icon(R.drawable.ic_chevron, MUTED, 20))
+        parent.addView(row, fullWidth(dp(10)))
         return subtitle
     }
 
-    /** A hairline between rows. */
-    fun divider(parent: ViewGroup) =
-        parent.addView(View(context).apply { setBackgroundColor(LINE) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
-
-    /** The settings gear, drawn: no icon font on Android. */
-    fun gear(onClick: () -> Unit) = object : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = MUTED }
-        override fun onDraw(canvas: Canvas) {
-            val c = width / 2f
-            val r = width * 0.3f
-            for (i in 0 until 8) {
-                canvas.save()
-                canvas.rotate(i * 45f, c, c)
-                canvas.drawRoundRect(c - width * 0.07f, c - r - width * 0.13f, c + width * 0.07f, c, width * 0.03f, width * 0.03f, paint)
-                canvas.restore()
-            }
-            canvas.drawCircle(c, c, r, paint)
-            paint.color = BG
-            canvas.drawCircle(c, c, r * 0.45f, paint)
-            paint.color = MUTED
-        }
-    }.apply {
-        layoutParams = LinearLayout.LayoutParams(dp(26), dp(26))
-        contentDescription = "Settings"
-        setOnClickListener { onClick() }
-        pressable()
+    /** Something appearing: it rises in a little (an update, a result). */
+    fun enter(view: View) {
+        view.alpha = 0f
+        view.translationY = dp(14).toFloat()
+        view.animate().alpha(1f).translationY(0f).setDuration(320).setInterpolator(DecelerateInterpolator(2f))
     }
 
     companion object {
-        // Night walnut and board shadow: Chess.com's dark board, at night.
-        val BG = Color.parseColor("#1d1b19")
-        val CARD = Color.parseColor("#2b2825")
-        val INK = Color.parseColor("#161514")
-        val LINE = Color.parseColor("#3d3934")
-        /** Bone: text, and the white pieces. */
-        val TEXT = Color.parseColor("#f2ede4")
-        val MUTED = Color.parseColor("#a39c93")
-        /** Brass: Vektra's mark and your results; blue (ACCENT) is the engine's. */
-        val BRASS = Color.parseColor("#e3b341")
-        /** Condensed type for titles and numbers, like a scoreboard (built into Android). */
-        val DISPLAY: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+        val BG = Color.parseColor("#121110")
+        val SURFACE = Color.parseColor("#1c1a18")
+        val SURFACE_HIGH = Color.parseColor("#292622")
+        val LINE = Color.parseColor("#3a3530")
+        val TEXT = Color.parseColor("#f4efe6")
+        val MUTED = Color.parseColor("#9d968c")
+        /** Gold from the logo: Vektra's main actions and your results. */
+        val GOLD = Color.parseColor("#f0b93a")
+        /** The engine's blue: arrows, and what is active. */
         val ACCENT = Color.parseColor("#2f6fe4")
         val LINK = Color.parseColor("#9dbcff")
-        val WARN = Color.parseColor("#4a3a14")
-        val WARN_BORDER = Color.parseColor("#6b5420")
+        val GOOD = Color.parseColor("#7fc25a")
         val WARN_TEXT = Color.parseColor("#f7d27a")
+        val WARN_BORDER = Color.parseColor("#6b5420")
         val WARN_FILL = Color.parseColor("#f7c631")
         val WARN_ON = Color.parseColor("#3a2a00")
         /** Xiaomi's own system (MIUI, HyperOS) has its own Autostart and battery rules. */

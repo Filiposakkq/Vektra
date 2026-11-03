@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Going back: the closing screen slides away to the right. -->
-<set xmlns:android="http://schemas.android.com/apk/res/android"
-    android:interpolator="@android:interpolator/accelerate_cubic" android:duration="220">
-    <translate android:fromXDelta="0" android:toXDelta="40%" />
-    <alpha android:fromAlpha="1" android:toAlpha="0" />
-</set>
