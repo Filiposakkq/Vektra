@@ -34,6 +34,8 @@ class VektraAccessibilityService : AccessibilityService() {
     private var readScheduled = false
     /** Move announcements came through in this game: moves arrive that way, and reads wait for quiet. */
     private var announcementsSeen = false
+    /** The coach was seen on this game screen: Vektra stays off until another screen opens. */
+    private var coachGame = false
     private val settingsListener: (HintSettings) -> Unit = { settings -> handler.post { overlay?.applySettings(settings) } }
 
     override fun onServiceConnected() {
@@ -48,7 +50,10 @@ class VektraAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && pkg == BotGameGuard.CHESS_PACKAGE) {
             // Dialogs and popups send this event too; only a new activity is a new screen.
             val cls = event.className?.toString()
-            if (cls != null && isChessActivity(cls)) chessScreen = cls
+            if (cls != null && isChessActivity(cls)) {
+                chessScreen = cls
+                coachGame = false
+            }
         }
         // Chess.com announces each move for screen readers ("Bílý Dáma z d1 na
         // d4") the moment it is played, well before the board can be read:
@@ -122,6 +127,12 @@ class VektraAccessibilityService : AccessibilityService() {
         lastReadAt = SystemClock.uptimeMillis()
         readDelayMs = lastReadAt - changedAt
         changedAt = 0L
+        // Not read again until another screen opens: the coach's screen changes
+        // all the time, and each read slows Chess.com's app down.
+        if (coachGame) {
+            report(PositionStore.State.Off(COACH_GAME))
+            return
+        }
         val root = activeRoot()
         if (root?.packageName?.toString() != BotGameGuard.CHESS_PACKAGE) {
             report(PositionStore.State.Off("Chess.com isn't in front."))
@@ -136,6 +147,11 @@ class VektraAccessibilityService : AccessibilityService() {
         val started = SystemClock.uptimeMillis()
         collect(root, labels, texts)
         readCostMs = SystemClock.uptimeMillis() - started
+        if (BotGameGuard.isCoachGame(labels)) {
+            coachGame = true
+            report(PositionStore.State.Off(COACH_GAME))
+            return
+        }
         when (val result = BoardParser.parse(labels)) {
             is BoardResult.Unreadable -> report(PositionStore.State.Off("Bot game, but the board can't be read: ${result.reason}"))
             is BoardResult.Read -> report(PositionStore.State.On(GameReading(result.board, MoveListParser.parse(texts))))
@@ -196,6 +212,7 @@ class VektraAccessibilityService : AccessibilityService() {
 
     private companion object {
         const val TAG = "Vektra"
+        const val COACH_GAME = "Coach game: Chess.com shows its own arrows, move feedback and eval bar, so Vektra stays off."
         /** From the first change to the first read. */
         const val FIRST_READ_MS = 60L
         /** Reads come at most this often while the screen keeps changing. */

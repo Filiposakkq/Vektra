@@ -15,4 +15,10 @@ class BotGameGuardTest {
         assertFalse(BotGameGuard.isBotGame("com.chess", null))
         assertFalse(BotGameGuard.isBotGame("com.example", "com.chess.features.versusbots.game.BotGameActivityV2"))
     }
+
+    @Test
+    fun `a game with a coach is told apart by the coach's picture`() {
+        assertTrue(BotGameGuard.isCoachGame(ScreenDump("coach-game.xml").labels))
+        assertFalse(BotGameGuard.isCoachGame(ScreenDump("bot-game.xml").labels))
+    }
 }

@@ -16,4 +16,14 @@ object BotGameGuard {
 
     fun isBotGame(packageName: String?, screen: String?): Boolean =
         packageName == CHESS_PACKAGE && screen in BOT_SCREENS
+
+    /** The coach's picture, labelled in the languages Vektra reads ("Trenér" seen in the Czech app). */
+    private val COACH_LABELS = setOf("Trenér", "Coach")
+
+    /**
+     * A game with a coach uses the same bot-game screen, but Chess.com shows
+     * its own suggestion and threat arrows, move feedback and eval bar there,
+     * so Vektra stays off.
+     */
+    fun isCoachGame(labels: List<ScreenLabel>): Boolean = labels.any { it.text in COACH_LABELS }
 }

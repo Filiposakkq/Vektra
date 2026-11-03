@@ -69,7 +69,9 @@ and anything that can't be confirmed as one stays off.
   performs gestures (`canPerformGestures` off), so there is no autoplay path.
 
 Checked: coach games (a bot with a coach) use `BotGameActivityV2` too, with
-Chess.com's own eval bar and move feedback. Still to check: lessons and
+Chess.com's own arrows, eval bar and move feedback, so Vektra stays off there
+(`BotGameGuard.isCoachGame`: the coach's picture, labelled "Trenér") and stops
+reading the screen until another screen opens. Still to check: lessons and
 custom positions, and whether the screen name changes between app versions.
 
 ## What the app exposes
