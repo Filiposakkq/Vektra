@@ -25,6 +25,7 @@ guarantees of playing strength, or a substitute for your own review.
 ## Contents
 
 - [Install and development](#install-load-unpacked)
+- [Android app](#android-app)
 - [Updates](#updates)
 - [Important notices](#important-notices)
 - [Settings](#settings)
@@ -69,6 +70,46 @@ Each production build records a fingerprint of its sources in
 `dist/vektra-build.json`; the browser checks stop with a list of changed files
 if `dist` is missing that file or was built from different sources (including
 `npm run dev` output), so run `npm run build` again first.
+
+## Android app
+
+The Android app shows the same hints over the Chess.com app, in bot games
+only, and reviews finished games from Chess.com's public archive. It reads the
+screen through Android's accessibility service; it never taps or types.
+Building it, and how it works: [docs/ANDROID.md](docs/ANDROID.md).
+
+**Install** (Android 8 or later). It isn't on Google Play, which doesn't allow
+apps that read other apps' screens like this.
+
+1. On the phone, download `vektra-<version>.apk` from the
+   [latest release](https://github.com/Filiposakkq/Vektra/releases/latest)
+   and open it. Allow installs from your browser or file manager when Android
+   asks.
+2. Google Play Protect may warn about an unknown app: tap **More details →
+   Install anyway**. It warns about apps that read the screen and can install
+   their own updates; Vektra does both.
+3. Open Vektra and tap **Open accessibility settings**, then turn on Vektra
+   (on Xiaomi: **Additional settings → Accessibility → Downloaded apps**).
+4. On Android 13 and later it may be greyed out or say *Restricted setting*:
+   open **Settings → Apps → Vektra**, tap **⋮ → Allow restricted settings**,
+   then turn it on again.
+
+**Keep it running.** Some phones stop background apps to save battery or when
+recent apps are cleared; Android then says the service *doesn't work* and
+won't restart it by itself (switch Vektra off and on in Accessibility). The
+app's Status card shows how to fix it when it happens. To prevent it:
+
+- **Xiaomi, Redmi, POCO:** allow **Autostart** (Security app → Permissions →
+  Autostart), set **Battery saver** to **No restrictions** in Vektra's app
+  info, and lock Vektra in recent apps (long-press its card, then the lock).
+- **Samsung, Huawei, Honor, OnePlus, Oppo, Vivo and others:** allow Vektra to
+  run in the background and turn off battery optimisation for it in its app
+  info. <https://dontkillmyapp.com> has the steps for each brand.
+
+**Updates.** When a new release is out, the app shows *Update to …* on its
+main screen: tap it, and Android asks you to confirm. The first time, Android
+asks to allow Vektra to install apps. Releases are signed with the same key,
+so updates install over the app and keep your settings.
 
 ## Updates
 

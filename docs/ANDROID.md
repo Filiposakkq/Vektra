@@ -1,6 +1,6 @@
 # Vektra for Android: plan
 
-Status: milestone 5 built (2026-11-03), waiting for its first release. In Chess.com bot games the app shows
+Status: all five milestones done; v0.3.0 (2026-11-03) is the first release with the app. In Chess.com bot games the app shows
 the engine's best moves as arrows over the board on the user's turn, with
 scores, the bot's threat, an optional weaker move, an eval strip and a rating
 of each of the user's moves, and has a settings screen. This is the plan agreed on
@@ -68,8 +68,9 @@ and anything that can't be confirmed as one stays off.
 - The accessibility service reads the screen only. It never taps, types or
   performs gestures (`canPerformGestures` off), so there is no autoplay path.
 
-To check: whether other modes (coach, lessons, custom positions) also use
-`BotGameActivityV2`, and whether the screen name changes between app versions.
+Checked: coach games (a bot with a coach) use `BotGameActivityV2` too, with
+Chess.com's own eval bar and move feedback. Still to check: lessons and
+custom positions, and whether the screen name changes between app versions.
 
 ## What the app exposes
 
@@ -212,7 +213,7 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    the extension's avoid-draws, hide-alternatives, threat, weaker-move and
    analysis-depth settings (not autoplay's).
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
-   *Built, not yet released:* the release workflow builds the app with
+   *Done, released as v0.3.0:* the release workflow builds the app with
    `npm run build:android-web` and `assembleRelease`, signed with the release
    key (kept in `E:\Vektra-signing`, outside the repository, and in the
    `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets; the

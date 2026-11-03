@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # package.json has no engines field and there is no .nvmrc; Node 22 is
       # what the project is developed with.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -30,6 +30,17 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+      # The Android app: its overlay and review pages, its unit tests and a
+      # debug build, so a broken app shows up here and not at release time.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android app
+        run: |
+          npm run build:android-web
+          (cd android && bash ./gradlew --no-daemon testDebugUnitTest assembleDebug)
 
       # Browser tests load dist/ as an unpacked extension in Playwright's
       # Chromium, under a virtual display. The full-engine test downloads
