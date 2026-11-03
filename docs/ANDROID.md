@@ -251,9 +251,9 @@ hints will show, amber with *Fix it* and the steps when they won't), the two
 reviews as tiles, and *What's new*. `SettingsActivity` groups what belongs
 together (arrows, threats, weaker move, your moves, strength, game review,
 app); a setting that only matters while a switch is on sits under it, shown
-only then. Strength is one choice: presets from `ELO_PRESETS` or Max, with the
-exact Elo under them, kept in step both ways, and the search depth and light
-mode with it. The last board read is under App, for diagnosing. Screens slide in and out (`res/anim`). The
+only then. Strength is either the full engine (with its search depth) or an
+approximate Elo (presets from `ELO_PRESETS`, or exact, kept in step both
+ways), as before the new look; light mode sits with it. The last board read is under App, for diagnosing. Screens slide in and out (`res/anim`). The
 review page has a move strip with rating icons, swipes on the board, pieces
 that slide on a one-move step, and the analysis panel as a pull-up sheet. The
 launcher icon is an adaptive vector (`mipmap-anydpi-v26`).

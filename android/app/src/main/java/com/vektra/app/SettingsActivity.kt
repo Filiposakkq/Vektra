@@ -103,40 +103,42 @@ class SettingsActivity : Activity() {
     }
 
     /**
-     * How strong the suggested moves are: one choice, from the presets to an
-     * exact Elo. Max is full strength, without an Elo limit; the extension's
-     * presets are core/settings.ts ELO_PRESETS. The engine's speed sits here too.
+     * How strong the suggested moves are, as before the new look: either the
+     * full engine, set by its search depth, or an approximate Elo (presets from
+     * core/settings.ts ELO_PRESETS, or exact). Light mode sits here too.
      */
     private fun addStrength(layout: LinearLayout) {
         ui.section(layout, "Strength")
         val card = ui.card(layout)
         card.addView(ui.text("How strong the suggested moves are", 14f, Ui.MUTED))
-        val presets = listOf(1400, 1800, 2400)
-        val names = listOf("Beginner", "Club", "Strong")
-        fun presetOf(s: HintSettings) = if (!s.limitStrength) 3 else presets.indexOf(s.elo)
-        lateinit var eloRow: LinearLayout
-        lateinit var elo: android.widget.SeekBar
-        val select = ui.segmented(card, names + "Max", presetOf(settings)) { i ->
-            eloRow.visibility = if (i == 3) View.GONE else View.VISIBLE
-            if (i == 3) {
-                save(settings.copy(limitStrength = false))
-            } else {
-                save(settings.copy(limitStrength = true, elo = presets[i]))
-                elo.progress = (presets[i] - HintSettings.ELO_MIN) / 10
-            }
+        lateinit var engineRows: LinearLayout
+        lateinit var eloRows: LinearLayout
+        ui.segmented(card, listOf("Full engine", "Set an Elo"), if (settings.limitStrength) 1 else 0) { i ->
+            engineRows.visibility = if (i == 0) View.VISIBLE else View.GONE
+            eloRows.visibility = if (i == 1) View.VISIBLE else View.GONE
+            save(settings.copy(limitStrength = i == 1))
         }
-        // The exact Elo, under the presets; a preset's value lights its choice.
-        eloRow = ui.dependent(card, settings.limitStrength)
-        elo = ui.slider(
-            eloRow, { e -> "About $e Elo" + (presets.indexOf(e).takeIf { it >= 0 }?.let { " (${names[it]})" } ?: "") },
-            HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo,
-            onMove = { e -> select(presets.indexOf(e)) },
-        ) { e -> save(settings.copy(limitStrength = true, elo = e)) }
 
-        card.addView(ui.text("Speed", 14f, Ui.MUTED, bold = true).apply { setPadding(0, ui.dp(18), 0, 0) })
-        ui.slider(card, { "Search depth $it: deeper is stronger but slower" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
+        engineRows = ui.dependent(card, !settings.limitStrength)
+        ui.slider(engineRows, { "Search depth $it: deeper is stronger but slower" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
             save(settings.copy(depth = it))
         }
+
+        // The Elo: a preset, or exact on the slider; a preset's value lights its choice.
+        eloRows = ui.dependent(card, settings.limitStrength)
+        val presets = listOf(1400, 1800, 2400)
+        val names = listOf("Beginner", "Club", "Strong")
+        lateinit var elo: android.widget.SeekBar
+        val select = ui.segmented(eloRows, names, presets.indexOf(settings.elo)) { i ->
+            save(settings.copy(elo = presets[i]))
+            elo.progress = (presets[i] - HintSettings.ELO_MIN) / 10
+        }
+        elo = ui.slider(
+            eloRows, { e -> "About $e Elo" + (presets.indexOf(e).takeIf { it >= 0 }?.let { " (${names[it]})" } ?: "") },
+            HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo,
+            onMove = { e -> select(presets.indexOf(e)) },
+        ) { e -> save(settings.copy(elo = e)) }
+
         ui.switchRow(card, "Light mode", "One engine: smoother arrows, hints a bit later", settings.lightMode) {
             save(settings.copy(lightMode = it))
         }
