@@ -21,6 +21,18 @@ Every Vektra release, newest first: the Chrome extension and the Android app shi
 
 ## Unreleased
 
+> One line about what this release is for.
+
+### ✨ New
+
+### 🎨 Improved
+
+### 🐛 Fixed
+
+---
+
+## 0.4.0 · 2026-11-03
+
 > **The Android app, rebuilt.** A modern, fully native app with a new look, your last game on a real board, and the whole game review native too.
 
 ### ✨ New
