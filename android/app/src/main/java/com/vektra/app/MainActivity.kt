@@ -6,8 +6,10 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -22,6 +24,14 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var boardText: TextView
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
+    private lateinit var enabledSwitch: Switch
+    // The quick settings tile can switch hints while this screen is open: keep in step, or the next change here would undo it.
+    private val settingsListener: (HintSettings) -> Unit = { next ->
+        runOnUiThread {
+            settings = next
+            enabledSwitch.isChecked = next.enabled
+        }
+    }
 
     private val pad by lazy { (16 * resources.displayMetrics.density).toInt() }
 
@@ -36,11 +46,16 @@ class MainActivity : Activity() {
             textSize = 28f
             typeface = Typeface.DEFAULT_BOLD
         })
+        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         layout.addView(TextView(this).apply {
-            text = "Version ${packageManager.getPackageInfo(packageName, 0).versionName}. " +
+            text = "Version $version. " +
                 "In Chess.com bot games Vektra shows the engine's best moves over the board on your turn."
             setTextColor(MUTED)
         })
+        // Filled in if a newer release is out.
+        val updates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        layout.addView(updates)
+        if (SettingsStore.load(this).updateCheck) checkForUpdate(updates, version)
         layout.addView(button("Review finished games", primary = true) {
             startActivity(Intent(this, ReviewActivity::class.java))
         })
@@ -63,6 +78,46 @@ class MainActivity : Activity() {
         settings = SettingsStore.load(this)
         addSettings(layout)
         setContentView(ScrollView(this).apply { addView(layout) })
+    }
+
+    /** Asks GitHub for the latest release; if it is newer, shows a card that installs it on a tap. */
+    private fun checkForUpdate(parent: LinearLayout, running: String) {
+        Thread {
+            val release = try {
+                AppUpdater.newerRelease(running)
+            } catch (e: Exception) {
+                Log.i("Vektra", "update check failed: $e")
+                null
+            } ?: return@Thread
+            runOnUiThread {
+                val card = card(parent, "Update")
+                card.addView(TextView(this).apply { text = "Vektra ${release.version} is out (you have $running)." })
+                lateinit var update: Button
+                update = button("Update to ${release.version}", primary = true) {
+                    // Android asks once whether Vektra may install apps.
+                    if (!packageManager.canRequestPackageInstalls()) {
+                        update.text = "Allow Vektra to install apps, then tap here again"
+                        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                        return@button
+                    }
+                    update.isEnabled = false
+                    update.text = "Downloading…"
+                    Thread {
+                        try {
+                            AppUpdater.install(this, AppUpdater.download(this, release))
+                            runOnUiThread { update.text = "Installing…" }
+                        } catch (e: Exception) {
+                            Log.w("Vektra", "update failed", e)
+                            runOnUiThread {
+                                update.isEnabled = true
+                                update.text = "Update failed (${e.message}). Tap to try again"
+                            }
+                        }
+                    }.start()
+                }
+                card.addView(update)
+            }
+        }.start()
     }
 
     /** A rounded section with a small heading; its rows are added to the returned layout. */
@@ -139,7 +194,7 @@ class MainActivity : Activity() {
         }
 
         val hints = card(layout, "Hints")
-        toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
+        enabledSwitch = toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
         slider(hints, { "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
         toggle(hints, "Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
         toggle(hints, "Avoid draws (skip a move that draws at once when another keeps you level)", settings.avoidDraws) {
@@ -192,16 +247,22 @@ class MainActivity : Activity() {
             review, { "Analysis depth: $it (12 is quick; deeper rates more exactly but takes longer)" },
             HintSettings.ANALYSIS_DEPTH_MIN, HintSettings.ANALYSIS_DEPTH_MAX, 1, settings.analysisDepth,
         ) { settings.copy(analysisDepth = it) }
+
+        val about = card(layout, "Updates")
+        toggle(about, "Check for updates when Vektra opens", settings.updateCheck) { settings.copy(updateCheck = it) }
     }
 
     override fun onResume() {
         super.onResume()
         PositionStore.addListener(listener)
+        SettingsStore.addListener(settingsListener)
+        settingsListener(SettingsStore.load(this))
         render()
     }
 
     override fun onPause() {
         PositionStore.removeListener(listener)
+        SettingsStore.removeListener(settingsListener)
         super.onPause()
     }
 

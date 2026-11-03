@@ -30,8 +30,6 @@ const settings = sanitizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(app?.sett
 
 const USERNAME_KEY = 'reviewUsername';
 const LINE_KEY = 'reviewLine';
-/** Games listed: the newest from the last two months. */
-const LISTED = 50;
 /** Two engines side by side: the phone's two fast cores. */
 const ENGINES = 2;
 const FILES = 'abcdefgh';
@@ -75,16 +73,10 @@ async function getJson(url: string): Promise<unknown> {
   return response.json();
 }
 
-async function loadGames(username: string): Promise<ArchiveGame[]> {
-  const { archives } = (await getJson(
-    `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
-  )) as { archives: string[] };
-  const months = await Promise.all(archives.slice(-2).map((url) => getJson(url) as Promise<{ games: ArchiveGame[] }>));
-  return months
-    .flatMap((m) => m.games)
-    .filter((g) => g.rules === 'chess' && g.pgn)
-    .sort((a, b) => b.end_time - a.end_time)
-    .slice(0, LISTED);
+/** A month of games (an archive URL), newest first. */
+async function loadMonth(url: string): Promise<ArchiveGame[]> {
+  const { games } = (await getJson(url)) as { games: ArchiveGame[] };
+  return games.filter((g) => g.rules === 'chess' && g.pgn).sort((a, b) => b.end_time - a.end_time);
 }
 
 function result(g: ArchiveGame): string {
@@ -126,6 +118,46 @@ function gameCard(g: ArchiveGame, username: string): HTMLButtonElement {
   return card;
 }
 
+/** The player's monthly archives, oldest first, and how many of the newest are listed. */
+let archives: string[] = [];
+let shown = 0;
+
+function errorText(e: unknown, username: string): string {
+  return (e as Error).message === 'not found'
+    ? `No Chess.com player named ${username}.`
+    : `Couldn't load the games: ${(e as Error).message}.`;
+}
+
+/** Lists the next `months` older months, then offers the month before them. */
+async function showMonths(username: string, months: number): Promise<void> {
+  list.querySelector('.older')?.remove();
+  const urls = archives.slice(Math.max(0, archives.length - shown - months), archives.length - shown).reverse();
+  shown += urls.length;
+  const games = (await Promise.all(urls.map(loadMonth))).flat();
+  for (const g of games) {
+    const li = document.createElement('li');
+    li.append(gameCard(g, username));
+    list.append(li);
+  }
+  if (!list.children.length) status.textContent = 'No finished games in the last two months.';
+  if (shown >= archives.length) return;
+  const older = document.createElement('li');
+  older.className = 'older';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Load older games';
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    button.textContent = 'Loading…';
+    showMonths(username, 1).catch((e) => {
+      button.disabled = false;
+      button.textContent = `Load older games (${errorText(e, username)})`;
+    });
+  });
+  older.append(button);
+  list.append(older);
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const username = input.value.trim();
@@ -133,20 +165,15 @@ form.addEventListener('submit', async (event) => {
   store(USERNAME_KEY, username);
   status.textContent = 'Loading games…';
   list.replaceChildren();
-  let games: ArchiveGame[];
   try {
-    games = await loadGames(username);
+    ({ archives } = (await getJson(
+      `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
+    )) as { archives: string[] });
+    shown = 0;
+    status.textContent = 'Pick a game to review.';
+    await showMonths(username, 2);
   } catch (e) {
-    status.textContent = (e as Error).message === 'not found'
-      ? `No Chess.com player named ${username}.`
-      : `Couldn't load the games: ${(e as Error).message}.`;
-    return;
-  }
-  status.textContent = games.length ? 'Pick a game to review.' : 'No finished games in the last two months.';
-  for (const g of games) {
-    const li = document.createElement('li');
-    li.append(gameCard(g, username));
-    list.append(li);
+    status.textContent = errorText(e, username);
   }
 });
 

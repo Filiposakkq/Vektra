@@ -22,9 +22,24 @@ android {
         versionCode = major * 10_000 + minor * 100 + patch
     }
 
+    // The release key (E:\Vektra-signing, and GitHub secrets for the release
+    // workflow). Every release must use it, or Android refuses the update.
+    val keystore = System.getenv("VEKTRA_KEYSTORE")
+    if (keystore != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("VEKTRA_KEYSTORE_PASSWORD")
+                keyAlias = "vektra"
+                keyPassword = System.getenv("VEKTRA_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 

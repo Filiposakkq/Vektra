@@ -39,6 +39,8 @@ data class HintSettings(
     val weakerMoveMaxLossCp: Int = 200,
     /** Depth of the game review. */
     val analysisDepth: Int = 12,
+    /** Look for a new release when the app opens. */
+    val updateCheck: Boolean = true,
 ) {
     /** As JSON for the overlay page, with the extension's setting names. */
     fun toJson(): String =
@@ -46,7 +48,7 @@ data class HintSettings(
             "\"occasionalWeakerMoves\":$occasionalWeakerMoves,\"liveRatings\":$liveRatings,\"depth\":$depth," +
             "\"limitStrength\":$limitStrength,\"elo\":$elo,\"lightMode\":$lightMode,\"avoidDraws\":$avoidDraws," +
             "\"hideWorseWinLoss\":$hideWorseWinLoss,\"threatWinLoss\":$threatWinLoss," +
-            "\"weakerMoveMaxLossCp\":$weakerMoveMaxLossCp,\"analysisDepth\":$analysisDepth}"
+            "\"weakerMoveMaxLossCp\":$weakerMoveMaxLossCp,\"analysisDepth\":$analysisDepth,\"updateCheck\":$updateCheck}"
 
     companion object {
         const val DEPTH_MIN = 8
@@ -86,6 +88,7 @@ object SettingsStore {
             weakerMoveMaxLossCp = p.getInt("weakerMoveMaxLossCp", d.weakerMoveMaxLossCp).coerceIn(10, 300),
             analysisDepth = p.getInt("analysisDepth", d.analysisDepth)
                 .coerceIn(HintSettings.ANALYSIS_DEPTH_MIN, HintSettings.ANALYSIS_DEPTH_MAX),
+            updateCheck = p.getBoolean("updateCheck", d.updateCheck),
         )
     }
 
@@ -106,6 +109,7 @@ object SettingsStore {
             .putInt("threatWinLoss", settings.threatWinLoss)
             .putInt("weakerMoveMaxLossCp", settings.weakerMoveMaxLossCp)
             .putInt("analysisDepth", settings.analysisDepth)
+            .putBoolean("updateCheck", settings.updateCheck)
             .apply()
         listeners.forEach { it(settings) }
     }

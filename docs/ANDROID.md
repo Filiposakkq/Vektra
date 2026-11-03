@@ -1,6 +1,6 @@
 # Vektra for Android: plan
 
-Status: milestone 4 done (2026-11-03), finished games can be reviewed. In Chess.com bot games the app shows
+Status: milestone 5 built (2026-11-03), waiting for its first release. In Chess.com bot games the app shows
 the engine's best moves as arrows over the board on the user's turn, with
 scores, the bot's threat, an optional weaker move, an eval strip and a rating
 of each of the user's moves, and has a settings screen. This is the plan agreed on
@@ -197,7 +197,7 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 4. **Review.** Finished games from the public archive, with the analysis panel.
    *Done:* "Review finished games" on the main screen opens `ReviewActivity`, a
    WebView with `android/web/review.ts`: a Chess.com username (remembered),
-   the newest 50 standard games of the last two months, and the extension's
+   the standard games of the last two months (Load older games adds a month at a time), and the extension's
    `AnalysisPanel` full-screen over two lite engines at the analysis depth set on the main screen
    (12 by default). A bar on top has a back arrow and the game's players. The
    board (`#board` in `review.html`, Vektra's own flat pieces in `pieces.ts`,
@@ -212,6 +212,20 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    the extension's avoid-draws, hide-alternatives, threat, weaker-move and
    analysis-depth settings (not autoplay's).
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
+   *Built, not yet released:* the release workflow builds the app with
+   `npm run build:android-web` and `assembleRelease`, signed with the release
+   key (kept in `E:Vektra-signing`, outside the repository, and in the
+   `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets; the
+   release fails without them), and attaches `vektra-<version>.apk` and its
+   SHA-256 to the release. `app/build.gradle.kts` signs only when
+   `VEKTRA_KEYSTORE` is set, so debug builds are unchanged. `AppUpdater.kt`:
+   each time the main screen opens (unless "Check for updates" is off) it asks
+   GitHub for the latest release; if it is newer, a card offers the update,
+   which downloads the APK, checks the SHA-256 and hands it to
+   `PackageInstaller`, which asks the user to confirm (the first time Android
+   asks to allow Vektra to install apps). Debug builds are signed with another
+   key, so the first release needs one uninstall. Also: a quick settings tile
+   (`HintsTileService`) turns hints in bot games on and off.
 
 ## Risks and open questions
 

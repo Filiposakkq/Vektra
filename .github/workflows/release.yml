@@ -1,10 +1,11 @@
 name: Release
 
 # Push a tag like v0.2.0 (npm version minor && git push --follow-tags) to
-# publish that version: the checks run, then the built extension is attached
-# to a GitHub release as vektra-<version>.zip with a SHA-256 checksum. The
-# updater helper (public/updater) and the popup's update check read it from
-# there.
+# publish that version: the checks run, then the built extension and the
+# signed Android app are attached to a GitHub release as vektra-<version>.zip
+# and vektra-<version>.apk, each with a SHA-256 checksum. The updater helper
+# (public/updater), the popup's update check and the app's updater read them
+# from there.
 
 on:
   push:
@@ -53,6 +54,29 @@ jobs:
 
       # manifest.json at the top of the zip, so unzipping it over the Vektra
       # folder updates it in place.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Signed with the release key from the repository's secrets; Android
+      # only installs an update signed with the same key as the app.
+      - name: Android app
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          VEKTRA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$VEKTRA_KEYSTORE_PASSWORD" ]; then
+            echo "::error::The ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets are missing"
+            exit 1
+          fi
+          export VEKTRA_KEYSTORE="$RUNNER_TEMP/vektra-release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$VEKTRA_KEYSTORE"
+          npm run build:android-web
+          (cd android && bash ./gradlew --no-daemon testDebugUnitTest assembleRelease)
+          cp android/app/build/outputs/apk/release/app-release.apk "vektra-$VERSION.apk"
+          sha256sum "vektra-$VERSION.apk" > "vektra-$VERSION.apk.sha256"
+
       - name: Package
         run: |
           rm -f dist/vektra-build.json
@@ -64,4 +88,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "vektra-$VERSION.zip" "vektra-$VERSION.zip.sha256" \
+            "vektra-$VERSION.apk" "vektra-$VERSION.apk.sha256" \
             --title "Vektra $VERSION" --generate-notes
