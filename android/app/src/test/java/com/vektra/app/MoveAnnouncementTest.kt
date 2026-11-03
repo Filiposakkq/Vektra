@@ -8,17 +8,27 @@ class MoveAnnouncementTest {
     @Test
     fun `reads Chess-com's move announcements`() {
         // As announced on the phone (Czech app).
-        assertEquals(MoveAnnouncement("d1", "d4", 'w'), MoveAnnouncement.parse("Bílý Dáma z d1 na d4"))
-        assertEquals(MoveAnnouncement("d7", "c6", 'b'), MoveAnnouncement.parse("Černý Střelec z d7 na c6"))
+        assertEquals(MoveAnnouncement(listOf("d1", "d4"), 'w', 'q'), MoveAnnouncement.parse("Bílý Dáma z d1 na d4"))
+        assertEquals(MoveAnnouncement(listOf("d7", "c6"), 'b', 'b'), MoveAnnouncement.parse("Černý Střelec z d7 na c6"))
         // The expected English wording.
-        assertEquals(MoveAnnouncement("g1", "f3", 'w'), MoveAnnouncement.parse("White Knight from g1 to f3"))
+        assertEquals(MoveAnnouncement(listOf("g1", "f3"), 'w', 'n'), MoveAnnouncement.parse("White Knight from g1 to f3"))
+    }
+
+    @Test
+    fun `captures name no colour, so the side to move is taken`() {
+        // As announced on the phone; the taken piece's name may be declined ("pěšce").
+        assertEquals(MoveAnnouncement(listOf("d5", "d1"), null, 'r'), MoveAnnouncement.parse("Věž d5 bere věž na d1"))
+        assertEquals(MoveAnnouncement(listOf("c1", "d1"), null, 'r'), MoveAnnouncement.parse("Věž c1 bere věž na d1, Šach"))
+        assertEquals(MoveAnnouncement(listOf("e7", "g6"), null, 'n'), MoveAnnouncement.parse("Jezdec e7 bere pěšce na g6"))
     }
 
     @Test
     fun `other texts are not moves`() {
         assertNull(MoveAnnouncement.parse("22."))
-        assertNull(MoveAnnouncement.parse("Bílý Věž na h1"))
         assertNull(MoveAnnouncement.parse("Take e4 and d5 now"))
         assertNull(MoveAnnouncement.parse("White to move"))
+        assertNull(MoveAnnouncement.parse("Bílý na tahu"))
+        // A square's label: a piece but one square and no move.
+        assertNull(MoveAnnouncement.parse("Věž na h1"))
     }
 }

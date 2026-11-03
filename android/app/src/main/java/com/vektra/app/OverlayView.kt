@@ -44,6 +44,13 @@ class OverlayView(context: Context, private val stripPx: Int) : View(context) {
         invalidate()
     }
 
+    /** The user has moved: their arrows go at once, before the page sends the next frame. */
+    fun clearArrows() {
+        val f = frame ?: return
+        f.put("arrows", JSONArray())
+        invalidate()
+    }
+
     fun clear() {
         frame = null
         invalidate()

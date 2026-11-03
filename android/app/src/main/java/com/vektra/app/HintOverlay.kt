@@ -52,6 +52,10 @@ class HintOverlay(private val context: Context) {
     private var pageReady = false
     /** Calls made before the page loaded, run once it has. */
     private val pending = ArrayList<String>()
+    /** The side the user plays: the one at the bottom of the board. */
+    private var userColor = 'w'
+    /** Who moves next, as far as the app can tell (the page knows for sure). */
+    private var nextMover: Char? = null
     /** The user's settings, sent again whenever the page (re)loads. */
     private var settingsJson = SettingsStore.load(context).toJson()
 
@@ -70,13 +74,22 @@ class HintOverlay(private val context: Context) {
             view.visibility = View.VISIBLE
             windowManager.updateViewLayout(view, params)
         }
+        userColor = if (reading.board.flipped) 'b' else 'w'
+        reading.moves.sideToMove?.let { nextMover = it }
         val turn = reading.moves.sideToMove?.let { "\"$it\"" } ?: "null"
         call("vektra.show({board:\"${reading.board.placement}\",turn:$turn,flipped:${reading.board.flipped}})")
     }
 
     /** A move Chess.com announced: the page applies it to the position it shows, before the board is read. */
     fun played(move: MoveAnnouncement) {
-        call("vektra.played({from:\"${move.from}\",to:\"${move.to}\",color:\"${move.color}\"})")
+        // The user's own move: their arrows are out of date this instant.
+        // A capture names no colour: it is whoever is due to move.
+        val mover = move.color ?: nextMover
+        if (mover == userColor) painter?.clearArrows()
+        nextMover = mover?.let { if (it == 'w') 'b' else 'w' }
+        val squares = move.squares.joinToString(",") { "\"$it\"" }
+        val color = move.color?.let { "\"$it\"" } ?: "null"
+        call("vektra.played({squares:[$squares],color:$color,piece:\"${move.piece}\"})")
     }
 
     /** Sends the user's settings to the page; the shown hints are worked out again. */

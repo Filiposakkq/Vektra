@@ -32,6 +32,8 @@ class VektraAccessibilityService : AccessibilityService() {
     /** How long collecting the last screen took. */
     private var readCostMs = 0L
     private var readScheduled = false
+    /** Move announcements came through in this game: moves arrive that way, and reads wait for quiet. */
+    private var announcementsSeen = false
     private val settingsListener: (HintSettings) -> Unit = { settings -> handler.post { overlay?.applySettings(settings) } }
 
     override fun onServiceConnected() {
@@ -58,19 +60,37 @@ class VektraAccessibilityService : AccessibilityService() {
             PositionStore.state is PositionStore.State.On
         ) {
             val text = event.text.joinToString(" ").ifBlank { event.source?.text?.toString().orEmpty() }
-            MoveAnnouncement.parse(text)?.let {
-                Log.i(TAG, "announced: ${it.from}${it.to}")
-                overlay?.played(it)
+            val move = MoveAnnouncement.parse(text)
+            if (move != null) {
+                Log.i(TAG, "announced: ${move.color ?: '?'} ${move.piece} ${move.squares.joinToString(" ")}")
+                announcementsSeen = true
+                overlay?.played(move)
+            } else if (Regex("""\b[a-h][1-8]\b""").containsMatchIn(text)) {
+                // A text with a square that isn't understood: perhaps a new wording.
+                Log.i(TAG, "not understood as a move: ${text.take(80)}")
             }
         }
-        // Read soon after a change, without waiting for the screen to go quiet
-        // (Chess.com keeps updating it during and after a move), but not too
-        // often: each read makes Chess.com's app describe its screen, on the
-        // thread that animates its pieces. A board caught mid-animation is
-        // caught by the overlay page (it ignores impossible positions).
+        val now = SystemClock.uptimeMillis()
+        if (changedAt == 0L) changedAt = now
+        // Each read makes Chess.com's app describe its screen on the thread
+        // that animates its pieces and sends its move announcements, so a read
+        // during a move holds the announcement back. Once announcements come
+        // through, moves arrive that way and the board is only read when the
+        // screen has gone quiet (or, if it never does, MAX_WAIT_MS after the
+        // change), to check them.
+        if (announcementsSeen) {
+            if (!readScheduled) {
+                readScheduled = true
+                handler.postDelayed(check, MAX_WAIT_MS)
+            }
+            handler.removeCallbacks(settledCheck)
+            handler.postDelayed(settledCheck, QUIET_MS)
+            return
+        }
+        // Until then (entering a game), read soon after a change, but not too
+        // often. A board caught mid-animation is caught by the overlay page
+        // (it ignores impossible positions).
         if (!readScheduled) {
-            val now = SystemClock.uptimeMillis()
-            if (changedAt == 0L) changedAt = now
             readScheduled = true
             handler.postDelayed(check, maxOf(FIRST_READ_MS, lastReadAt + READ_GAP_MS - now))
         }
@@ -94,6 +114,8 @@ class VektraAccessibilityService : AccessibilityService() {
     }
 
     private fun checkScreen() {
+        handler.removeCallbacks(check)
+        handler.removeCallbacks(settledCheck)
         readScheduled = false
         lastReadAt = SystemClock.uptimeMillis()
         readDelayMs = lastReadAt - changedAt
@@ -154,7 +176,11 @@ class VektraAccessibilityService : AccessibilityService() {
         if (!PositionStore.update(state)) return
         when (state) {
             is PositionStore.State.On -> overlay?.show(state.reading)
-            is PositionStore.State.Off -> overlay?.hide()
+            is PositionStore.State.Off -> {
+                overlay?.hide()
+                // A new game starts with early reads until its first announcement.
+                announcementsSeen = false
+            }
         }
         when (state) {
             is PositionStore.State.Off -> Log.i(TAG, "off: ${state.reason}")
@@ -174,5 +200,9 @@ class VektraAccessibilityService : AccessibilityService() {
         const val READ_GAP_MS = 150L
         /** Quiet time after which the screen is read once more. */
         const val SETTLED_MS = 300L
+        /** Once announcements come through: how long the screen must be quiet before a check. */
+        const val QUIET_MS = 250L
+        /** ...and the longest wait for a check while the screen keeps changing. */
+        const val MAX_WAIT_MS = 1000L
     }
 }

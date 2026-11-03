@@ -4,23 +4,35 @@ import java.util.Locale
 
 /**
  * A move as Chess.com announces it for screen readers, the moment it is
- * played: "Bílý Dáma z d1 na d4" (White Queen from d1 to d4). It arrives a
- * few hundred milliseconds before the board can be read, so Vektra applies
- * it to the position it knows and checks it against the board afterwards.
+ * played. It arrives a few hundred milliseconds before the board can be read,
+ * so Vektra applies it to the position it knows and checks it against the
+ * board afterwards. Wordings seen in the Czech app:
+ *
+ * - a move:    "Bílý Dáma z d1 na d4" (White Queen from d1 to d4)
+ * - a capture: "Věž d5 bere věž na d1" (Rook d5 takes rook on d1), no colour
+ *
+ * So this only takes what any wording has: the mover's piece, its colour when
+ * named (otherwise it is the side to move), and the squares mentioned. The
+ * overlay page picks the one legal move that fits.
  */
-data class MoveAnnouncement(val from: String, val to: String, val color: Char) {
+data class MoveAnnouncement(val squares: List<String>, val color: Char?, val piece: Char) {
     companion object {
         private val SQUARE = Regex("""\b([a-h][1-8])\b""")
 
         /** The move in an announcement, or null if the text isn't one. */
         fun parse(text: String): MoveAnnouncement? {
             val squares = SQUARE.findAll(text).map { it.value }.toList()
-            if (squares.size != 2) return null
-            val words = text.lowercase(Locale.ROOT).split(' ', ',', '.').filter { it.isNotEmpty() }
-            val color = words.firstNotNullOfOrNull { PieceNames.COLORS[it] } ?: return null
-            // A piece name too, so other texts that happen to hold two squares don't count.
-            if (words.none { it in PieceNames.PIECES }) return null
-            return MoveAnnouncement(squares[0], squares[1], color)
+            if (squares.isEmpty() || squares.size > 3) return null
+            val words = text.lowercase(Locale.ROOT).split(' ', ',', '.', ':', '-').filter { it.isNotEmpty() }
+            // The first piece named is the mover's ("Rook d5 takes rook on d1"),
+            // after its colour if there is one.
+            val pieceAt = words.indexOfFirst { it in PieceNames.PIECES }
+            if (pieceAt < 0) return null
+            val color = words.take(pieceAt).firstNotNullOfOrNull { PieceNames.COLORS[it] }
+            // Without a colour, the piece must lead, with two squares: a bare
+            // "Věž na h1" is a square's label, not a move.
+            if (color == null && (pieceAt != 0 || squares.size < 2)) return null
+            return MoveAnnouncement(squares, color, PieceNames.PIECES.getValue(words[pieceAt]))
         }
     }
 }

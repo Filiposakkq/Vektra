@@ -260,11 +260,16 @@ function show(reading: Reading): void {
     }
     redraw();
     let ponderStarted = false;
-    const use = (lines: PvLine[]) => {
+    let ratedEarly = false;
+    const use = (lines: PvLine[], final: boolean) => {
       if (stale()) return;
       // The eval strip follows the game on the bot's turn too.
       if (lines[0]?.depth >= MIN_DRAW_DEPTH) layer.eval(whitePov(lines[0].score, fen.split(' ')[1] as 'w' | 'b'), reading.flipped);
-      if (beforeFen && settings.liveRatings && lines[0]?.depth >= EARLY_RATING_DEPTH) {
+      // Rated twice: as soon as the search is deep enough (bots reply fast),
+      // and when it ends. Rating builds the reason for a bad move, which is
+      // slow enough to hold up a move Chess.com announces meanwhile.
+      if (beforeFen && settings.liveRatings && lines[0]?.depth >= EARLY_RATING_DEPTH && (final || !ratedEarly)) {
+        ratedEarly = true;
         remember(fen, lines);
         void rateMove(beforeFen, fen);
       }
@@ -274,9 +279,9 @@ function show(reading: Reading): void {
         void ponder(fen, lines, user, stale);
       }
     };
-    void main.analyze(buildRequest(fen, settings, null), use).then((result) => {
+    void main.analyze(buildRequest(fen, settings, null), (lines) => use(lines, false)).then((result) => {
       if (!result) return;
-      use(result.lines);
+      use(result.lines, true);
       if (settings.lightMode && !stale()) void ponder(fen, result.lines, user, stale);
     });
     return;
@@ -379,16 +384,29 @@ function show(reading: Reading): void {
  * and before its board can be read: applied to the position shown. The board
  * reads that follow check it (show() ignores the same position again, and a
  * different board wins).
+ *
+ * Announcements are worded differently for captures and other moves, so the
+ * app only passes the mover's colour, its piece and the squares mentioned;
+ * the move used is the one legal move that fits them.
  */
-function played(move: { from: string; to: string; color: 'w' | 'b' }): void {
-  if (!settings.enabled || !lastFen || !lastReading || lastFen.split(' ')[1] !== move.color) return;
+function played(move: { squares: string[]; color: 'w' | 'b' | null; piece: string }): void {
+  const skip = (why: string) => console.info(`[Vektra] announced ${move.color ?? '?'} ${move.piece} ${move.squares.join(' ')} not used: ${why}`);
+  if (!settings.enabled) return;
+  if (!lastFen || !lastReading) return skip('no position yet');
+  // Captures name no colour: then it is the side to move.
+  if (move.color && lastFen.split(' ')[1] !== move.color) return skip(`not ${move.color}'s turn in ${lastFen}`);
   const chess = new Chess(lastFen);
-  try {
-    // A promotion is taken to be a queen until the board says otherwise.
-    chess.move({ from: move.from, to: move.to, promotion: 'q' });
-  } catch {
-    return;
-  }
+  // To a square mentioned, from another one mentioned if there is one, by the
+  // piece named; a promotion is taken to be a queen until the board says otherwise.
+  const fits = chess.moves({ verbose: true }).filter(
+    (m) =>
+      move.squares.includes(m.to) &&
+      (move.squares.length < 2 || move.squares.includes(m.from)) &&
+      m.piece === move.piece &&
+      (!m.promotion || m.promotion === 'q'),
+  );
+  if (fits.length !== 1) return skip(`${fits.length} legal moves fit in ${lastFen}`);
+  chess.move(fits[0]);
   show({ board: chess.fen().split(' ')[0], turn: chess.turn(), flipped: lastReading.flipped });
 }
 
