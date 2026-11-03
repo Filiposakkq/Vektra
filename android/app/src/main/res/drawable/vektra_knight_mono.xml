@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark in one colour, for Android 13's themed icons: knight, mane and base, Android colours them. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M60.5,15 C80,21 90,43 86,65 C84,74 80,80 76,85 L71.5,85 C76.5,72 79.5,55 72,38 C68.5,30 64.5,22.5 60.5,15 Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M31,85 L69,85 C73,68 74,52 67,39 C63,31 59,25 55,19 L53,9 L47,17 C39,18 31,23 26,29 L15,42 C12,45.5 12.5,50.5 17,52 L28,53 C33,53.5 38,52 41.5,49 C47,54 47.5,63 42,71 C38,76 33,80 31,85 Z M28,87.5 H74 L76,92 H26 Z M22,94 H80 L82,98 H20 Z" />
+</vector>

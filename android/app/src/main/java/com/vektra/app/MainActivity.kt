@@ -1,6 +1,6 @@
 package com.vektra.app
 
-import android.animation.ValueAnimator
+
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
@@ -13,24 +13,27 @@ import android.text.format.DateUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import org.json.JSONObject
 
 /**
- * Vektra's home: one status card that says whether hints will show (and, when
- * something is wrong, the one thing to do about it), the reviews, and a way
- * to the settings.
+ * Vektra's home, opened before a game (is it ready?) and after one (review
+ * it). The status is a corner of a board: Vektra's blue arrow draws itself
+ * across it when hints will show, and it dims, with the one thing to do,
+ * when they won't. Below it the reviews, as plain rows.
  */
 class MainActivity : Activity() {
     private val ui by lazy { Ui(this) }
-    private lateinit var statusCard: LinearLayout
-    private lateinit var lastGameTile: TextView
-    private lateinit var lastGameRow: View
+    private lateinit var board: StatusBoard
+    private lateinit var statusWords: LinearLayout
+    private lateinit var statusMore: LinearLayout
+    private lateinit var lastGameSubtitle: TextView
+    private lateinit var lastGameGroup: View
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
-    private var breathing: ValueAnimator? = null
-    /** What the status card shows now; it is only rebuilt when this changes. */
+    /** What the status shows now; it is only rebuilt when this changes. */
     private var shownStatus = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,7 +41,9 @@ class MainActivity : Activity() {
         val layout = ui.column().apply { setPadding(ui.pad, ui.pad, ui.pad, ui.pad * 2) }
 
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(ui.text(getString(R.string.app_name), 28f, bold = true), LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(ImageView(this).apply { setImageResource(R.drawable.vektra_knight) }, LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)))
+        header.addView(ui.text(getString(R.string.app_name), 28f, display = true).apply { setPadding(ui.dp(8), 0, 0, 0) },
+            LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(ui.gear { open(Intent(this, SettingsActivity::class.java)) })
         layout.addView(header)
 
@@ -48,22 +53,38 @@ class MainActivity : Activity() {
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         if (SettingsStore.load(this).updateCheck) checkForUpdate(updates, version)
 
-        statusCard = ui.card(layout)
-        lastGameTile = ui.tile(layout, "▶︎", "Review your last bot game", primary = true) {
+        val hero = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, ui.dp(24), 0, ui.dp(12))
+        }
+        board = StatusBoard(this)
+        hero.addView(board, LinearLayout.LayoutParams(ui.dp(124), ui.dp(124)))
+        statusWords = ui.column().apply { setPadding(ui.dp(18), 0, 0, 0) }
+        hero.addView(statusWords, LinearLayout.LayoutParams(0, -2, 1f))
+        layout.addView(hero)
+        // The hints switch, or the fix and its steps.
+        statusMore = ui.column().apply { layoutTransition = android.animation.LayoutTransition() }
+        layout.addView(statusMore)
+
+        layout.addView(View(this), LinearLayout.LayoutParams(1, ui.dp(16)))
+        ui.divider(layout)
+        val lastGame = ui.column()
+        lastGameSubtitle = ui.listRow(lastGame, "▶︎", Ui.ACCENT, "Your last bot game") {
             open(Intent(this, ReviewActivity::class.java).putExtra(ReviewActivity.EXTRA_LAST_GAME, true))
         }
-        lastGameRow = layout.getChildAt(layout.childCount - 1)
-        ui.tile(layout, "☰", "Review Chess.com games", primary = false) {
-            open(Intent(this, ReviewActivity::class.java))
-        }.text = "Finished games, by username"
+        ui.divider(lastGame)
+        layout.addView(lastGame)
+        lastGameGroup = lastGame
+        ui.listRow(layout, "☰", Ui.BRASS, "Chess.com games") { open(Intent(this, ReviewActivity::class.java)) }.text =
+            "Review your finished games, by username"
+        ui.divider(layout)
 
         layout.addView(ui.text("What's new in $version", 13f, Ui.LINK).apply {
             gravity = Gravity.CENTER
-            setPadding(0, ui.pad * 3 / 2, 0, 0)
+            setPadding(0, ui.pad * 2, 0, 0)
             setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppUpdater.releasePage(version)))) }
         })
         setContentView(ScrollView(this).apply { addView(layout) })
-        ui.enter((0 until layout.childCount).map { layout.getChildAt(it) })
     }
 
     /** Opens another of Vektra's screens, sliding in from the right. */
@@ -83,20 +104,18 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         PositionStore.removeListener(listener)
-        breathing?.cancel()
-        breathing = null
         super.onPause()
     }
 
-    /** The last bot game's tile, once one was recorded; until then the Chess.com games are the main choice. */
+    /** The last bot game's row, once one was recorded. */
     private fun showLastGame() {
         val json = LastGame.load(this)
-        lastGameRow.visibility = if (json == null) View.GONE else View.VISIBLE
+        lastGameGroup.visibility = if (json == null) View.GONE else View.VISIBLE
         if (json == null) return
         val game = runCatching { JSONObject(json) }.getOrNull() ?: return
         val moves = (game.getJSONArray("sans").length() + 1) / 2
         val side = if (game.optBoolean("flipped")) "Black" else "White"
-        lastGameTile.text = "$moves moves as $side, ${DateUtils.getRelativeTimeSpanString(LastGame.playedAt(this))}"
+        lastGameSubtitle.text = "$moves moves as $side, ${DateUtils.getRelativeTimeSpanString(LastGame.playedAt(this))}"
     }
 
     /** One status: green when hints will show, amber with the fix when they won't. */
@@ -176,28 +195,22 @@ class MainActivity : Activity() {
         val key = "${status.ok} ${status.title} ${status.subtitle}"
         if (key == shownStatus) return
         shownStatus = key
-        breathing?.cancel()
-        statusCard.removeAllViews()
-        statusCard.background = if (status.ok) ui.rounded(Ui.CARD, 18, Ui.GOOD) else ui.rounded(Ui.CARD, 18, Ui.WARN_BORDER)
-
-        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val badge = if (status.ok) ui.badge("✓", Ui.GOOD, Ui.GOOD_TEXT) else ui.badge("!", Ui.WARN, Ui.WARN_TEXT)
-        top.addView(badge)
-        val words = ui.column().apply { setPadding(ui.dp(10), 0, 0, 0) }
-        words.addView(ui.text(status.title, 17f, bold = true))
-        words.addView(ui.text(status.subtitle, 13f, Ui.MUTED))
-        top.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-        statusCard.addView(top)
-        // Ready or playing: the badge breathes, Vektra is listening.
-        if (status.ok && status.title != "Hints are off") breathing = ui.breathe(badge)
+        // Ready or playing: the arrow draws itself. Hints off or a problem: the board dims.
+        board.ready = status.ok && status.title != "Hints are off"
+        board.play()
+        statusWords.removeAllViews()
+        statusWords.addView(ui.text(status.title, 25f, if (status.ok) Ui.TEXT else Ui.WARN_TEXT, display = true))
+        statusWords.addView(ui.text(status.subtitle, 14f, Ui.MUTED).apply { setPadding(0, ui.dp(4), 0, 0) })
+        statusMore.removeAllViews()
 
         if (status.ok) {
-            ui.switchRow(statusCard, "Hints in bot games", null, SettingsStore.load(this).enabled) { on ->
+            ui.switchRow(statusMore, "Hints in bot games", null, SettingsStore.load(this).enabled) { on ->
                 SettingsStore.save(this, SettingsStore.load(this).copy(enabled = on))
                 render()
             }
             return
         }
+        val statusCard = statusMore
         status.fix?.let { (label, action) -> ui.button(statusCard, label, Ui.WARN_FILL, Ui.WARN_ON, action) }
         val steps = ui.column().apply { visibility = View.GONE }
         steps.addView(ui.text(status.steps ?: "", 14f).apply { setPadding(0, ui.dp(10), 0, 0) })

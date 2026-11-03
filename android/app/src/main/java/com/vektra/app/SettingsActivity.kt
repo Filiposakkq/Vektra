@@ -99,7 +99,6 @@ class SettingsActivity : Activity() {
         addDiagnostics(app)
 
         setContentView(ScrollView(this).apply { addView(layout) })
-        ui.enter((0 until layout.childCount).map { layout.getChildAt(it) })
     }
 
     /**

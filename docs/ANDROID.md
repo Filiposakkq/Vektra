@@ -243,12 +243,19 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 
 ## Screens
 
-Re-done on 2026-11-03 (dark, the extension's palette). `Ui.kt` holds the
-shared pieces: cards, tiles, a segmented choice whose pill slides, switch rows,
-sliders, a badge whose halo breathes, entrance and press animations, and the
-drawn settings gear. `MainActivity` is the home: one status card (green when
-hints will show, amber with *Fix it* and the steps when they won't), the two
-reviews as tiles, and *What's new*. `SettingsActivity` groups what belongs
+Re-done on 2026-11-03. Palette (`Ui.kt`, `themes.xml`, `review.html`): night
+walnut `#1d1b19`, board shadow `#2b2825`, bone `#f2ede4`; the engine's blue
+`#2f6fe4` for arrows and what is active, brass `#e3b341` for Vektra's mark and
+your results. Condensed type (Android's built-in sans-serif-condensed) for
+titles and numbers. The mark is logo A, a white knight with a gold mane
+(`drawable/vektra_knight.xml`), also the launcher icon. `Ui.kt` holds the shared
+pieces: cards, list rows with hairlines, a segmented choice whose pill slides,
+switch rows, sliders, press feedback and the drawn settings gear. Motion: one
+moment on purpose, the home's arrow drawing itself; everything else answers a
+touch. `MainActivity` is the home, opened before a game and after one: its
+status is `StatusBoard`, a corner of a board where Vektra's arrow draws a
+knight's move when hints will show, dimmed with *Fix it* and the steps when
+they won't; then the reviews as rows, and *What's new*. `SettingsActivity` groups what belongs
 together (arrows, threats, weaker move, your moves, strength, game review,
 app); a setting that only matters while a switch is on sits under it, shown
 only then. Strength is either the full engine (with its search depth) or an

@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- The app's background (themes.xml), behind the launcher icon. -->
-    <color name="launcher_background">#262421</color>
-</resources>

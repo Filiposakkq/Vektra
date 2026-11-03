@@ -9,7 +9,8 @@
        * The app's look (Ui.kt): the extension's palette (extension/src/ui/theme.ts),
        * Roboto at the native sizes and two weights, cards rounded 18px, buttons 12px.
        */
-      :root { --bg: #262421; --card: #2f2c29; --line: #45403b; --ink: #1e1c1a; --text: #eeeae5; --muted: #aaa39b; --accent: #2f6fe4; --link: #9dbcff; --bar: 60px; --board: min(100vw, 55vh); }
+      :root { --bg: #1d1b19; --card: #2b2825; --line: #3d3934; --ink: #161514; --text: #f2ede4; --muted: #a39c93; --brass: #e3b341;
+        --display: "Roboto Condensed", sans-serif-condensed, Roboto, sans-serif; --accent: #2f6fe4; --link: #9dbcff; --bar: 60px; --board: min(100vw, 55vh); }
       body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 Roboto, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
       b, strong { font-weight: 500; }
       button { font: inherit; color: inherit; border: 0; cursor: pointer; }
@@ -20,7 +21,7 @@
       }
       #close { width: 44px; height: 44px; border-radius: 22px; background: none; font-size: 24px; }
       #title { min-width: 0; display: grid; line-height: 1.25; }
-      #title b { font-size: 19px; }
+      #title b { font: 700 21px/1.2 var(--display); }
       #title small { font-size: 13px; }
       #title b, #title small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #title small { color: var(--muted); }
@@ -112,6 +113,8 @@
       #vektra-analysis-panel [style*="border-radius: 9px"] { border-radius: 16px !important; }
       #vektra-analysis-panel button:not([style*="background: none"]) { border-radius: 12px !important; padding: 11px 16px !important; font-size: 15px !important; }
       #vektra-analysis-panel > div:last-child { zoom: 1.08; }
+      /* Its title and big numbers in the condensed display type; their weight stays bold. */
+      #vektra-analysis-panel > div:first-child span:first-child > span:first-child, #vektra-analysis-panel [style*="28px"] { font-family: var(--display) !important; font-weight: 700 !important; }
     </style>
   </head>
   <body>
