@@ -241,6 +241,21 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    phone signed with the release key (`VEKTRA_KEYSTORE`), since a debug build
    can't replace the release-signed app.
 
+## Screens
+
+Re-done on 2026-11-03 (dark, the extension's palette). `Ui.kt` holds the
+shared pieces: cards, tiles, a segmented choice whose pill slides, switch rows,
+sliders, a badge whose halo breathes, entrance and press animations, and the
+drawn settings gear. `MainActivity` is the home: one status card (green when
+hints will show, amber with *Fix it* and the steps when they won't), the two
+reviews as tiles, and *What's new*. `SettingsActivity` has the everyday
+settings as choices (arrows 1-3, strength presets from `ELO_PRESETS`, review
+depth Quick 12 / Normal 16 / Deep 20) and the rest under Advanced, with the
+last board read for diagnosing. Screens slide in and out (`res/anim`). The
+review page has a move strip with rating icons, swipes on the board, pieces
+that slide on a one-move step, and the analysis panel as a pull-up sheet. The
+launcher icon is an adaptive vector (`mipmap-anydpi-v26`).
+
 ## Risks and open questions
 
 - Chess.com can rename screens or change labels; Vektra then stays off until

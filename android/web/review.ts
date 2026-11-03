@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { analyzeGame, describeMoveAnalysis, type GameAnalysis } from '@core/analysis/gameAnalysis';
 import { UciEngine } from '@core/engine/uciEngine';
+import { categoryBadge } from '@core/draw/categoryIcons';
 import { arrowScoreLabel } from '@core/hints/hintArrows';
 import type { Arrow } from '@core/hints/types';
 import { DEFAULT_SETTINGS, sanitizeSettings } from '@core/settings';
@@ -56,7 +57,7 @@ const title = document.querySelector('#title b')!;
 const subtitle = document.querySelector('#title small')!;
 const viewer = document.getElementById('viewer')!;
 const board = document.getElementById('board')!;
-const moveText = document.getElementById('move')!;
+const strip = document.getElementById('strip')!;
 const lineButton = document.getElementById('line')!;
 const overlay = new BoardOverlay(board);
 
@@ -155,9 +156,12 @@ async function showMore(username: string, months = 1): Promise<void> {
     shown += urls.length;
     pending = (await Promise.all(urls.map(loadMonth))).flat();
   }
-  for (const g of pending.splice(0, PAGE)) {
+  for (const [i, g] of pending.splice(0, PAGE).entries()) {
     const li = document.createElement('li');
-    li.append(gameCard(g, username));
+    const card = gameCard(g, username);
+    // The cards rise in one after another (the first dozen; the rest at once).
+    card.style.setProperty('--i', String(Math.min(i, 12)));
+    li.append(card);
     list.append(li);
   }
   if (!list.children.length) status.textContent = 'No finished games found.';
@@ -220,6 +224,42 @@ document.getElementById('close')!.addEventListener('click', () => {
   else app?.close();
 });
 
+// A swipe across the board: the next move (to the left) or the one before.
+let swipeFrom: { x: number; y: number } | null = null;
+board.addEventListener('pointerdown', (e) => (swipeFrom = { x: e.clientX, y: e.clientY }));
+board.addEventListener('pointerup', (e) => {
+  if (!swipeFrom) return;
+  const dx = e.clientX - swipeFrom.x;
+  const dy = e.clientY - swipeFrom.y;
+  swipeFrom = null;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
+});
+
+/**
+ * The analysis panel as a sheet: its header (the extension's title bar,
+ * which folds and drags the panel there) slides it up over the board or
+ * back down, on a tap or a swipe.
+ */
+function makeSheet(root: HTMLElement): void {
+  const header = root.firstElementChild as HTMLElement;
+  let from = 0;
+  const own = (e: Event) => header.contains(e.target as Node);
+  root.addEventListener('pointerdown', (e) => {
+    if (!own(e)) return;
+    from = e.clientY;
+    e.stopPropagation();
+  }, true);
+  root.addEventListener('pointerup', (e) => {
+    if (!own(e)) return;
+    e.stopPropagation();
+    const dy = e.clientY - from;
+    const open = document.body.classList.contains('sheet-open');
+    document.body.classList.toggle('sheet-open', dy < -25 ? true : dy > 25 ? false : !open);
+  }, true);
+  // The panel's own click folds it: the sheet slides instead.
+  root.addEventListener('click', (e) => own(e) && e.stopPropagation(), true);
+}
+
 function stopEngines(): void {
   abort?.abort();
   abort = null;
@@ -237,6 +277,7 @@ function drawBoard(fen: string, flipped: boolean, moved: string[]): void {
       const rank = flipped ? r + 1 : 8 - r;
       const square = document.createElement('div');
       square.className = (file + rank) % 2 === 0 ? 'light' : 'dark';
+      square.dataset.square = FILES[file] + rank;
       if (moved.includes(FILES[file] + rank)) square.classList.add('moved');
       if (c === 0) square.dataset.rank = String(rank);
       if (r === 7) square.dataset.file = FILES[file];
@@ -250,13 +291,44 @@ function drawBoard(fen: string, flipped: boolean, moved: string[]): void {
   board.append(...squares);
 }
 
+/** The piece now on `to` glides there from `from`, as if just moved. */
+function slide(from: string, to: string, flipped: boolean): void {
+  const piece = board.querySelector(`[data-square="${to}"] svg.piece`);
+  if (!piece || typeof piece.animate !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // Board columns and rows from the user's side.
+  const at = (sq: string) => {
+    const file = FILES.indexOf(sq[0]);
+    const rank = Number(sq[1]);
+    return flipped ? [7 - file, rank - 1] : [file, 8 - rank];
+  };
+  const [fx, fy] = at(from);
+  const [tx, ty] = at(to);
+  const cell = board.clientWidth / 8;
+  piece.animate(
+    [{ transform: `translate(${(fx - tx) * cell}px, ${(fy - ty) * cell}px)` }, { transform: 'none' }],
+    { duration: 190, easing: 'cubic-bezier(.2, .8, .2, 1)' },
+  );
+}
+
 /** Opens a game (its moves played on `chess`) on the board, from the user's side, and analyses it. */
 function review(chess: Chess, flipped: boolean): void {
   const moves = chess.history({ verbose: true });
   const sans = moves.map((m) => m.san);
   const fens = [moves[0]?.before ?? chess.fen(), ...moves.map((m) => m.after)];
   let ply = 0;
+  /** The ply shown before, so a step of one move can be animated. */
+  let shownPly = 0;
   let analysis: GameAnalysis | null = null;
+
+  // The moves as a strip of chips under the board: tap one to go there.
+  const chips = sans.map((san, i) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.textContent = i % 2 === 0 ? `${i / 2 + 1}. ${san}` : san;
+    chip.addEventListener('click', () => select(i + 1));
+    return chip;
+  });
+  strip.replaceChildren(...chips);
 
   /**
    * The board at `ply`, the move that led there marked. Once analysed: its
@@ -266,8 +338,14 @@ function review(chess: Chess, flipped: boolean): void {
   const show = () => {
     const last = moves[ply - 1];
     drawBoard(fens[ply], flipped, last ? [last.from, last.to] : []);
-    const move = last ? `${Math.ceil(ply / 2)}${ply % 2 ? '.' : '...'} ${last.san}` : 'Start';
-    moveText.textContent = `${move}  (${ply}/${sans.length})`;
+    // One move forward or back: the piece glides there.
+    if (ply === shownPly + 1) slide(last.from, last.to, flipped);
+    if (ply === shownPly - 1) slide(moves[ply].to, moves[ply].from, flipped);
+    shownPly = ply;
+    chips.forEach((chip, i) => chip.classList.toggle('current', i === ply - 1));
+    // The current move in the middle of the strip.
+    const chip = chips[ply - 1];
+    strip.scrollTo({ left: chip ? chip.offsetLeft - (strip.clientWidth - chip.offsetWidth) / 2 : 0, behavior: 'smooth' });
     const position = analysis?.positions[ply];
     if (!analysis || !position) return overlay.clear();
     const played = analysis.moves[ply - 1];
@@ -303,8 +381,10 @@ function review(chess: Chess, flipped: boolean): void {
     onSelectPly: select,
   });
   p.legendItems = APP_LEGEND;
+  makeSheet(document.getElementById('vektra-analysis-panel')!);
   panel = p;
   viewer.hidden = false;
+  document.body.classList.add('viewing');
   show();
 
   const run = async () => {
@@ -326,6 +406,7 @@ function review(chess: Chess, flipped: boolean): void {
     });
     p.showProgress(0, sans.length + 1);
     analysis = null;
+    chips.forEach((chip) => chip.querySelector('span')?.remove());
     show();
     const result = await analyzeGame(sans, engines, {
       depth: settings.analysisDepth,
@@ -336,6 +417,8 @@ function review(chess: Chess, flipped: boolean): void {
     stopEngines();
     analysis = result;
     show();
+    // Each chip gets its move's rating.
+    result?.moves.forEach((m, i) => chips[i]?.prepend(categoryBadge(m.category, 15)));
     if (result) p.showResult(result, ply || null);
     else p.showIdle(sans.length, false, 'The analysis failed. Try again.');
   };
@@ -364,6 +447,8 @@ window.addEventListener('popstate', () => {
   panel?.destroy();
   panel = null;
   viewer.hidden = true;
+  document.body.classList.remove('viewing', 'sheet-open');
+  strip.replaceChildren();
   overlay.clear();
   title.textContent = 'Review games';
   subtitle.textContent = 'Finished games from Chess.com';

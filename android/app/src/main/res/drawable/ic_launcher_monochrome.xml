@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The themed icon (Android 13+): the hint arrow alone; Android colours it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="8" android:strokeLineCap="round" android:pathData="M36,72L62,46" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M75,33L70.8,53.2L54.8,37.2Z" />
+</vector>

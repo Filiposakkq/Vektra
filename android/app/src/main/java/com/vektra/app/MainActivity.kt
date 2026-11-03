@@ -1,86 +1,218 @@
 package com.vektra.app
 
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.util.Log
+import android.view.Gravity
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.SeekBar
-import android.widget.Switch
 import android.widget.TextView
+import org.json.JSONObject
 
-/** Vektra's settings, whether its accessibility service is on, and what it last read. */
+/**
+ * Vektra's home: one status card that says whether hints will show (and, when
+ * something is wrong, the one thing to do about it), the reviews, and a way
+ * to the settings.
+ */
 class MainActivity : Activity() {
-    private lateinit var settings: HintSettings
-    private lateinit var serviceText: TextView
-    private lateinit var statusText: TextView
-    private lateinit var boardText: TextView
+    private val ui by lazy { Ui(this) }
+    private lateinit var statusCard: LinearLayout
+    private lateinit var lastGameTile: TextView
+    private lateinit var lastGameRow: View
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
-    /** Help shown under the status when a problem is detected (showNotes). */
-    private val notes by lazy { LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } }
-    private lateinit var lastGameButton: Button
-
-    private val pad by lazy { (16 * resources.displayMetrics.density).toInt() }
+    private var breathing: ValueAnimator? = null
+    /** What the status card shows now; it is only rebuilt when this changes. */
+    private var shownStatus = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad * 3 / 2, pad, pad * 2)
-        }
-        layout.addView(TextView(this).apply {
-            text = getString(R.string.app_name)
-            textSize = 28f
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-        layout.addView(TextView(this).apply {
-            text = "Version $version. " +
-                "In Chess.com bot games Vektra shows the engine's best moves over the board on your turn."
-            setTextColor(MUTED)
-        })
-        layout.addView(link("What's new in $version", AppUpdater.releasePage(version)))
+        val layout = ui.column().apply { setPadding(ui.pad, ui.pad, ui.pad, ui.pad * 2) }
+
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        header.addView(ui.text(getString(R.string.app_name), 28f, bold = true), LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(ui.gear { open(Intent(this, SettingsActivity::class.java)) })
+        layout.addView(header)
+
         // Filled in if a newer release is out.
-        val updates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val updates = ui.column()
         layout.addView(updates)
+        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         if (SettingsStore.load(this).updateCheck) checkForUpdate(updates, version)
-        layout.addView(button("Review finished games", primary = true) {
-            startActivity(Intent(this, ReviewActivity::class.java))
+
+        statusCard = ui.card(layout)
+        lastGameTile = ui.tile(layout, "▶︎", "Review your last bot game", primary = true) {
+            open(Intent(this, ReviewActivity::class.java).putExtra(ReviewActivity.EXTRA_LAST_GAME, true))
+        }
+        lastGameRow = layout.getChildAt(layout.childCount - 1)
+        ui.tile(layout, "☰", "Review Chess.com games", primary = false) {
+            open(Intent(this, ReviewActivity::class.java))
+        }.text = "Finished games, by username"
+
+        layout.addView(ui.text("What's new in $version", 13f, Ui.LINK).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, ui.pad * 3 / 2, 0, 0)
+            setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppUpdater.releasePage(version)))) }
         })
-        lastGameButton = button("Review your last bot game", primary = false) {
-            startActivity(Intent(this, ReviewActivity::class.java).putExtra(ReviewActivity.EXTRA_LAST_GAME, true))
-        }
-        layout.addView(lastGameButton)
-
-        val status = card(layout, "Status")
-        serviceText = TextView(this)
-        status.addView(serviceText)
-        status.addView(notes)
-        statusText = TextView(this).apply { setPadding(0, pad / 2, 0, 0) }
-        status.addView(statusText)
-        boardText = TextView(this).apply {
-            typeface = Typeface.MONOSPACE
-            textSize = 13f
-            setTextColor(MUTED)
-        }
-        status.addView(boardText)
-
-        settings = SettingsStore.load(this)
-        addSettings(layout)
         setContentView(ScrollView(this).apply { addView(layout) })
+        ui.enter((0 until layout.childCount).map { layout.getChildAt(it) })
+    }
+
+    /** Opens another of Vektra's screens, sliding in from the right. */
+    private fun open(intent: Intent) {
+        startActivity(intent)
+        @Suppress("DEPRECATION")
+        overridePendingTransition(R.anim.screen_in, R.anim.screen_out)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        PositionStore.addListener(listener)
+        showLastGame()
+        shownStatus = ""
+        render()
+    }
+
+    override fun onPause() {
+        PositionStore.removeListener(listener)
+        breathing?.cancel()
+        breathing = null
+        super.onPause()
+    }
+
+    /** The last bot game's tile, once one was recorded; until then the Chess.com games are the main choice. */
+    private fun showLastGame() {
+        val json = LastGame.load(this)
+        lastGameRow.visibility = if (json == null) View.GONE else View.VISIBLE
+        if (json == null) return
+        val game = runCatching { JSONObject(json) }.getOrNull() ?: return
+        val moves = (game.getJSONArray("sans").length() + 1) / 2
+        val side = if (game.optBoolean("flipped")) "Black" else "White"
+        lastGameTile.text = "$moves moves as $side, ${DateUtils.getRelativeTimeSpanString(LastGame.playedAt(this))}"
+    }
+
+    /** One status: green when hints will show, amber with the fix when they won't. */
+    private class Status(
+        val ok: Boolean,
+        val title: String,
+        val subtitle: String,
+        val fix: Pair<String, () -> Unit>? = null,
+        val steps: String? = null,
+        val extra: List<Pair<String, () -> Unit>> = emptyList(),
+    )
+
+    private fun status(): Status {
+        val enabled = serviceEnabled()
+        val accessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        val appInfo = "Open Vektra's app info" to ::openAppInfo
+        val autostart = listOfNotNull(if (Ui.XIAOMI) "Open Autostart" to ::openAutostart else null)
+        if (!enabled) {
+            return Status(
+                ok = false,
+                title = "Vektra is off",
+                subtitle = "Turn it on in the accessibility settings",
+                fix = "Turn on" to accessibility,
+                steps = "Find Vektra in the accessibility settings" +
+                    (if (Ui.XIAOMI) " (Additional settings → Accessibility → Downloaded apps)" else "") +
+                    " and turn it on. If it is greyed out or says restricted, open Vektra's app info, tap ⋮ and " +
+                    "choose Allow restricted settings (Android 13 and later ask this of apps not from Google Play), then try again.",
+                extra = listOf(appInfo),
+            )
+        }
+        if (!PositionStore.serviceRunning) {
+            // Switched on, but its process was killed: Android won't restart an accessibility service by itself.
+            return Status(
+                ok = false,
+                title = "Your phone stopped Vektra",
+                subtitle = "Turn it off and on to start it again",
+                fix = "Fix it" to accessibility,
+                steps = "Android won't start it again by itself (it may say \"this service doesn't work\"). Turn Vektra " +
+                    "off and on in the accessibility settings.\n\n" +
+                    if (Ui.XIAOMI) {
+                        "On Xiaomi, Redmi and POCO phones clearing recent apps does this. To prevent it: allow Autostart, " +
+                            "set Battery saver to No restrictions in Vektra's app info, and lock Vektra in recent apps " +
+                            "(long-press its card, then the lock)."
+                    } else {
+                        "On some phones (Samsung, Huawei, Honor, OnePlus, Oppo, Vivo and others) battery saving or clearing " +
+                            "recent apps does this. To prevent it, allow Vektra to run in the background and turn off " +
+                            "battery optimisation for it in its app info."
+                    },
+                extra = autostart + appInfo,
+            )
+        }
+        if (!getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) {
+            return Status(
+                ok = false,
+                title = "Battery saving can stop Vektra",
+                subtitle = "Hints then stop until you restart it",
+                fix = "Fix it" to ::openAppInfo,
+                steps = "Some phones (Xiaomi, Samsung, Huawei and others) stop apps in the background to save battery. " +
+                    if (Ui.XIAOMI) "In Vektra's app info, set Battery saver to No restrictions, and allow Autostart."
+                    else "In Vektra's app info, turn battery optimisation off.",
+                extra = autostart,
+            )
+        }
+        val settings = SettingsStore.load(this)
+        val state = PositionStore.state
+        return when {
+            !settings.enabled -> Status(true, "Hints are off", "Turn them on below")
+            state is PositionStore.State.On -> Status(true, "In a bot game", "Hints show on your turn")
+            state is PositionStore.State.Off && state.reason.startsWith("Coach game") ->
+                Status(true, "Coach game", "Chess.com shows its own hints here")
+            else -> Status(true, "Ready", "Open a bot game in Chess.com")
+        }
+    }
+
+    private fun render() {
+        val status = status()
+        val key = "${status.ok} ${status.title} ${status.subtitle}"
+        if (key == shownStatus) return
+        shownStatus = key
+        breathing?.cancel()
+        statusCard.removeAllViews()
+        statusCard.background = if (status.ok) ui.rounded(Ui.CARD, 18, Ui.GOOD) else ui.rounded(Ui.CARD, 18, Ui.WARN_BORDER)
+
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val badge = if (status.ok) ui.badge("✓", Ui.GOOD, Ui.GOOD_TEXT) else ui.badge("!", Ui.WARN, Ui.WARN_TEXT)
+        top.addView(badge)
+        val words = ui.column().apply { setPadding(ui.dp(10), 0, 0, 0) }
+        words.addView(ui.text(status.title, 17f, bold = true))
+        words.addView(ui.text(status.subtitle, 13f, Ui.MUTED))
+        top.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
+        statusCard.addView(top)
+        // Ready or playing: the badge breathes, Vektra is listening.
+        if (status.ok && status.title != "Hints are off") breathing = ui.breathe(badge)
+
+        if (status.ok) {
+            ui.switchRow(statusCard, "Hints in bot games", null, SettingsStore.load(this).enabled) { on ->
+                SettingsStore.save(this, SettingsStore.load(this).copy(enabled = on))
+                render()
+            }
+            return
+        }
+        status.fix?.let { (label, action) -> ui.button(statusCard, label, Ui.WARN_FILL, Ui.WARN_ON, action) }
+        val steps = ui.column().apply { visibility = View.GONE }
+        steps.addView(ui.text(status.steps ?: "", 14f).apply { setPadding(0, ui.dp(10), 0, 0) })
+        status.extra.forEach { (label, action) -> ui.button(steps, label, Ui.LINE, onClick = action) }
+        val toggle = ui.text("Show the steps", 13f, Ui.LINK).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, ui.dp(12), 0, 0)
+        }
+        toggle.setOnClickListener {
+            val open = steps.visibility != View.VISIBLE
+            steps.visibility = if (open) View.VISIBLE else View.GONE
+            toggle.text = if (open) "Hide the steps" else "Show the steps"
+        }
+        statusCard.addView(toggle)
+        statusCard.addView(steps)
     }
 
     /** Asks GitHub for the latest release; if it is newer, shows a card that installs it on a tap. */
@@ -93,11 +225,16 @@ class MainActivity : Activity() {
                 null
             } ?: return@Thread
             runOnUiThread {
-                val card = card(parent, "Update")
-                card.addView(TextView(this).apply { text = "Vektra ${release.version} is out (you have $running)." })
-                card.addView(link("What's new in ${release.version}", AppUpdater.releasePage(release.version)))
-                lateinit var update: Button
-                update = button("Update to ${release.version}", primary = true) {
+                val card = ui.card(parent, border = Ui.ACCENT)
+                card.addView(ui.text("Vektra ${release.version} is out", 17f, bold = true))
+                card.addView(ui.text("What's new", 13f, Ui.LINK).apply {
+                    setPadding(0, ui.dp(4), 0, 0)
+                    setOnClickListener {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppUpdater.releasePage(release.version))))
+                    }
+                })
+                lateinit var update: TextView
+                update = ui.button(card, "Update to ${release.version}") {
                     // Android asks once whether Vektra may install apps.
                     if (!packageManager.canRequestPackageInstalls()) {
                         update.text = "Allow Vektra to install apps, then tap here again"
@@ -119,247 +256,12 @@ class MainActivity : Activity() {
                         }
                     }.start()
                 }
-                card.addView(update)
+                ui.enter(listOf(card))
             }
         }.start()
     }
 
-    /** A rounded section with a small heading; its rows are added to the returned layout. */
-    private fun card(parent: LinearLayout, title: String): LinearLayout {
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad * 3 / 4, pad, pad * 3 / 4)
-            background = rounded(CARD, 14f)
-        }
-        card.addView(TextView(this).apply {
-            text = title
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(MUTED)
-            setPadding(0, 0, 0, pad / 4)
-        })
-        parent.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = pad * 3 / 4
-        })
-        return card
-    }
-
-    private fun button(label: String, primary: Boolean, onClick: () -> Unit) = Button(this).apply {
-        text = label
-        isAllCaps = false
-        setTextColor(Color.WHITE)
-        background = rounded(if (primary) ACCENT else LINE, 10f)
-        stateListAnimator = null
-        setOnClickListener { onClick() }
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = pad * 3 / 4
-        }
-    }
-
-    /** Underlined text that opens a web page in the browser. */
-    private fun link(label: String, url: String) = TextView(this).apply {
-        text = label
-        setTextColor(LINK)
-        paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
-        setPadding(0, pad / 3, 0, pad / 3)
-        setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-    }
-
-    private fun rounded(color: Int, radiusDp: Float) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = radiusDp * resources.displayMetrics.density
-    }
-
-    /** The settings, saved as soon as one changes; the overlay picks them up at once. */
-    private fun addSettings(layout: LinearLayout) {
-        fun save(next: HintSettings) {
-            settings = next
-            SettingsStore.save(this, next)
-        }
-        fun toggle(parent: LinearLayout, label: String, value: Boolean, change: (Boolean) -> HintSettings): Switch =
-            Switch(this).apply {
-                text = label
-                isChecked = value
-                setPadding(0, pad / 3, 0, pad / 3)
-                setOnCheckedChangeListener { _, checked -> save(change(checked)) }
-                parent.addView(this)
-            }
-        fun slider(
-            parent: LinearLayout, label: (Int) -> String, min: Int, max: Int, step: Int, value: Int, change: (Int) -> HintSettings,
-        ): SeekBar {
-            val caption = TextView(this).apply {
-                text = label(value)
-                setPadding(0, pad / 3, 0, 0)
-            }
-            parent.addView(caption)
-            return SeekBar(this).apply {
-                this.max = (max - min) / step
-                progress = (value - min) / step
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
-                        caption.text = label(min + progress * step)
-                    }
-                    override fun onStartTrackingTouch(bar: SeekBar) {}
-                    override fun onStopTrackingTouch(bar: SeekBar) = save(change(min + bar.progress * step))
-                })
-                parent.addView(this)
-            }
-        }
-
-        val hints = card(layout, "Hints")
-        toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
-        slider(hints, { "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
-        toggle(hints, "Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
-        toggle(hints, "Avoid draws (skip a move that draws at once when another keeps you level)", settings.avoidDraws) {
-            settings.copy(avoidDraws = it)
-        }
-        slider(hints, { "Hide alternatives that cost more than $it% win chance" }, 2, 40, 1, settings.hideWorseWinLoss) {
-            settings.copy(hideWorseWinLoss = it)
-        }
-        toggle(hints, "Rate my moves", settings.liveRatings) { settings.copy(liveRatings = it) }
-
-        val threats = card(layout, "Threats")
-        lateinit var threatLoss: SeekBar
-        toggle(threats, "Show the bot's threats", settings.showThreats) {
-            threatLoss.isEnabled = it
-            settings.copy(showThreats = it)
-        }
-        threatLoss = slider(threats, { "Only when they would cost at least $it% win chance" }, 4, 40, 1, settings.threatWinLoss) {
-            settings.copy(threatWinLoss = it)
-        }
-        threatLoss.isEnabled = settings.showThreats
-
-        val weaker = card(layout, "Weaker moves")
-        lateinit var weakerLoss: SeekBar
-        toggle(weaker, "Show a weaker move (violet arrow)", settings.occasionalWeakerMoves) {
-            weakerLoss.isEnabled = it
-            settings.copy(occasionalWeakerMoves = it)
-        }
-        weakerLoss = slider(weaker, { "How much weaker: up to %.1f pawns".format(it / 100.0) }, 10, 300, 10, settings.weakerMoveMaxLossCp) {
-            settings.copy(weakerMoveMaxLossCp = it)
-        }
-        weakerLoss.isEnabled = settings.occasionalWeakerMoves
-
-        val strength = card(layout, "Engine")
-        slider(strength, { "Search depth: $it (deeper is stronger but slower)" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
-            settings.copy(depth = it)
-        }
-        toggle(strength, "Light mode: one engine (smoother, hints a bit slower)", settings.lightMode) { settings.copy(lightMode = it) }
-        lateinit var elo: SeekBar
-        toggle(strength, "Play at an approximate Elo", settings.limitStrength) {
-            elo.isEnabled = it
-            settings.copy(limitStrength = it)
-        }
-        elo = slider(strength, { "Approximate Elo: $it" }, HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo) {
-            settings.copy(elo = it)
-        }
-        elo.isEnabled = settings.limitStrength
-
-        val review = card(layout, "Game review")
-        slider(
-            review, { "Analysis depth: $it (12 is quick; deeper rates more exactly but takes longer)" },
-            HintSettings.ANALYSIS_DEPTH_MIN, HintSettings.ANALYSIS_DEPTH_MAX, 1, settings.analysisDepth,
-        ) { settings.copy(analysisDepth = it) }
-
-        val about = card(layout, "Updates")
-        toggle(about, "Check for updates when Vektra opens", settings.updateCheck) { settings.copy(updateCheck = it) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        PositionStore.addListener(listener)
-        // A bot game may have been recorded since the screen opened.
-        val playedAt = LastGame.playedAt(this)
-        lastGameButton.visibility = if (LastGame.load(this) != null) View.VISIBLE else View.GONE
-        lastGameButton.text = "Review your last bot game (${DateUtils.getRelativeTimeSpanString(playedAt)})"
-        render()
-    }
-
-    override fun onPause() {
-        PositionStore.removeListener(listener)
-        super.onPause()
-    }
-
-    private fun render() {
-        val enabled = serviceEnabled()
-        val stopped = enabled && !PositionStore.serviceRunning
-        val batterySaving = enabled && !getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
-        serviceText.text = when {
-            stopped -> "Accessibility service: stopped."
-            enabled -> "Accessibility service: on."
-            else -> "Accessibility service: off."
-        }
-        showNotes(stopped, batterySaving, enabled)
-        val state = PositionStore.state
-        statusText.text = when (state) {
-            is PositionStore.State.On -> "In a bot game."
-            is PositionStore.State.Off -> state.reason
-        }
-        val reading = (state as? PositionStore.State.On)?.reading ?: PositionStore.lastReading
-        boardText.text = reading?.let { describe(it, current = state is PositionStore.State.On) } ?: ""
-    }
-
-    /** What the notes show now; they are only rebuilt when it changes. */
-    private var shownNotes = ""
-
-    /**
-     * Help for a problem, shown only while it is detected: the service off,
-     * stopped by the phone, or exposed to battery saving (which is what lets
-     * Xiaomi and other phones stop it).
-     */
-    private fun showNotes(stopped: Boolean, batterySaving: Boolean, enabled: Boolean) {
-        val key = "$stopped $batterySaving $enabled"
-        if (key == shownNotes) return
-        shownNotes = key
-        notes.removeAllViews()
-        fun note(text: String) = notes.addView(TextView(this).apply {
-            this.text = text
-            setPadding(0, pad / 2, 0, 0)
-        })
-        val accessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-        if (!enabled) {
-            note(
-                "Turn on Vektra in the accessibility settings" +
-                    (if (XIAOMI) " (Additional settings → Accessibility → Downloaded apps)" else "") +
-                    ". If it is greyed out or says restricted, open Vektra's app info, tap ⋮ and choose " +
-                    "Allow restricted settings (Android 13 and later asks this of apps not from Google Play), then try again.",
-            )
-            notes.addView(button("Open accessibility settings", primary = true, onClick = accessibility))
-            notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
-            return
-        }
-        if (stopped) {
-            // Switched on, but its process was killed: Android won't restart an accessibility service by itself.
-            note(
-                "Your phone stopped Vektra, and Android won't start it again by itself (it may say \"this service " +
-                    "doesn't work\"). Turn Vektra off and on in the accessibility settings.\n\n" +
-                    if (XIAOMI) {
-                        "On Xiaomi, Redmi and POCO phones clearing recent apps does this. To prevent it: allow " +
-                            "Autostart, set Battery saver to No restrictions in Vektra's app info, and lock Vektra " +
-                            "in recent apps (long-press its card, then the lock)."
-                    } else {
-                        "On some phones (Samsung, Huawei, Honor, OnePlus, Oppo, Vivo and others) battery saving " +
-                            "or clearing recent apps does this. To prevent it, allow Vektra to run in the background " +
-                            "and turn off battery optimisation for it in its app info."
-                    },
-            )
-            notes.addView(button("Open accessibility settings", primary = true, onClick = accessibility))
-            if (XIAOMI) notes.addView(button("Open Autostart", primary = false, onClick = ::openAutostart))
-            notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
-        } else if (batterySaving) {
-            note(
-                "Battery saving is on for Vektra. Some phones (Xiaomi, Samsung, Huawei and others) then stop it in " +
-                    "the background, and hints stop until you turn it off and on again. " +
-                    if (XIAOMI) "In Vektra's app info, set Battery saver to No restrictions, and allow Autostart."
-                    else "In Vektra's app info, turn battery optimisation off.",
-            )
-            notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
-            if (XIAOMI) notes.addView(button("Open Autostart", primary = false, onClick = ::openAutostart))
-        }
-    }
-
-    private fun openAppInfo() =
-        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+    private fun openAppInfo() = openAppDetails(this)
 
     /** Xiaomi's Autostart list (in its Security app); app info if this phone doesn't have it. */
     private fun openAutostart() {
@@ -370,41 +272,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun describe(reading: GameReading, current: Boolean): String {
-        val side = when (reading.moves.sideToMove) {
-            'w' -> "White to move"
-            'b' -> "Black to move"
-            else -> "side to move unknown"
-        }
-        val rows = reading.board.placement.split('/').map { row ->
-            row.flatMap { c -> if (c.isDigit()) List(c.digitToInt()) { '.' } else listOf(c) }
-        }
-        // As on screen: from Black's side when the board is flipped.
-        val shown = if (reading.board.flipped) rows.reversed().map { it.reversed() } else rows
-        return buildString {
-            appendLine(if (current) "Board now:" else "Last board read:")
-            shown.forEach { appendLine(it.joinToString(" ")) }
-            appendLine()
-            appendLine("$side, ${if (reading.board.flipped) "you play Black" else "you play White"}")
-            appendLine("Moves on screen: ${reading.moves.tokens.joinToString(" ").ifEmpty { "none" }}")
-            append("FEN start: ${reading.fenStart}")
-        }
-    }
-
-    private companion object {
-        // The extension's palette (extension/src/ui/theme.ts), as in themes.xml.
-        val CARD = Color.parseColor("#2f2c29")
-        val LINE = Color.parseColor("#45403b")
-        val MUTED = Color.parseColor("#aaa39b")
-        val ACCENT = Color.parseColor("#2f6fe4")
-        val LINK = Color.parseColor("#9dbcff")
-        /** Xiaomi's own system (MIUI, HyperOS) has its own Autostart and battery rules. */
-        val XIAOMI = Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")
-    }
-
     private fun serviceEnabled(): Boolean {
         val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
         val mine = ComponentName(this, VektraAccessibilityService::class.java)
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == mine }
     }
 }
+
+/** Vektra's app info, where Android and phone makers keep its battery and background settings. */
+fun openAppDetails(context: Context) =
+    context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))

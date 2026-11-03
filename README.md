@@ -110,9 +110,13 @@ board and doesn't work.
 
 **Changes**
 
-- **Next release:** review your last bot game; *What's new* links to the
-  release; the game list shows 50 games at a time; the review's legend
-  describes the app's board.
+- **Next release:** a new look: a home screen with one status card (and a
+  *Fix it* button when something is wrong), settings on their own screen with
+  simple choices and an Advanced section, and a review with a move strip,
+  swipes, a pull-up analysis sheet and pieces that slide; an app icon; review
+  your last bot game; *What's new* links to the release; no board checks while
+  you think, so your moves (king captures too) come through at once; the game
+  list shows 50 games at a time.
 - **0.3.1:** stays off in coach games; castling is read from Chess.com's
   announcement instead of waiting for the board; help notes only when a
   problem is detected; the quick settings tile is gone; install guide in this

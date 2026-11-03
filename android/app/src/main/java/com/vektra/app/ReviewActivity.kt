@@ -93,6 +93,12 @@ class ReviewActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun finish() {
+        super.finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(R.anim.screen_back_in, R.anim.screen_back_out)
+    }
+
     companion object {
         private const val TAG = "Vektra"
         const val EXTRA_LAST_GAME = "lastGame"
