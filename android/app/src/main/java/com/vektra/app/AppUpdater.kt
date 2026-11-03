@@ -53,22 +53,36 @@ object AppUpdater {
         return Release(version, urls["vektra-$version.apk"] ?: return null, urls["vektra-$version.apk.sha256"] ?: return null)
     }
 
-    /** Downloads the APK and checks it against the release's SHA-256; network, so not on the main thread. */
+    /**
+     * Downloads the APK and checks it against the release's SHA-256; network,
+     * so not on the main thread. A copy already downloaded and checked is
+     * used again (a second try after the install was interrupted).
+     */
     fun download(context: Context, release: Release): File {
-        val apk = File(File(context.cacheDir, "updates").apply { mkdirs() }, "vektra.apk")
-        URL(release.apkUrl).openStream().use { input -> apk.outputStream().use { input.copyTo(it) } }
+        val apk = File(File(context.cacheDir, "updates").apply { mkdirs() }, "vektra-${release.version}.apk")
         val expected = URL(release.sha256Url).readText().trim().split(Regex("\\s+")).first().lowercase()
-        val actual = MessageDigest.getInstance("SHA-256").digest(apk.readBytes()).joinToString("") { "%02x".format(it) }
-        if (actual != expected) {
+        val sha = { MessageDigest.getInstance("SHA-256").digest(apk.readBytes()).joinToString("") { "%02x".format(it) } }
+        apk.parentFile?.listFiles()?.filter { it != apk }?.forEach { it.delete() }
+        if (apk.exists() && sha() == expected) return apk
+        URL(release.apkUrl).openStream().use { input -> apk.outputStream().use { input.copyTo(it) } }
+        if (sha() != expected) {
             apk.delete()
             throw IOException("the download doesn't match its checksum")
         }
         return apk
     }
 
+    /** What happened to the install, for the update card: waiting for the user, failed (with why), or cancelled. */
+    enum class Outcome { WAITING, FAILED, CANCELLED }
+
+    /** Told what happened to an install (on the main thread). */
+    var onOutcome: ((Outcome, String?) -> Unit)? = null
+
     /** Hands the APK to Android's installer, which asks the user to confirm (see [InstallResult]). */
     fun install(context: Context, apk: File) {
         val installer = context.packageManager.packageInstaller
+        // An earlier try that was interrupted (its window never came back) is dropped first.
+        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
         val id = installer.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
         installer.openSession(id).use { session ->
             session.openWrite("vektra.apk", 0, apk.length()).use { out ->
@@ -82,7 +96,7 @@ object AppUpdater {
         }
     }
 
-    /** The installer's answer: show its confirmation screen, or say why it failed. */
+    /** The installer's answer: show its confirmation screen, or say why it failed, also to the update card. */
     class InstallResult : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
@@ -90,14 +104,15 @@ object AppUpdater {
                     @Suppress("DEPRECATION")
                     val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
                     context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    onOutcome?.invoke(Outcome.WAITING, null)
                 }
                 PackageInstaller.STATUS_SUCCESS -> {}
+                PackageInstaller.STATUS_FAILURE_ABORTED -> onOutcome?.invoke(Outcome.CANCELLED, null)
                 else -> {
                     val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                     Log.w("Vektra", "update not installed: $status $message")
-                    if (status != PackageInstaller.STATUS_FAILURE_ABORTED) {
-                        Toast.makeText(context, "Vektra couldn't update: ${message ?: "error $status"}", Toast.LENGTH_LONG).show()
-                    }
+                    if (onOutcome == null) Toast.makeText(context, "Vektra couldn't update: ${message ?: "error $status"}", Toast.LENGTH_LONG).show()
+                    onOutcome?.invoke(Outcome.FAILED, message ?: "error $status")
                 }
             }
         }

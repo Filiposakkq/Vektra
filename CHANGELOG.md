@@ -29,6 +29,8 @@ Every Vektra release, newest first: the Chrome extension and the Android app shi
 
 ### 🐛 Fixed
 
+- **Updating no longer gets stuck on "Installing…"** when an app lock or Play Protect interrupts Android's install window: the button says what to do next, can always be tapped again, and doesn't download the update a second time.
+
 ---
 
 ## 0.4.0 · 2026-11-03

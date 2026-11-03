@@ -178,6 +178,17 @@ class HomeScreen(private val app: MainActivity) : MainActivity.Screen {
                     setOnClickListener { app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppUpdater.releasePage(release.version)))) }
                 })
                 lateinit var update: TextView
+                // What to do now, under the button: shown once Android's window should be up.
+                val help = ui.text("", 13f, Ui.MUTED).apply {
+                    setPadding(ui.dp(4), ui.dp(10), ui.dp(4), 0)
+                    visibility = View.GONE
+                }
+                val retry = { label: String, hint: String? ->
+                    update.isEnabled = true
+                    update.text = label
+                    help.text = hint ?: ""
+                    help.visibility = if (hint == null) View.GONE else View.VISIBLE
+                }
                 update = ui.button(card, "Update to ${release.version}", Ui.Button.ENGINE) {
                     // Android asks once whether Vektra may install apps.
                     if (!app.packageManager.canRequestPackageInstalls()) {
@@ -187,18 +198,29 @@ class HomeScreen(private val app: MainActivity) : MainActivity.Screen {
                     }
                     update.isEnabled = false
                     update.text = "Downloading…"
+                    help.visibility = View.GONE
                     Thread {
                         try {
                             AppUpdater.install(app, AppUpdater.download(app, release))
-                            app.runOnUiThread { update.text = "Installing…" }
                         } catch (e: Exception) {
                             Log.w("Vektra", "update failed", e)
-                            app.runOnUiThread {
-                                update.isEnabled = true
-                                update.text = "Update failed (${e.message}). Tap to try again"
-                            }
+                            app.runOnUiThread { retry("Update failed (${e.message}). Tap to try again", null) }
                         }
                     }.start()
+                }
+                card.addView(help)
+                // Android's installer can be interrupted (an app lock, Play Protect's check) and never answer:
+                // the button never waits; tapping it again starts over, without downloading again.
+                AppUpdater.onOutcome = { outcome, message ->
+                    when (outcome) {
+                        AppUpdater.Outcome.WAITING -> retry(
+                            "Nothing showed up? Tap to try again",
+                            "Confirm the update in Android's window. If an app lock or Play Protect asks first, " +
+                                "answer it; if the window still doesn't come back, tap the button again.",
+                        )
+                        AppUpdater.Outcome.CANCELLED -> retry("Update cancelled. Tap to try again", null)
+                        AppUpdater.Outcome.FAILED -> retry("Update didn't install (${message ?: "unknown error"}). Tap to try again", null)
+                    }
                 }
                 ui.enter(card)
             }
