@@ -121,6 +121,10 @@ class HintOverlay(private val context: Context) {
         fun render(frame: String) {
             handler.post { painter?.show(frame) }
         }
+
+        /** The bot game so far, kept for "Review your last bot game". */
+        @JavascriptInterface
+        fun game(json: String) = LastGame.save(context, json)
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")

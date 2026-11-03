@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -11,7 +12,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.format.DateUtils
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -28,6 +31,7 @@ class MainActivity : Activity() {
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
     /** Help shown under the status when a problem is detected (showNotes). */
     private val notes by lazy { LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } }
+    private lateinit var lastGameButton: Button
 
     private val pad by lazy { (16 * resources.displayMetrics.density).toInt() }
 
@@ -48,6 +52,7 @@ class MainActivity : Activity() {
                 "In Chess.com bot games Vektra shows the engine's best moves over the board on your turn."
             setTextColor(MUTED)
         })
+        layout.addView(link("What's new in $version", AppUpdater.releasePage(version)))
         // Filled in if a newer release is out.
         val updates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         layout.addView(updates)
@@ -55,6 +60,10 @@ class MainActivity : Activity() {
         layout.addView(button("Review finished games", primary = true) {
             startActivity(Intent(this, ReviewActivity::class.java))
         })
+        lastGameButton = button("Review your last bot game", primary = false) {
+            startActivity(Intent(this, ReviewActivity::class.java).putExtra(ReviewActivity.EXTRA_LAST_GAME, true))
+        }
+        layout.addView(lastGameButton)
 
         val status = card(layout, "Status")
         serviceText = TextView(this)
@@ -86,6 +95,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 val card = card(parent, "Update")
                 card.addView(TextView(this).apply { text = "Vektra ${release.version} is out (you have $running)." })
+                card.addView(link("What's new in ${release.version}", AppUpdater.releasePage(release.version)))
                 lateinit var update: Button
                 update = button("Update to ${release.version}", primary = true) {
                     // Android asks once whether Vektra may install apps.
@@ -144,6 +154,15 @@ class MainActivity : Activity() {
         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
             topMargin = pad * 3 / 4
         }
+    }
+
+    /** Underlined text that opens a web page in the browser. */
+    private fun link(label: String, url: String) = TextView(this).apply {
+        text = label
+        setTextColor(LINK)
+        paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        setPadding(0, pad / 3, 0, pad / 3)
+        setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
     private fun rounded(color: Int, radiusDp: Float) = GradientDrawable().apply {
@@ -249,6 +268,10 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         PositionStore.addListener(listener)
+        // A bot game may have been recorded since the screen opened.
+        val playedAt = LastGame.playedAt(this)
+        lastGameButton.visibility = if (LastGame.load(this) != null) View.VISIBLE else View.GONE
+        lastGameButton.text = "Review your last bot game (${DateUtils.getRelativeTimeSpanString(playedAt)})"
         render()
     }
 
@@ -374,6 +397,7 @@ class MainActivity : Activity() {
         val LINE = Color.parseColor("#45403b")
         val MUTED = Color.parseColor("#aaa39b")
         val ACCENT = Color.parseColor("#2f6fe4")
+        val LINK = Color.parseColor("#9dbcff")
         /** Xiaomi's own system (MIUI, HyperOS) has its own Autostart and battery rules. */
         val XIAOMI = Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")
     }

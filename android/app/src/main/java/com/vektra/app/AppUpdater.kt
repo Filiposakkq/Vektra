@@ -26,6 +26,9 @@ object AppUpdater {
 
     data class Release(val version: String, val apkUrl: String, val sha256Url: String)
 
+    /** A release's page on GitHub: what changed in it, as the extension links to. */
+    fun releasePage(version: String) = "https://github.com/Filiposakkq/Vektra/releases/tag/v$version"
+
     /** Below zero if [a] is older than [b], zero if equal, above zero if newer ("0.2.10" > "0.2.9"). */
     fun compareVersions(a: String, b: String): Int {
         val x = a.removePrefix("v").split('.').map { it.toIntOrNull() ?: 0 }

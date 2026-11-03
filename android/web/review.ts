@@ -4,7 +4,7 @@ import { UciEngine } from '@core/engine/uciEngine';
 import { arrowScoreLabel } from '@core/hints/hintArrows';
 import type { Arrow } from '@core/hints/types';
 import { DEFAULT_SETTINGS, sanitizeSettings } from '@core/settings';
-import { AnalysisPanel } from '@ext/ui/analysisPanel';
+import { AnalysisPanel, LEGEND } from '@ext/ui/analysisPanel';
 import { BoardOverlay } from '@ext/ui/overlay';
 import { pieceSvg } from './pieces';
 
@@ -25,7 +25,7 @@ interface ArchiveGame {
 }
 
 /** The app's side of the page (ReviewActivity.kt); missing in a browser. */
-const app = (window as unknown as { VektraReview?: { settings(): string; close(): void } }).VektraReview;
+const app = (window as unknown as { VektraReview?: { settings(): string; lastGame(): string; close(): void } }).VektraReview;
 const settings = sanitizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(app?.settings() ?? '{}') });
 
 const USERNAME_KEY = 'reviewUsername';
@@ -33,6 +33,17 @@ const LINE_KEY = 'reviewLine';
 /** Two engines side by side: the phone's two fast cores. */
 const ENGINES = 2;
 const FILES = 'abcdefgh';
+
+/** The legend for this board: the extension's, with the marks drawn here. */
+const APP_LEGEND: [string, string][] = [
+  ['Yellow squares', 'The move just played: where the piece came from and went to.'],
+  ['Badge on a square', 'How that move was rated, Brilliant to Blunder.'],
+  ['Blue arrow', 'The better move, when the move played was not the best or a book move.'],
+  ['Line', "Shows the engine's best line from the position shown: 1 is the move to play, 2 the reply, 3 the move after. The score on arrow 1 is from White's side: +1.5 means White is 1.5 pawns better, M3 mate in 3."],
+  ...LEGEND.filter(([term]) => ['Eval graph', 'Accuracy', 'Game rating', 'Phases'].includes(term)).map(
+    ([term, text]): [string, string] => [term, text.replace('Click it', 'Tap it')],
+  ),
+];
 
 // shortcut: the panel keeps folded/dragged state in chrome.storage; nothing is kept here, upgrade if it matters full-screen.
 Object.assign(globalThis, { chrome: { storage: { local: { get: async () => ({}), set: async () => {} } } } });
@@ -113,14 +124,19 @@ function gameCard(g: ArchiveGame, username: string): HTMLButtonElement {
     history.pushState({ review: true }, '');
     title.textContent = `${g.white.username} – ${g.black.username}`;
     subtitle.textContent = `${result(g)}, ${g.time_class}`;
-    review(g.pgn!, black);
+    const chess = new Chess();
+    chess.loadPgn(g.pgn!);
+    review(chess, black);
   });
   return card;
 }
 
-/** The player's monthly archives, oldest first, and how many of the newest are listed. */
+/** The player's monthly archives, oldest first, and how many of the newest are loaded. */
 let archives: string[] = [];
 let shown = 0;
+/** Games loaded but not listed yet: they are listed a page at a time, as a busy player has thousands a month. */
+let pending: ArchiveGame[] = [];
+const PAGE = 50;
 
 function errorText(e: unknown, username: string): string {
   return (e as Error).message === 'not found'
@@ -128,28 +144,33 @@ function errorText(e: unknown, username: string): string {
     : `Couldn't load the games: ${(e as Error).message}.`;
 }
 
-/** Lists the next `months` older months, then offers the month before them. */
-async function showMonths(username: string, months: number): Promise<void> {
+/**
+ * Lists the next page of games. When the loaded ones run out, older months
+ * are loaded first (`months` of them, then one at a time).
+ */
+async function showMore(username: string, months = 1): Promise<void> {
   list.querySelector('.older')?.remove();
-  const urls = archives.slice(Math.max(0, archives.length - shown - months), archives.length - shown).reverse();
-  shown += urls.length;
-  const games = (await Promise.all(urls.map(loadMonth))).flat();
-  for (const g of games) {
+  while (!pending.length && shown < archives.length) {
+    const urls = archives.slice(Math.max(0, archives.length - shown - months), archives.length - shown).reverse();
+    shown += urls.length;
+    pending = (await Promise.all(urls.map(loadMonth))).flat();
+  }
+  for (const g of pending.splice(0, PAGE)) {
     const li = document.createElement('li');
     li.append(gameCard(g, username));
     list.append(li);
   }
-  if (!list.children.length) status.textContent = 'No finished games in the last two months.';
-  if (shown >= archives.length) return;
+  if (!list.children.length) status.textContent = 'No finished games found.';
+  if (!pending.length && shown >= archives.length) return;
   const older = document.createElement('li');
   older.className = 'older';
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = 'Load older games';
+  button.textContent = pending.length ? 'Show more games' : 'Load older games';
   button.addEventListener('click', () => {
     button.disabled = true;
     button.textContent = 'Loading…';
-    showMonths(username, 1).catch((e) => {
+    showMore(username).catch((e) => {
       button.disabled = false;
       button.textContent = `Load older games (${errorText(e, username)})`;
     });
@@ -170,8 +191,9 @@ form.addEventListener('submit', async (event) => {
       `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
     )) as { archives: string[] });
     shown = 0;
+    pending = [];
     status.textContent = 'Pick a game to review.';
-    await showMonths(username, 2);
+    await showMore(username, 2);
   } catch (e) {
     status.textContent = errorText(e, username);
   }
@@ -228,9 +250,8 @@ function drawBoard(fen: string, flipped: boolean, moved: string[]): void {
   board.append(...squares);
 }
 
-function review(pgn: string, flipped: boolean): void {
-  const chess = new Chess();
-  chess.loadPgn(pgn);
+/** Opens a game (its moves played on `chess`) on the board, from the user's side, and analyses it. */
+function review(chess: Chess, flipped: boolean): void {
   const moves = chess.history({ verbose: true });
   const sans = moves.map((m) => m.san);
   const fens = [moves[0]?.before ?? chess.fen(), ...moves.map((m) => m.after)];
@@ -281,6 +302,7 @@ function review(pgn: string, flipped: boolean): void {
     },
     onSelectPly: select,
   });
+  p.legendItems = APP_LEGEND;
   panel = p;
   viewer.hidden = false;
   show();
@@ -319,6 +341,23 @@ function review(pgn: string, flipped: boolean): void {
   };
   void run();
 }
+
+/** The last bot game, recorded by the overlay page as it was played (ReviewActivity opens review.html#last). */
+function reviewLastGame(): void {
+  try {
+    const last = JSON.parse(app?.lastGame() || 'null') as { sans: string[]; flipped: boolean } | null;
+    if (!last?.sans.length) throw new Error('no game');
+    const chess = new Chess();
+    for (const san of last.sans) chess.move(san);
+    history.pushState({ review: true }, '');
+    title.textContent = 'Your last bot game';
+    subtitle.textContent = `${Math.ceil(last.sans.length / 2)} moves, you played ${last.flipped ? 'Black' : 'White'}`;
+    review(chess, last.flipped);
+  } catch {
+    status.textContent = "There's no bot game to review yet: play one from its first move with Vektra on.";
+  }
+}
+if (location.hash === '#last') reviewLastGame();
 
 window.addEventListener('popstate', () => {
   stopEngines();

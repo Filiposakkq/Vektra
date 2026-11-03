@@ -92,12 +92,16 @@ Building it, and how it works: [docs/ANDROID.md](docs/ANDROID.md).
   older games goes back a month at a time) and get accuracy, game rating,
   phases, an eval graph and every move rated. The board marks the move played,
   shows the better move when there was one, and **Line** adds the engine's line.
+- **Review your last bot game:** Chess.com's public archive has no bot games,
+  so Vektra records the bot game you play (from its first move, with hints
+  on) and reviews it the same way.
 - **Settings:** arrows, scores, threats, weaker moves, avoid draws, depth,
   strength (Elo), light mode, analysis depth, update checks.
 - **Help when something is wrong:** the Status card explains a stopped or
   switched-off service, or battery saving that can stop it, only when it
   happens, with steps for Xiaomi and other phones.
-- **Updates** from GitHub releases, installed with your confirmation.
+- **Updates** from GitHub releases, installed with your confirmation. *What's
+  new* on the main screen opens the release's page.
 
 **Languages.** Only the Chess.com app in **Czech or English** is supported
 (English not yet tried on a device). Vektra reads the board from the app's
@@ -106,6 +110,9 @@ board and doesn't work.
 
 **Changes**
 
+- **Next release:** review your last bot game; *What's new* links to the
+  release; the game list shows 50 games at a time; the review's legend
+  describes the app's board.
 - **0.3.1:** stays off in coach games; castling is read from Chess.com's
   announcement instead of waiting for the board; help notes only when a
   problem is detected; the quick settings tile is gone; install guide in this

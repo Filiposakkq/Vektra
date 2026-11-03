@@ -71,6 +71,8 @@ export class AnalysisPanel {
   reviewMode = false;
   /** Whether the legend of the board marks is open. */
   private legendOpen = false;
+  /** What the legend explains; the Android app's board marks differ a little. */
+  legendItems: readonly [string, string][] = LEGEND;
   private readonly onResize = () => this.keepOnscreen();
 
   /** findBoard: the board element, to open beside it. */
@@ -440,7 +442,7 @@ export class AnalysisPanel {
         `${a.engine ?? 'Stockfish'}, depth ${a.depth}. Accuracy and ratings are engine estimates, not official ratings.`,
       ),
       this.legendToggle(),
-      ...(this.legendOpen ? [legend()] : []),
+      ...(this.legendOpen ? [legend(this.legendItems)] : []),
     );
   }
 
@@ -487,8 +489,19 @@ function phaseCell(p: PhaseSummary): HTMLTableCellElement {
   return cell;
 }
 
-/** What the analysis draws on the board, and what the numbers are. */
-function legend(): HTMLDivElement {
+/** What the analysis draws on the board, and what the numbers are: term, explanation. */
+export const LEGEND: [string, string][] = [
+  ['Numbered arrows', "The engine's best line from the position shown: 1 is the move to play, 2 the reply, 3 the move after."],
+  ['Score on arrow 1', "From White's side: +1.5 means White is 1.5 pawns better, -1.5 Black. M3 means mate in 3."],
+  ['Tinted squares', 'Where move 1 goes from and to.'],
+  ['Badge on a square', 'How the move just played was rated, Brilliant to Blunder.'],
+  ['Eval graph', "White's winning chances through the game. Click it to go to a move; dots mark the notable ones."],
+  ['Accuracy', "How close each side's moves were to the engine's, 0 to 100%. Fitted to land near Chess.com's Game Review."],
+  ['Game rating', 'A rough rating for how a side played this one game, from its accuracy.'],
+  ['Phases', "Accuracy in the opening, middlegame and endgame, with the badge it would get as a move. A dash: not reached."],
+];
+
+function legend(items: readonly [string, string][]): HTMLDivElement {
   const box = el('div', {
     marginTop: '8px',
     padding: '10px 12px',
@@ -498,16 +511,6 @@ function legend(): HTMLDivElement {
     fontSize: '12.5px',
     lineHeight: '1.5',
   });
-  const items: [string, string][] = [
-    ['Numbered arrows', "The engine's best line from the position shown: 1 is the move to play, 2 the reply, 3 the move after."],
-    ['Score on arrow 1', "From White's side: +1.5 means White is 1.5 pawns better, -1.5 Black. M3 means mate in 3."],
-    ['Tinted squares', 'Where move 1 goes from and to.'],
-    ['Badge on a square', 'How the move just played was rated, Brilliant to Blunder.'],
-    ['Eval graph', "White's winning chances through the game. Click it to go to a move; dots mark the notable ones."],
-    ['Accuracy', "How close each side's moves were to the engine's, 0 to 100%. Fitted to land near Chess.com's Game Review."],
-    ['Game rating', 'A rough rating for how a side played this one game, from its accuracy.'],
-    ['Phases', "Accuracy in the opening, middlegame and endgame, with the badge it would get as a move. A dash: not reached."],
-  ];
   for (const [term, text] of items) {
     const row = el('div', { marginTop: term === items[0][0] ? '0' : '6px' });
     row.append(el('b', { fontWeight: '650' }, `${term}. `), el('span', { color: THEME.muted }, text));

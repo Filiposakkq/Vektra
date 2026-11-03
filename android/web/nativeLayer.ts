@@ -17,7 +17,8 @@ export interface Badge {
 /** The app's painter (HintOverlay.kt), which draws each frame natively over the Chess.com board. */
 declare global {
   interface Window {
-    VektraNative?: { render(frame: string): void };
+    /** game: the bot game so far (moves in SAN, and whether the user plays Black), kept for a review. */
+    VektraNative?: { render(frame: string): void; game?(json: string): void };
   }
 }
 

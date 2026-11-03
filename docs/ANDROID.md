@@ -201,7 +201,10 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 4. **Review.** Finished games from the public archive, with the analysis panel.
    *Done:* "Review finished games" on the main screen opens `ReviewActivity`, a
    WebView with `android/web/review.ts`: a Chess.com username (remembered),
-   the standard games of the last two months (Load older games adds a month at a time), and the extension's
+   the standard games of the last two months, 50 at a time (older months load
+   on request), or the last bot game: the archive has none, so the overlay page
+   records each bot game followed from its first move (`android/web/gameRecord.ts`,
+   takebacks included) and the app keeps it (`LastGame`). The review uses the extension's
    `AnalysisPanel` full-screen over two lite engines at the analysis depth set on the main screen
    (12 by default). A bar on top has a back arrow and the game's players. The
    board (`#board` in `review.html`, Vektra's own flat pieces in `pieces.ts`,

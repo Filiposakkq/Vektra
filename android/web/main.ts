@@ -9,6 +9,7 @@ import { hintArrows, steadyLines, type Threat } from '@core/hints/hintArrows';
 import { buildRequest, buildThreatRequest, buildWeakerRequest } from '@core/hints/hintRequests';
 import { DEFAULT_SETTINGS, sanitizeSettings, type Settings } from '@core/settings';
 import type { Arrow } from '@core/hints/types';
+import { GameRecord, START_BOARD } from './gameRecord';
 import { NativeLayer, type Badge } from './nativeLayer';
 
 /**
@@ -145,8 +146,6 @@ function visibleBadge(): Badge | null {
   return pieceAt(lastReading.board, rated.badge.square) === rated.piece ? rated.badge : null;
 }
 
-/** The starting position: White to move even though the move list is still empty. */
-const START_BOARD = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
 /** Bot replies whose positions are searched ahead while the bot thinks (as in the extension). */
 const PONDER_REPLIES = 2;
 /** Searching ahead starts once the bot's position is searched this deep. */
@@ -221,6 +220,15 @@ function turnOf(reading: Reading): 'w' | 'b' | null {
 /** The position last shown, with whose turn it was. */
 let lastFen: string | null = null;
 
+/** The bot game being played, kept by the app for a review afterwards. */
+const game = new GameRecord();
+
+function record(fen: string, flipped: boolean): void {
+  if (game.add(fen, flipped) && game.sans.length) {
+    window.VektraNative?.game?.(JSON.stringify({ sans: game.sans, flipped: game.flipped }));
+  }
+}
+
 function show(reading: Reading): void {
   if (!settings.enabled) {
     clear();
@@ -238,6 +246,7 @@ function show(reading: Reading): void {
   current = key;
   lastReading = reading;
   lastFen = fen;
+  record(fen, reading.flipped);
   // A search done ahead for exactly this position goes on; everything else stops.
   const continued = pondering && pondering.fen === fen ? pondering : null;
   if (continued?.engine !== main) main.stop();
