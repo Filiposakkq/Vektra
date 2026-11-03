@@ -602,5 +602,9 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
 - Stockfish is distributed under GPL-3.0; see
   `extension/public/engine/STOCKFISH-LICENSE.txt` (copied there by `npm run build`)
   and the [stockfish.js source](https://github.com/nmrugg/stockfish.js).
+- The Android app's review board uses the "cburnett" chess pieces by Colin M.L.
+  Burnett, under GPLv2 or later, as published in
+  [lichess-org/lila](https://github.com/lichess-org/lila); see
+  [`android/web/pieces/README.md`](android/web/pieces/README.md).
 - Opening names come from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings),
   released under CC0; see [`data/openings/README.md`](data/openings/README.md).

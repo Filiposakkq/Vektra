@@ -207,7 +207,7 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    takebacks included) and the app keeps it (`LastGame`). The review uses the extension's
    `AnalysisPanel` full-screen over two lite engines at the analysis depth set on the main screen
    (12 by default). A bar on top has a back arrow and the game's players. The
-   board (`#board` in `review.html`, Vektra's own flat pieces in `pieces.ts`,
+   board (`#board` in `review.html`, the cburnett pieces (`android/web/pieces/`, GPLv2+),
    from the user's side, with coordinates) shows the position during and
    after the analysis, the move just played in yellow like Chess.com; ◀ ▶ step
    through the moves and a tap on the graph jumps there. Once analysed, the
