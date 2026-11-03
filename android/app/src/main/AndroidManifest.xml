@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The review screen loads finished games from Chess.com's public archive. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- To tell Chess.com's screens (activities) from its dialogs. -->
     <queries>
         <package android:name="com.chess" />
@@ -20,6 +23,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ReviewActivity"
+            android:exported="false"
+            android:label="Review games" />
 
         <!-- Reads the Chess.com app's board in bot games; it never taps or types. -->
         <service

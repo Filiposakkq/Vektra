@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vektra review</title>
+    <style>
+      body { margin: 0; background: #262421; color: #eeeae5; font: 15px/1.45 system-ui, sans-serif; }
+      main { padding: 16px; }
+      form { display: flex; gap: 8px; margin-bottom: 12px; }
+      input, button { font: inherit; border-radius: 7px; padding: 9px 12px; }
+      input { flex: 1; min-width: 0; border: 1px solid #45403b; background: #1e1c1a; color: inherit; }
+      button { border: 0; background: #2f6fe4; color: #fff; font-weight: 650; }
+      #status { color: #aaa39b; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li button { width: 100%; text-align: left; margin-top: 6px; background: #2f2c29; color: inherit; font-weight: 400; }
+      li small { display: block; color: #aaa39b; }
+      /* The extension's panel floats beside the board; here it fills the screen. */
+      #vektra-analysis-panel {
+        inset: 0 !important; width: auto !important; max-width: none !important;
+        max-height: none !important; border-radius: 0 !important; border: 0 !important;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Finished games from Chess.com's public archive, analysed with the extension's code. -->
+    <main>
+      <form id="search">
+        <input id="username" placeholder="Chess.com username" autocapitalize="none" autocomplete="off" required />
+        <button>Show games</button>
+      </form>
+      <p id="status"></p>
+      <ul id="games"></ul>
+    </main>
+    <script type="module" src="./review.ts"></script>
+  </body>
+</html>

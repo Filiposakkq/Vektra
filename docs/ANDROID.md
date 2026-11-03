@@ -1,6 +1,6 @@
 # Vektra for Android: plan
 
-Status: milestone 3 done (2026-11-01). In Chess.com bot games the app shows
+Status: milestone 4 done (2026-11-03), finished games can be reviewed. In Chess.com bot games the app shows
 the engine's best moves as arrows over the board on the user's turn, with
 scores, the bot's threat, an optional weaker move, an eval strip and a rating
 of each of the user's moves, and has a settings screen. This is the plan agreed on
@@ -195,6 +195,14 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    painted is skipped, never crashing the service. Drawing into Chess.com's
    own app would need root or a modified copy of it: not an option.
 4. **Review.** Finished games from the public archive, with the analysis panel.
+   *Done:* "Review finished games" on the main screen opens `ReviewActivity`, a
+   WebView with `android/web/review.ts`: a Chess.com username (remembered),
+   the newest 50 standard games of the last two months, and the extension's
+   `AnalysisPanel` full-screen over two lite engines at the analysis depth
+   (12). Tapping the graph explains a move; Back returns to the list. No
+   board, no exports (the panel hides them without callbacks), no cache. The
+   legend still describes the extension's board marks. Checked in a browser at
+   phone size; on the phone, untested.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 
 ## Risks and open questions

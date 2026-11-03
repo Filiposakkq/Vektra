@@ -42,6 +42,10 @@ class MainActivity : Activity() {
             text = "Open accessibility settings"
             setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         })
+        layout.addView(Button(this).apply {
+            text = "Review finished games"
+            setOnClickListener { startActivity(Intent(this@MainActivity, ReviewActivity::class.java)) }
+        })
         settings = SettingsStore.load(this)
         addSettings(layout, pad)
         statusText = TextView(this).apply { setPadding(0, pad, 0, 0) }

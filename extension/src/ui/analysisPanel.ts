@@ -8,8 +8,9 @@ import { BODY_FONT, THEME } from './theme';
 export interface PanelCallbacks {
   onAnalyze(): void;
   onCancel(): void;
-  onExport(): void;
-  onExportPdf(): void;
+  /** Without these the export buttons aren't shown (the Android app). */
+  onExport?(): void;
+  onExportPdf?(): void;
   onSelectPly(ply: number): void;
 }
 
@@ -417,9 +418,10 @@ export class AnalysisPanel {
     }
 
     const actions = el('div', { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '14px' });
+    const { onExport, onExportPdf } = this.cb;
     actions.append(
-      button('Export PDF', () => this.cb.onExportPdf(), true),
-      button('Export JSON', () => this.cb.onExport()),
+      ...(onExportPdf ? [button('Export PDF', onExportPdf, true)] : []),
+      ...(onExport ? [button('Export JSON', onExport)] : []),
       button('Analyze again', () => this.cb.onAnalyze()),
     );
 
