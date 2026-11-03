@@ -1,7 +1,7 @@
 name: Release
 
-# Push a tag like v0.2.0 (npm version minor && git push --follow-tags) to
-# publish that version: the checks run, then the built extension and the
+# `npm run release -- 0.4.1` (scripts/release.mjs, docs/RELEASING.md) pushes a
+# tag like v0.4.1 to publish that version: the checks run, then the built extension and the
 # signed Android app are attached to a GitHub release as vektra-<version>.zip
 # and vektra-<version>.apk, each with a SHA-256 checksum. The updater helper
 # (public/updater), the popup's update check and the app's updater read them
@@ -86,7 +86,9 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+        # The notes are this version's section of CHANGELOG.md (scripts/release.mjs).
         run: |
+          node scripts/release.mjs notes "$VERSION" > release-notes.md
           gh release create "$GITHUB_REF_NAME" "vektra-$VERSION.zip" "vektra-$VERSION.zip.sha256" \
             "vektra-$VERSION.apk" "vektra-$VERSION.apk.sha256" \
-            --title "Vektra $VERSION" --generate-notes
+            --title "Vektra $VERSION" --notes-file release-notes.md

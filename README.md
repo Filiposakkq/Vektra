@@ -1,12 +1,67 @@
+<div align="center">
+
+<img src="docs/images/vektra-logo.svg" width="128" alt="Vektra logo: a white knight with a gold mane">
+
 # Vektra
 
-Vektra is an independent browser extension that provides Stockfish move
-suggestions, optional live move ratings, and full-game analysis on supported
-Chess.com game and analysis pages. Optional autoplay is off by default.
+**Stockfish hints and game analysis for Chess.com, in your browser and on your phone.**
 
-Hints, live move ratings and autoplay work only in games against Chess.com's
-bots. Games against people stay untouched while they are in progress and open
-for analysis only once they have finished (see [Where Vektra runs](#where-vektra-runs)).
+[![Latest release](https://img.shields.io/github/v/release/Filiposakkq/Vektra?style=for-the-badge&labelColor=171615&color=f0b93a&label=release)](https://github.com/Filiposakkq/Vektra/releases/latest)
+[![Checks](https://img.shields.io/github/actions/workflow/status/Filiposakkq/Vektra/ci.yml?branch=bot-only&style=for-the-badge&labelColor=171615&label=checks)](https://github.com/Filiposakkq/Vektra/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/github/downloads/Filiposakkq/Vektra/total?style=for-the-badge&labelColor=171615&color=2f6fe4)](https://github.com/Filiposakkq/Vektra/releases)
+
+[![Download the Android app](https://img.shields.io/badge/Android%20app-Download%20APK-f0b93a?style=for-the-badge&logo=android&logoColor=171615&labelColor=f4efe6)](https://github.com/Filiposakkq/Vektra/releases/latest)
+&nbsp;
+[![Get the Chrome extension](https://img.shields.io/badge/Chrome%20extension-Download%20zip-2f6fe4?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=1c1a18)](https://github.com/Filiposakkq/Vektra/releases/latest)
+
+[What's new](CHANGELOG.md) · [Install the app](#android-app) · [Install the extension](#chrome-extension) · [How it works](docs/ARCHITECTURE.md)
+
+<br>
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/android-home.png" width="250" alt="The app's home: Ready, and your last game on a board"><br><sub><b>Home</b><br>Ready to play, and your last game</sub></td>
+    <td align="center"><img src="docs/images/android-analysis.png" width="250" alt="A game analysed: accuracy, game rating and a win-chance graph"><br><sub><b>Game analysis</b><br>Every move rated, accuracy and graph</sub></td>
+    <td align="center"><img src="docs/images/android-settings.png" width="250" alt="Settings grouped into cards"><br><sub><b>Settings</b><br>Simple choices, all in one place</sub></td>
+  </tr>
+</table>
+
+</div>
+
+## ✨ What Vektra does
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🎯 Hints in bot games</h3>
+      The engine's best moves as arrows on the board on your turn, with scores; the bot's threat in red; an optional weaker move in violet; an eval bar. Only in games against Chess.com's bots.
+    </td>
+    <td width="50%" valign="top">
+      <h3>⭐ Every move rated</h3>
+      Brilliant to Blunder, as you play and after the game, with the reason a move was bad ("Loses the knight on c3") and the move that was better.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h3>📈 Full game review</h3>
+      Accuracy and a game rating for each side, a win-chance graph, the opening, and grades for the opening, middlegame and endgame. Fitted to land near Chess.com's Game Review.
+    </td>
+    <td valign="top">
+      <h3>📱 A native Android app</h3>
+      Hints over the Chess.com app, your last bot game ready to analyse, any finished Chess.com game reviewed, and updates in one tap.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h3>🛡️ Safe by design</h3>
+      Off in games against people while they're played, in coach games, lessons and puzzles. Nothing about you is sent anywhere; Stockfish runs on your device.
+    </td>
+    <td valign="top">
+      <h3>🔄 Always up to date</h3>
+      The extension and the app check GitHub for new releases and install them with your OK. One version number for both.
+    </td>
+  </tr>
+</table>
 
 > [!IMPORTANT]
 > **Use Vektra responsibly.** Engine assistance and automated move input may be
@@ -22,23 +77,80 @@ ratings, accuracy, win chances, Elo presets, and engine evaluations are
 estimates for guidance and study; they are not official Chess.com ratings,
 guarantees of playing strength, or a substitute for your own review.
 
-## Contents
+## 📚 Contents
 
-- [Install and development](#install-load-unpacked)
-- [Android app](#android-app)
-- [Updates](#updates)
-- [Important notices](#important-notices)
-- [Settings](#settings)
-- [Project layout](#layout)
-- [Where Vektra runs](#where-vektra-runs)
-- [Position detection](#how-the-position-is-read)
-- [Game analysis](#game-analysis)
-- [Engine](#engine)
-- [Chess.com selectors](#updating-selectors)
-- [Known limitations](#known-limitations)
-- [Third-party licenses](#third-party-licenses)
+- [Android app](#android-app): install, what it does, keeping it running
+- [Chrome extension](#chrome-extension): install, updates, settings
+- [Where Vektra runs](#where-vektra-runs) and [important notices](#important-notices)
+- [Game analysis](#game-analysis) and [how moves are classified](#how-moves-are-classified)
+- [Project layout](#layout), [engine](#engine), [Chess.com selectors](#updating-selectors), [known limitations](#known-limitations)
+- [Releasing](docs/RELEASING.md), [changelog](CHANGELOG.md), [third-party licenses](#third-party-licenses)
 
-## Install (load unpacked)
+## Android app
+
+<img src="docs/images/vektra-logo.svg" width="56" align="right" alt="">
+
+A native Android app (Android 8 or later) that shows Vektra's hints **over the
+Chess.com app** in bot games, and analyses your games. It reads the screen
+through Android's accessibility service; it never taps or types. How it's
+built: [docs/ANDROID.md](docs/ANDROID.md).
+
+| | |
+| --- | --- |
+| 🏠 **Home** | Whether Vektra is ready (and, when not, the one thing to fix), **Open Chess.com**, and **your last game** on a board at its final position, with its opening, ready to analyse. |
+| 🎯 **In bot games** | Best-move arrows with scores, the bot's threat, an optional weaker move, an eval strip, and a rating of each of your moves, drawn natively over Chess.com's board. |
+| 📈 **Game review** | Your last bot game (Vektra records it, since Chess.com's archive has none) or any finished Chess.com game: the board with the move played, its badge and the better move, a move strip, swipes, each side's accuracy and game rating, a win-chance graph, the move's verdict, phases and ratings. **Line** shows the engine's best line. |
+| ⚙️ **Settings** | Arrows, scores, threats, weaker moves, your move ratings, strength (the full engine or an Elo), light mode, analysis depth. |
+| 🔄 **Updates** | *Update to …* on the home screen when a release is out; Android asks you to confirm. |
+
+**Where it works.** Only in **games against Chess.com's bots**. It stays off in
+games against people, in coach games (Chess.com shows its own hints there),
+lessons, puzzles and every other screen. Only the Chess.com app in **Czech or
+English** is supported (English not yet tried on a device): Vektra reads the
+board from the app's labels, which follow its language.
+
+### Install
+
+It isn't on Google Play, which doesn't allow apps that read other apps' screens like this.
+
+1. On the phone, download `vektra-<version>.apk` from the
+   [latest release](https://github.com/Filiposakkq/Vektra/releases/latest)
+   and open it. Allow installs from your browser or file manager when Android asks.
+2. Google Play Protect, or an antivirus such as AVG, may warn about an unknown
+   app: tap **More details → Install anyway** (or *Cancel* on the antivirus).
+   They warn about apps that read the screen and can install their own updates;
+   Vektra does both.
+3. Open Vektra and tap **Turn on** on the home screen, then turn on Vektra in
+   the accessibility settings (on Xiaomi: **Additional settings → Accessibility
+   → Downloaded apps**).
+4. On Android 13 and later it may be greyed out or say *Restricted setting*:
+   open **Settings → Apps → Vektra**, tap **⋮ → Allow restricted settings**,
+   then turn it on again.
+
+### Keep it running
+
+Some phones stop background apps to save battery or when recent apps are
+cleared; Android then says the service *doesn't work* and won't restart it by
+itself. Vektra's home screen notices and shows **Fix it**. To prevent it:
+
+- **Xiaomi, Redmi, POCO:** allow **Autostart** (Security app → Permissions →
+  Autostart), set **Battery saver** to **No restrictions** in Vektra's app
+  info, and lock Vektra in recent apps (long-press its card, then the lock).
+- **Samsung, Huawei, Honor, OnePlus, Oppo, Vivo and others:** allow Vektra to
+  run in the background and turn off battery optimisation for it in its app
+  info. <https://dontkillmyapp.com> has the steps for each brand.
+
+Releases are signed with the same key, so updates install over the app and
+keep your settings.
+
+## Chrome extension
+
+The extension shows the same hints on Chess.com in Chrome and other
+Chromium browsers (Brave, Edge), adds the game analysis panel, and has
+optional autoplay in bot games (off by default).
+
+
+### Install
 
 To use a released version, download `vektra-<version>.zip` from the
 [releases page](https://github.com/Filiposakkq/Vektra/releases), unzip it into
@@ -71,93 +183,8 @@ Each production build records a fingerprint of its sources in
 if `dist` is missing that file or was built from different sources (including
 `npm run dev` output), so run `npm run build` again first.
 
-## Android app
 
-The Android app shows the same hints over the Chess.com app, in bot games
-only, and reviews finished games from Chess.com's public archive. It reads the
-screen through Android's accessibility service; it never taps or types.
-Building it, and how it works: [docs/ANDROID.md](docs/ANDROID.md).
-
-**What it does**
-
-- **In bot games:** the engine's best moves as arrows over the board on your
-  turn, with scores; the bot's threat; an optional weaker move (violet); a
-  rating of each of your moves (Best, Mistake...) and an eval strip above the
-  board. Rules and drawings are shared with the extension.
-- **Coach games:** Vektra stays off. Chess.com shows its own arrows, move
-  feedback and eval bar there.
-- **Everywhere else** (games against people, lessons, puzzles and any other
-  screen) Vektra stays off: it works only in games against Chess.com's bots.
-- **Review finished games:** enter a Chess.com username, pick a game (Load
-  older games goes back a month at a time) and get accuracy, game rating,
-  phases, an eval graph and every move rated. The board marks the move played,
-  shows the better move when there was one, and **Line** adds the engine's line.
-- **Review your last bot game:** Chess.com's public archive has no bot games,
-  so Vektra records the bot game you play (from its first move, with hints
-  on) and reviews it the same way.
-- **Settings:** arrows, scores, threats, weaker moves, avoid draws, depth,
-  strength (Elo), light mode, analysis depth, update checks.
-- **Help when something is wrong:** the Status card explains a stopped or
-  switched-off service, or battery saving that can stop it, only when it
-  happens, with steps for Xiaomi and other phones.
-- **Updates** from GitHub releases, installed with your confirmation. *What's
-  new* on the main screen opens the release's page.
-
-**Languages.** Only the Chess.com app in **Czech or English** is supported
-(English not yet tried on a device). Vektra reads the board from the app's
-labels, which follow its language; in any other language it can't read the
-board and doesn't work.
-
-**Changes**
-
-- **Next release:** a new look: a home screen with one status card (and a
-  *Fix it* button when something is wrong), settings on their own screen with
-  simple choices and an Advanced section, and a review with a move strip,
-  swipes, a pull-up analysis sheet and pieces that slide; an app icon; review
-  your last bot game; *What's new* links to the release; no board checks while
-  you think, so your moves (king captures too) come through at once; the game
-  list shows 50 games at a time.
-- **0.3.1:** stays off in coach games; castling is read from Chess.com's
-  announcement instead of waiting for the board; help notes only when a
-  problem is detected; the quick settings tile is gone; install guide in this
-  README.
-- **0.3.0:** first release of the app: hints, move ratings, game review, settings,
-  signed APK and in-app updates.
-
-**Install** (Android 8 or later). It isn't on Google Play, which doesn't allow
-apps that read other apps' screens like this.
-
-1. On the phone, download `vektra-<version>.apk` from the
-   [latest release](https://github.com/Filiposakkq/Vektra/releases/latest)
-   and open it. Allow installs from your browser or file manager when Android
-   asks.
-2. Google Play Protect may warn about an unknown app: tap **More details →
-   Install anyway**. It warns about apps that read the screen and can install
-   their own updates; Vektra does both.
-3. Open Vektra and tap **Open accessibility settings**, then turn on Vektra
-   (on Xiaomi: **Additional settings → Accessibility → Downloaded apps**).
-4. On Android 13 and later it may be greyed out or say *Restricted setting*:
-   open **Settings → Apps → Vektra**, tap **⋮ → Allow restricted settings**,
-   then turn it on again.
-
-**Keep it running.** Some phones stop background apps to save battery or when
-recent apps are cleared; Android then says the service *doesn't work* and
-won't restart it by itself (switch Vektra off and on in Accessibility). The
-app's Status card shows how to fix it when it happens. To prevent it:
-
-- **Xiaomi, Redmi, POCO:** allow **Autostart** (Security app → Permissions →
-  Autostart), set **Battery saver** to **No restrictions** in Vektra's app
-  info, and lock Vektra in recent apps (long-press its card, then the lock).
-- **Samsung, Huawei, Honor, OnePlus, Oppo, Vivo and others:** allow Vektra to
-  run in the background and turn off battery optimisation for it in its app
-  info. <https://dontkillmyapp.com> has the steps for each brand.
-
-**Updates.** When a new release is out, the app shows *Update to …* on its
-main screen: tap it, and Android asks you to confirm. The first time, Android
-asks to allow Vektra to install apps. Releases are signed with the same key,
-so updates install over the app and keep your settings.
-
-## Updates
+### Updates
 
 Chrome doesn't update an extension loaded unpacked on its own, so Vektra
 checks its [GitHub releases](https://github.com/Filiposakkq/Vektra/releases)
@@ -184,11 +211,7 @@ Vektra has a fixed extension ID (`omhnocnlghbmiboddipdodbdikbgdabb`, from the
 `key` in `manifest.config.ts`), so its settings don't depend on the folder it
 is loaded from, and the helper accepts requests from that extension only.
 
-To publish a version: `npm version minor` (or `patch`), then
-`git push --follow-tags` on `bot-only`. The release workflow
-(`.github/workflows/release.yml`) checks that the tag matches `package.json`
-and is on `bot-only`, runs every check, and attaches the zip and its checksum
-to a GitHub release.
+To publish a version (the extension and the app together), see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Important notices
 
@@ -220,7 +243,10 @@ to a GitHub release.
   extension is provided as-is, without a guarantee of uninterrupted operation
   or suitability for a particular purpose.
 
-## Settings
+## Extension settings
+
+<details>
+<summary><b>Every setting, explained</b></summary>
 
 Click the Vektra icon in the toolbar (pin it from the puzzle-piece menu) to
 open settings in a content-sized window over Chess.com. Drag its title bar to
@@ -350,6 +376,8 @@ Keyboard shortcuts (change them at `chrome://extensions/shortcuts`):
 Chrome skips a suggested shortcut that clashes with another extension; set it
 on the shortcuts page if one shows as "not set" in the popup.
 
+</details>
+
 ## Layout
 
 ```
@@ -370,7 +398,8 @@ extension/        the Chrome extension
     ui/           board overlays, controls, analysis panel, floating settings
   public/         assets copied into the build, and the updater helper
   manifest.config.ts
-android/          the Android app (see docs/ANDROID.md); android/web is its overlay page
+android/          the native Android app (see docs/ANDROID.md); android/web holds its hidden
+                  pages: the hint overlay and the engine page that analyses games
 tests/
   core/           tests of the shared core
   extension/      tests of the extension
@@ -378,8 +407,8 @@ tests/
   fixtures/       captured markup and shared test fixtures
   tools/          dev-only tools: analyse a PGN, compare with Chess.com (never shipped)
 data/openings/    source opening TSVs; generated lookup is in core/analysis
-docs/             architecture, calibration and Android plans, reviewed games for tuning
-scripts/          engine asset copy, build fingerprint, opening-data generation
+docs/             architecture, Android, calibration and releasing; screenshots in docs/images
+scripts/          engine asset copy, build fingerprint, opening data, the Android pieces, releasing
 ```
 
 For module responsibilities and runtime flow, see
@@ -513,6 +542,9 @@ are in [docs/CALIBRATION.md](docs/CALIBRATION.md).
 
 ## Engine
 
+<details>
+<summary><b>How the engine runs in the browser</b></summary>
+
 Vektra ships the single-threaded Stockfish 19 lite build from the `stockfish`
 npm package (about 1.8 MB). It needs no cross-origin isolation. The optional
 Stockfish 19.0.1 full WASM is about 99 MB and takes additional time and memory
@@ -542,7 +574,12 @@ reuse search results across nearby positions. The full engine can use multiple
 workers, so analysis may use substantially more memory than a single engine
 search.
 
+</details>
+
 ## Updating selectors
+
+<details>
+<summary><b>Updating the Chess.com selectors</b></summary>
 
 Every Chess.com selector is in `extension/src/content/selectors.ts`. Each entry is a
 list tried in order, so add new markup first and keep old selectors as
@@ -562,7 +599,12 @@ console.log(l?.tagName, l?.outerHTML.slice(0, 2000));
 After changing selectors, save fresh markup into `tests/fixtures/chesscom`,
 update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
 
+</details>
+
 ## Known limitations
+
+<details>
+<summary><b>The full list</b></summary>
 
 - chess.com may change its markup at any time; see "Updating selectors".
   When the board, its pieces or a game's moves can't be found, the popup
@@ -597,14 +639,17 @@ update `tests/fixtures/dom.ts` to the new shape, and run `npm test`.
   move, that selected move is highlighted in violet; enabling additional
   candidate moves also shows the other engine lines.
 
+</details>
+
 ## Third-party licenses
 
 - Stockfish is distributed under GPL-3.0; see
   `extension/public/engine/STOCKFISH-LICENSE.txt` (copied there by `npm run build`)
   and the [stockfish.js source](https://github.com/nmrugg/stockfish.js).
-- The Android app's review board uses the "cburnett" chess pieces by Colin M.L.
+- The Android app's boards use the "cburnett" chess pieces by Colin M.L.
   Burnett, under GPLv2 or later, as published in
-  [lichess-org/lila](https://github.com/lichess-org/lila); see
+  [lichess-org/lila](https://github.com/lichess-org/lila), converted to Android
+  vector drawables by `scripts/pieces-to-android.mjs`; see
   [`android/web/pieces/README.md`](android/web/pieces/README.md).
 - Opening names come from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings),
   released under CC0; see [`data/openings/README.md`](data/openings/README.md).

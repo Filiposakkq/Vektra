@@ -1,10 +1,14 @@
-# Vektra for Android: plan
+# Vektra for Android
 
-Status: all five milestones done; v0.3.0 (2026-11-03) is the first release with the app. In Chess.com bot games the app shows
-the engine's best moves as arrows over the board on the user's turn, with
-scores, the bot's threat, an optional weaker move, an eval strip and a rating
-of each of the user's moves, and has a settings screen. This is the plan agreed on
-2026-11-01, after checking what the Chess.com Android app exposes.
+Status: all five milestones done. v0.3.0 (2026-11-03) was the first release
+with the app; v0.4.0 rebuilt it as a fully native, modern app (see
+[Screens](#screens)). In Chess.com bot games the app shows the engine's best
+moves as arrows over the board on the user's turn, with scores, the bot's
+threat, an optional weaker move, an eval strip and a rating of each of the
+user's moves; it analyses the last bot game and any finished Chess.com game.
+What changed in each version: [CHANGELOG.md](../CHANGELOG.md). This started as
+the plan agreed on 2026-11-01, after checking what the Chess.com Android app
+exposes; the milestones below keep that history.
 
 ## Building and installing
 
@@ -109,9 +113,13 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 4. **Engine.** First the same Stockfish WebAssembly build in that WebView
    (identical behaviour, one runtime). If it is too slow on phones, a native
    Stockfish binary later, behind the same request format.
-5. **Review screen.** Enter a Chess.com username, pick a finished game from the
-   public archive (`api.chess.com/pub/player/<name>/games/archives`, no login),
-   and see the analysis panel, rendered from the same code in a WebView.
+5. **The app's screens, native.** Home, Review, Settings and the game screen
+   are Kotlin views (see [Screens](#screens)). A second hidden page, the
+   engine page (`android/web/engine.ts`, `EnginePage.kt`), reads games
+   (chess.js), names openings, analyses them with Stockfish and `core/analysis`,
+   and works out the review board's arrows, which `OverlayView` paints as it
+   does in games. Finished games come from the public archive
+   (`api.chess.com/pub/player/<name>/games/archives`, no login), fetched natively.
 6. **Settings.** The settings model (`core/settings.ts`, `sanitizeSettings`)
    is shared; the screen shows the subset the app uses.
 
@@ -126,6 +134,8 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 
 ## Releases and updates
 
+- How to make one: [RELEASING.md](RELEASING.md) (`npm run release`, with the
+  notes written in [CHANGELOG.md](../CHANGELOG.md)).
 - One version for both: `package.json` sets the extension version and the
   app's `versionName` (and a `versionCode` derived from it).
 - One tag, one release: the release workflow builds the extension zip and a
@@ -199,7 +209,8 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    painted is skipped, never crashing the service. Drawing into Chess.com's
    own app would need root or a modified copy of it: not an option.
 4. **Review.** Finished games from the public archive, with the analysis panel.
-   *Done:* "Review finished games" on the main screen opens `ReviewActivity`, a
+   *Done* (as first built, in a WebView; v0.4.0 made it native, see
+   [Screens](#screens)): "Review finished games" on the main screen opened `ReviewActivity`, a
    WebView with `android/web/review.ts`: a Chess.com username (remembered),
    the standard games of the last two months, 50 at a time (older months load
    on request), or the last bot game: the archive has none, so the overlay page
@@ -243,27 +254,49 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 
 ## Screens
 
-Re-done on 2026-11-03. Palette (`Ui.kt`, `themes.xml`, `review.html`): night
-walnut `#1d1b19`, board shadow `#2b2825`, bone `#f2ede4`; the engine's blue
-`#2f6fe4` for arrows and what is active, brass `#e3b341` for Vektra's mark and
-your results. Condensed type (Android's built-in sans-serif-condensed) for
-titles and numbers. The mark is logo A, a white knight with a gold mane
-(`drawable/vektra_knight.xml`), also the launcher icon. `Ui.kt` holds the shared
-pieces: cards, list rows with hairlines, a segmented choice whose pill slides,
-switch rows, sliders, press feedback and the drawn settings gear. Motion: one
-moment on purpose, the home's arrow drawing itself; everything else answers a
-touch. `MainActivity` is the home, opened before a game and after one: its
-status is `StatusBoard`, a corner of a board where Vektra's arrow draws a
-knight's move when hints will show, dimmed with *Fix it* and the steps when
-they won't; then the reviews as rows, and *What's new*. `SettingsActivity` groups what belongs
-together (arrows, threats, weaker move, your moves, strength, game review,
-app); a setting that only matters while a switch is on sits under it, shown
-only then. Strength is either the full engine (with its search depth) or an
-approximate Elo (presets from `ELO_PRESETS`, or exact, kept in step both
-ways), as before the new look; light mode sits with it. The last board read is under App, for diagnosing. Screens slide in and out (`res/anim`). The
-review page has a move strip with rating icons, swipes on the board, pieces
-that slide on a one-move step, and the analysis panel as a pull-up sheet. The
-launcher icon is an adaptive vector (`mipmap-anydpi-v26`).
+The app is fully native since v0.4.0 (2026-11-03); JavaScript runs only in
+hidden pages, for the chess logic and Stockfish.
+
+- **The app** (`MainActivity`): three tabs over a bottom bar, **Home**
+  (`HomeScreen`), **Review** (`ReviewScreen`) and **Settings**
+  (`SettingsScreen`), with the game screen (`GameScreen`) over them when a game
+  is open. Back closes the game, then returns to Home. Launched with
+  `--es tab review|settings` or `--ez analyse true` it opens that screen, so the
+  screens can be checked over USB (`adb shell am start -n
+  com.vektra.app/.MainActivity …`), where taps can't be sent.
+- **The look** (`Ui.kt`): a deep night palette (`#121110`, surfaces
+  `#1c1a18` and `#292622`, text `#f4efe6`), gold `#f0b93a` from the logo for
+  Vektra's main actions and your results, the engine's blue `#2f6fe4` for
+  arrows and what is active. Large rounded surfaces, pill buttons, Roboto at
+  its heaviest for headlines and condensed for numbers, Android's ripple under
+  the finger, line icons as vector drawables (`drawable/ic_*.xml`). Motion
+  answers a touch: presses, the sliding choice pill, the game screen sliding
+  up.
+- **Home**: the status (ready, in a bot game, coach game, hints off, or the
+  problem with *Fix it* and its steps), **Open Chess.com**, **your last game**
+  on a board at its final position with its opening's name (from the engine
+  page) and **Analyse game**, then links to Chess.com games and the hint
+  settings, and the update card when a release is out.
+- **The board** (`BoardView`): squares, coordinates, the move just played in
+  yellow and the cburnett pieces as vector drawables (`drawable/piece_*.xml`,
+  made from `android/web/pieces/*.svg` by `scripts/pieces-to-android.mjs`),
+  with the piece gliding on a one-move step. Arrows and badges go on top in an
+  `OverlayView`, from the engine page's frames.
+- **The game screen**: the board, a move strip with each move's rating icon
+  (tap a move, or swipe the board), **Line** for the engine's line, each
+  side's accuracy and game rating (yours outlined in gold), a win-chance graph
+  (`EvalGraph`, tap or drag to a move), the move's verdict, the phases and
+  the move ratings, worded as the extension's panel words them.
+- **Review**: a username (remembered), its finished standard games from the
+  archive, 50 at a time, older months on request.
+- **Settings**: grouped by what belongs together (arrows, threats, weaker
+  move, your moves, strength, analysis, app); a setting that only matters while
+  a switch is on sits under it. Strength is the full engine (with its depth) or
+  an approximate Elo (presets from `ELO_PRESETS`, or exact). What Vektra last
+  read is under App, for diagnosing.
+- **The logo** is a white knight with a gold mane (`drawable/vektra_knight.xml`),
+  also the adaptive launcher icon (`mipmap-anydpi-v26`) and, in one colour, its
+  themed icon.
 
 ## Risks and open questions
 
