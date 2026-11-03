@@ -1,27 +1,23 @@
 package com.vektra.app
 
 import android.app.Activity
-import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
-import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
-import android.widget.Toast
 
 /** Vektra's settings, whether its accessibility service is on, and what it last read. */
 class MainActivity : Activity() {
@@ -30,16 +26,8 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var boardText: TextView
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
-    private lateinit var enabledSwitch: Switch
     /** Help shown under the status when a problem is detected (showNotes). */
     private val notes by lazy { LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } }
-    // The quick settings tile can switch hints while this screen is open: keep in step, or the next change here would undo it.
-    private val settingsListener: (HintSettings) -> Unit = { next ->
-        runOnUiThread {
-            settings = next
-            enabledSwitch.isChecked = next.enabled
-        }
-    }
 
     private val pad by lazy { (16 * resources.displayMetrics.density).toInt() }
 
@@ -200,8 +188,7 @@ class MainActivity : Activity() {
         }
 
         val hints = card(layout, "Hints")
-        enabledSwitch = toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
-        addTileButton(hints)
+        toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
         slider(hints, { "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
         toggle(hints, "Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
         toggle(hints, "Avoid draws (skip a move that draws at once when another keeps you level)", settings.avoidDraws) {
@@ -262,14 +249,11 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         PositionStore.addListener(listener)
-        SettingsStore.addListener(settingsListener)
-        settingsListener(SettingsStore.load(this))
         render()
     }
 
     override fun onPause() {
         PositionStore.removeListener(listener)
-        SettingsStore.removeListener(settingsListener)
         super.onPause()
     }
 
@@ -349,40 +333,6 @@ class MainActivity : Activity() {
             notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
             if (XIAOMI) notes.addView(button("Open Autostart", primary = false, onClick = ::openAutostart))
         }
-    }
-
-    /**
-     * The quick settings tile turns hints on and off during a game, but Android
-     * doesn't add a new app's tile by itself. From Android 13 the app can ask;
-     * before that, the user drags it in. Hidden once it is there.
-     */
-    private fun addTileButton(parent: LinearLayout) {
-        val prefs = getSharedPreferences("ui", MODE_PRIVATE)
-        if (prefs.getBoolean("tileAdded", false)) return
-        if (Build.VERSION.SDK_INT < 33) {
-            parent.addView(TextView(this).apply {
-                text = "To turn hints on and off during a game: pull down quick settings, tap edit (✏️) and drag in the Vektra hints tile."
-                setTextColor(MUTED)
-                setPadding(0, pad / 3, 0, 0)
-            })
-            return
-        }
-        lateinit var add: Button
-        add = button("Add an on/off tile to quick settings", primary = false) {
-            getSystemService(StatusBarManager::class.java).requestAddTileService(
-                ComponentName(this, HintsTileService::class.java), "Vektra hints",
-                Icon.createWithResource(this, R.drawable.ic_tile), mainExecutor,
-            ) { result ->
-                if (result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
-                    result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
-                ) {
-                    prefs.edit().putBoolean("tileAdded", true).apply()
-                    add.visibility = View.GONE
-                    Toast.makeText(this, "Vektra hints is in quick settings: pull down from the top during a game.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        parent.addView(add)
     }
 
     private fun openAppInfo() =

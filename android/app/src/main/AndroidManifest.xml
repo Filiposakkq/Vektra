@@ -35,18 +35,6 @@
             android:name=".AppUpdater$InstallResult"
             android:exported="false" />
 
-        <!-- Quick settings tile: hints in bot games on or off. -->
-        <service
-            android:name=".HintsTileService"
-            android:exported="true"
-            android:icon="@drawable/ic_tile"
-            android:label="Vektra hints"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
-
         <!-- Reads the Chess.com app's board in bot games; it never taps or types. -->
         <service
             android:name=".VektraAccessibilityService"
