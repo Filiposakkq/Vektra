@@ -141,16 +141,23 @@ class HomeScreen(private val app: MainActivity) : MainActivity.Screen {
             "$moves moves as ${if (flipped) "Black" else "White"}, ${ago(System.currentTimeMillis() - LastGame.playedAt(app))}",
             14f, Ui.MUTED,
         ).apply { setPadding(0, ui.dp(4), 0, 0) })
-        ui.button(card, "Analyse game", Ui.Button.GOLD) {
-            app.openGame(GameScreen.Source(sans = sans, flipped = flipped, title = "Your last game", subtitle = "$moves moves as ${if (flipped) "Black" else "White"}"))
-        }
+        ui.button(card, "Analyse game", Ui.Button.GOLD) { analyseLast() }
         // The final position and its opening, from the engine page.
         app.engine.call("game", JSONObject().put("sans", sans).toString()) { reply ->
             val fens = reply.optJSONArray("fens") ?: return@call
             val last = reply.optJSONArray("moves")?.let { it.optJSONObject(it.length() - 1) }
             board.show(fens.getString(fens.length() - 1), flipped, listOfNotNull(last?.optString("from"), last?.optString("to")))
-            reply.optString("opening").takeIf { it.isNotEmpty() && it != "null" }?.let { title.text = it }
+            reply.optString("opening").takeIf { it.isNotEmpty() && it != "null" }?.let { title.text = withoutEco(it) }
         }
+    }
+
+    /** Opens the last bot game to analyse, if there is one. */
+    fun analyseLast() {
+        val game = LastGame.load(app)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return
+        val sans = game.optJSONArray("sans")?.takeIf { it.length() > 0 } ?: return
+        val flipped = game.optBoolean("flipped")
+        val moves = (sans.length() + 1) / 2
+        app.openGame(GameScreen.Source(sans = sans, flipped = flipped, title = "Your last game", subtitle = "$moves moves as ${if (flipped) "Black" else "White"}"))
     }
 
     /** Asks GitHub for the latest release; if it is newer, shows a card that installs it on a tap. */
@@ -201,3 +208,6 @@ class HomeScreen(private val app: MainActivity) : MainActivity.Screen {
 
 /** A JSON array of strings as a list. */
 fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
+
+/** An opening's name without its ECO code ("B00 Nimzowitsch Defense" is "Nimzowitsch Defense"). */
+fun withoutEco(name: String) = name.replace(Regex("""^[A-E]\d\d\s+"""), "")

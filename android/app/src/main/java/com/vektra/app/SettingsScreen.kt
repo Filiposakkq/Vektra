@@ -65,7 +65,7 @@ class SettingsScreen(private val app: MainActivity) : MainActivity.Screen {
             save(settings.copy(occasionalWeakerMoves = it))
         }
         weakerMore = ui.dependent(weaker, settings.occasionalWeakerMoves)
-        ui.slider(weakerMore, { "Up to %.1f pawns worse than the best".format(it / 100.0) }, 10, 300, 10, settings.weakerMoveMaxLossCp) {
+        ui.slider(weakerMore, { "Up to %.1f pawns worse than the best".format(java.util.Locale.US, it / 100.0) }, 10, 300, 10, settings.weakerMoveMaxLossCp) {
             save(settings.copy(weakerMoveMaxLossCp = it))
         }
 

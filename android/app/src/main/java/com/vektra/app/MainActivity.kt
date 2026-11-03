@@ -55,6 +55,25 @@ class MainActivity : Activity() {
         tabs = listOf(HomeScreen(this), ReviewScreen(this), SettingsScreen(this))
         setContentView(root)
         select(0)
+        open(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        open(intent)
+    }
+
+    /**
+     * Launched for a screen: a tab ("tab": "review" or "settings") or the last
+     * game's analysis ("analyse": true). Lets the screens be checked over USB,
+     * where taps can't be sent.
+     */
+    private fun open(intent: Intent) {
+        when (intent.getStringExtra("tab")) {
+            "review" -> select(1)
+            "settings" -> select(2)
+        }
+        if (intent.getBooleanExtra("analyse", false)) (tabs[0] as HomeScreen).analyseLast()
     }
 
     /** Home, Review and Settings; the current one's icon sits on a gold-tinted pill. */
@@ -72,7 +91,10 @@ class MainActivity : Activity() {
             val icon = ui.icon(res, Ui.MUTED)
             pill.addView(icon, FrameLayout.LayoutParams(ui.dp(24), ui.dp(24), Gravity.CENTER))
             item.addView(pill, LinearLayout.LayoutParams(ui.dp(60), ui.dp(32)))
-            val text = ui.text(label, 12f, Ui.MUTED, Ui.Weight.MEDIUM).apply { setPadding(0, ui.dp(4), 0, 0) }
+            val text = ui.text(label, 12f, Ui.MUTED, Ui.Weight.MEDIUM).apply {
+                gravity = Gravity.CENTER
+                setPadding(0, ui.dp(4), 0, 0)
+            }
             item.addView(text)
             navItems += pill to icon
             navLabels += text

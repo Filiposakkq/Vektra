@@ -68,7 +68,7 @@ class GameScreen(private val app: MainActivity, private val source: Source, priv
         setBackgroundColor(Ui.BG)
         isClickable = true
         addView(topBar())
-        val frame = FrameLayout(app)
+        val frame = SquareFrame(app)
         frame.addView(board, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         frame.addView(marks, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         swipeToStep(frame)
@@ -252,7 +252,7 @@ class GameScreen(private val app: MainActivity, private val source: Source, priv
 
     private fun renderSummary(a: JSONObject) {
         details.removeAllViews()
-        a.optString("opening").takeIf { it.isNotEmpty() && it != "null" }?.let {
+        a.optString("opening").takeIf { it.isNotEmpty() && it != "null" }?.let(::withoutEco)?.let {
             details.addView(ui.text(it, 14f, Ui.MUTED).apply { setPadding(ui.dp(4), 0, 0, ui.dp(10)) })
         }
         // Each side's accuracy, yours marked in gold.
@@ -267,7 +267,7 @@ class GameScreen(private val app: MainActivity, private val source: Source, priv
             }
             val fg = if (light) Color.parseColor("#26231f") else Ui.TEXT
             box.addView(ui.text(if (yours) "You, $name" else name, 13f, fg).apply { alpha = 0.75f })
-            box.addView(ui.text("%.1f%%".format(s.getDouble("accuracy")), 34f, fg, Ui.Weight.NUMBER))
+            box.addView(ui.text("%.1f%%".format(java.util.Locale.US, s.getDouble("accuracy")), 34f, fg, Ui.Weight.NUMBER))
             box.addView(ui.text("Game rating ~${s.getInt("rating")}", 13f, fg).apply { alpha = 0.75f })
             sides.addView(box, ui.weighted().apply { if (light) marginEnd = ui.dp(10) })
         }
@@ -441,4 +441,9 @@ class EvalGraph(context: Context, private val wins: List<Float>, private val dot
         }
         canvas.restore()
     }
+}
+
+/** A frame as tall as it is wide: the board, with its arrow layer exactly over it. */
+class SquareFrame(context: Context) : FrameLayout(context) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = super.onMeasure(widthMeasureSpec, widthMeasureSpec)
 }

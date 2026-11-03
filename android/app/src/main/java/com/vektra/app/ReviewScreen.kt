@@ -53,6 +53,8 @@ class ReviewScreen(private val app: MainActivity) : MainActivity.Screen {
             background = null
             isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            // That input type (no suggestions) switches to monospace: back to the app's font.
+            typeface = Ui.Weight.REGULAR.typeface
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             setText(prefs.getString("username", ""))
             setPadding(ui.dp(12), ui.dp(16), ui.dp(8), ui.dp(16))
