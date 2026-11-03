@@ -20,6 +20,8 @@ class MoveAnnouncementTest {
         assertEquals(MoveAnnouncement(listOf("d5", "d1"), null, 'r'), MoveAnnouncement.parse("Věž d5 bere věž na d1"))
         assertEquals(MoveAnnouncement(listOf("c1", "d1"), null, 'r'), MoveAnnouncement.parse("Věž c1 bere věž na d1, Šach"))
         assertEquals(MoveAnnouncement(listOf("e7", "g6"), null, 'n'), MoveAnnouncement.parse("Jezdec e7 bere pěšce na g6"))
+        // The king's capture names only the square taken on.
+        assertEquals(MoveAnnouncement(listOf("e2"), null, 'k'), MoveAnnouncement.parse("Král bere dámu na e2"))
     }
 
     @Test
