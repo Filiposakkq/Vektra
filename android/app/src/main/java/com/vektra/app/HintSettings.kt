@@ -29,18 +29,32 @@ data class HintSettings(
      * take a phone's fast cores and the arrows lag.
      */
     val lightMode: Boolean = true,
+    /** Skip a move that draws at once when another keeps you level or better. */
+    val avoidDraws: Boolean = true,
+    /** Alternatives that cost more than this much win chance (points) are not drawn. */
+    val hideWorseWinLoss: Int = 10,
+    /** A threat is shown only when allowing it would cost at least this much win chance. */
+    val threatWinLoss: Int = 12,
+    /** How much weaker the violet move may be, in centipawns. */
+    val weakerMoveMaxLossCp: Int = 200,
+    /** Depth of the game review. */
+    val analysisDepth: Int = 12,
 ) {
     /** As JSON for the overlay page, with the extension's setting names. */
     fun toJson(): String =
         "{\"enabled\":$enabled,\"arrows\":$arrows,\"arrowScores\":$arrowScores,\"showThreats\":$showThreats," +
             "\"occasionalWeakerMoves\":$occasionalWeakerMoves,\"liveRatings\":$liveRatings,\"depth\":$depth," +
-            "\"limitStrength\":$limitStrength,\"elo\":$elo,\"lightMode\":$lightMode}"
+            "\"limitStrength\":$limitStrength,\"elo\":$elo,\"lightMode\":$lightMode,\"avoidDraws\":$avoidDraws," +
+            "\"hideWorseWinLoss\":$hideWorseWinLoss,\"threatWinLoss\":$threatWinLoss," +
+            "\"weakerMoveMaxLossCp\":$weakerMoveMaxLossCp,\"analysisDepth\":$analysisDepth}"
 
     companion object {
         const val DEPTH_MIN = 8
         const val DEPTH_MAX = 24
         const val ELO_MIN = 1320
         const val ELO_MAX = 3190
+        const val ANALYSIS_DEPTH_MIN = 8
+        const val ANALYSIS_DEPTH_MAX = 24
     }
 }
 
@@ -66,6 +80,12 @@ object SettingsStore {
             limitStrength = p.getBoolean("limitStrength", d.limitStrength),
             elo = p.getInt("elo", d.elo).coerceIn(HintSettings.ELO_MIN, HintSettings.ELO_MAX),
             lightMode = p.getBoolean("lightMode", d.lightMode),
+            avoidDraws = p.getBoolean("avoidDraws", d.avoidDraws),
+            hideWorseWinLoss = p.getInt("hideWorseWinLoss", d.hideWorseWinLoss).coerceIn(2, 40),
+            threatWinLoss = p.getInt("threatWinLoss", d.threatWinLoss).coerceIn(4, 40),
+            weakerMoveMaxLossCp = p.getInt("weakerMoveMaxLossCp", d.weakerMoveMaxLossCp).coerceIn(10, 300),
+            analysisDepth = p.getInt("analysisDepth", d.analysisDepth)
+                .coerceIn(HintSettings.ANALYSIS_DEPTH_MIN, HintSettings.ANALYSIS_DEPTH_MAX),
         )
     }
 
@@ -81,6 +101,11 @@ object SettingsStore {
             .putBoolean("limitStrength", settings.limitStrength)
             .putInt("elo", settings.elo)
             .putBoolean("lightMode", settings.lightMode)
+            .putBoolean("avoidDraws", settings.avoidDraws)
+            .putInt("hideWorseWinLoss", settings.hideWorseWinLoss)
+            .putInt("threatWinLoss", settings.threatWinLoss)
+            .putInt("weakerMoveMaxLossCp", settings.weakerMoveMaxLossCp)
+            .putInt("analysisDepth", settings.analysisDepth)
             .apply()
         listeners.forEach { it(settings) }
     }

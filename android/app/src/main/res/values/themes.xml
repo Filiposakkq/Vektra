@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The extension's palette (extension/src/ui/theme.ts); the accent tints switches and sliders. -->
+    <style name="Vektra" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#2f6fe4</item>
+        <item name="android:colorPrimary">#1e1c1a</item>
+        <item name="android:colorPrimaryDark">#1e1c1a</item>
+        <item name="android:windowBackground">#262421</item>
+        <item name="android:colorBackground">#262421</item>
+        <item name="android:statusBarColor">#1e1c1a</item>
+        <item name="android:navigationBarColor">#1e1c1a</item>
+        <item name="android:textColorPrimary">#eeeae5</item>
+        <item name="android:textColorSecondary">#aaa39b</item>
+    </style>
+</resources>

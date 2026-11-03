@@ -3,7 +3,9 @@ package com.vektra.app
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
@@ -21,66 +23,107 @@ class MainActivity : Activity() {
     private lateinit var boardText: TextView
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
 
+    private val pad by lazy { (16 * resources.displayMetrics.density).toInt() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (16 * resources.displayMetrics.density).toInt()
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
+            setPadding(pad, pad * 3 / 2, pad, pad * 2)
         }
         layout.addView(TextView(this).apply {
             text = getString(R.string.app_name)
-            textSize = 26f
+            textSize = 28f
+            typeface = Typeface.DEFAULT_BOLD
         })
         layout.addView(TextView(this).apply {
             text = "Version ${packageManager.getPackageInfo(packageName, 0).versionName}. " +
                 "In Chess.com bot games Vektra shows the engine's best moves over the board on your turn."
+            setTextColor(MUTED)
         })
-        serviceText = TextView(this).apply { setPadding(0, pad, 0, 0) }
-        layout.addView(serviceText)
-        layout.addView(Button(this).apply {
-            text = "Open accessibility settings"
-            setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        layout.addView(button("Review finished games", primary = true) {
+            startActivity(Intent(this, ReviewActivity::class.java))
         })
-        layout.addView(Button(this).apply {
-            text = "Review finished games"
-            setOnClickListener { startActivity(Intent(this@MainActivity, ReviewActivity::class.java)) }
+
+        val status = card(layout, "Status")
+        serviceText = TextView(this)
+        status.addView(serviceText)
+        status.addView(button("Open accessibility settings", primary = false) {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         })
-        settings = SettingsStore.load(this)
-        addSettings(layout, pad)
-        statusText = TextView(this).apply { setPadding(0, pad, 0, 0) }
-        layout.addView(statusText)
+        statusText = TextView(this).apply { setPadding(0, pad / 2, 0, 0) }
+        status.addView(statusText)
         boardText = TextView(this).apply {
             typeface = Typeface.MONOSPACE
-            textSize = 18f
-            setPadding(0, pad / 2, 0, 0)
+            textSize = 13f
+            setTextColor(MUTED)
         }
-        layout.addView(boardText)
+        status.addView(boardText)
+
+        settings = SettingsStore.load(this)
+        addSettings(layout)
         setContentView(ScrollView(this).apply { addView(layout) })
     }
 
-    /** The settings, saved as soon as one changes; the overlay picks them up at once. */
-    private fun addSettings(layout: LinearLayout, pad: Int) {
-        layout.addView(TextView(this).apply {
-            text = "Settings"
-            textSize = 20f
-            setPadding(0, pad, 0, pad / 4)
+    /** A rounded section with a small heading; its rows are added to the returned layout. */
+    private fun card(parent: LinearLayout, title: String): LinearLayout {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad * 3 / 4, pad, pad * 3 / 4)
+            background = rounded(CARD, 14f)
+        }
+        card.addView(TextView(this).apply {
+            text = title
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(MUTED)
+            setPadding(0, 0, 0, pad / 4)
         })
+        parent.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = pad * 3 / 4
+        })
+        return card
+    }
+
+    private fun button(label: String, primary: Boolean, onClick: () -> Unit) = Button(this).apply {
+        text = label
+        isAllCaps = false
+        setTextColor(Color.WHITE)
+        background = rounded(if (primary) ACCENT else LINE, 10f)
+        stateListAnimator = null
+        setOnClickListener { onClick() }
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = pad * 3 / 4
+        }
+    }
+
+    private fun rounded(color: Int, radiusDp: Float) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = radiusDp * resources.displayMetrics.density
+    }
+
+    /** The settings, saved as soon as one changes; the overlay picks them up at once. */
+    private fun addSettings(layout: LinearLayout) {
         fun save(next: HintSettings) {
             settings = next
             SettingsStore.save(this, next)
         }
-        fun toggle(label: String, value: Boolean, change: (Boolean) -> HintSettings): Switch =
+        fun toggle(parent: LinearLayout, label: String, value: Boolean, change: (Boolean) -> HintSettings): Switch =
             Switch(this).apply {
                 text = label
                 isChecked = value
                 setPadding(0, pad / 3, 0, pad / 3)
                 setOnCheckedChangeListener { _, checked -> save(change(checked)) }
-                layout.addView(this)
+                parent.addView(this)
             }
-        fun slider(label: (Int) -> String, min: Int, max: Int, step: Int, value: Int, change: (Int) -> HintSettings): SeekBar {
-            val caption = TextView(this).apply { text = label(value) }
-            layout.addView(caption)
+        fun slider(
+            parent: LinearLayout, label: (Int) -> String, min: Int, max: Int, step: Int, value: Int, change: (Int) -> HintSettings,
+        ): SeekBar {
+            val caption = TextView(this).apply {
+                text = label(value)
+                setPadding(0, pad / 3, 0, 0)
+            }
+            parent.addView(caption)
             return SeekBar(this).apply {
                 this.max = (max - min) / step
                 progress = (value - min) / step
@@ -91,29 +134,64 @@ class MainActivity : Activity() {
                     override fun onStartTrackingTouch(bar: SeekBar) {}
                     override fun onStopTrackingTouch(bar: SeekBar) = save(change(min + bar.progress * step))
                 })
-                layout.addView(this)
+                parent.addView(this)
             }
         }
 
-        toggle("Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
-        slider({ "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
-        toggle("Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
-        toggle("Show the bot's threats", settings.showThreats) { settings.copy(showThreats = it) }
-        toggle("Show a weaker move (violet arrow)", settings.occasionalWeakerMoves) { settings.copy(occasionalWeakerMoves = it) }
-        toggle("Rate my moves", settings.liveRatings) { settings.copy(liveRatings = it) }
-        slider({ "Search depth: $it (deeper is stronger but slower)" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
+        val hints = card(layout, "Hints")
+        toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
+        slider(hints, { "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
+        toggle(hints, "Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
+        toggle(hints, "Avoid draws (skip a move that draws at once when another keeps you level)", settings.avoidDraws) {
+            settings.copy(avoidDraws = it)
+        }
+        slider(hints, { "Hide alternatives that cost more than $it% win chance" }, 2, 40, 1, settings.hideWorseWinLoss) {
+            settings.copy(hideWorseWinLoss = it)
+        }
+        toggle(hints, "Rate my moves", settings.liveRatings) { settings.copy(liveRatings = it) }
+
+        val threats = card(layout, "Threats")
+        lateinit var threatLoss: SeekBar
+        toggle(threats, "Show the bot's threats", settings.showThreats) {
+            threatLoss.isEnabled = it
+            settings.copy(showThreats = it)
+        }
+        threatLoss = slider(threats, { "Only when they would cost at least $it% win chance" }, 4, 40, 1, settings.threatWinLoss) {
+            settings.copy(threatWinLoss = it)
+        }
+        threatLoss.isEnabled = settings.showThreats
+
+        val weaker = card(layout, "Weaker moves")
+        lateinit var weakerLoss: SeekBar
+        toggle(weaker, "Show a weaker move (violet arrow)", settings.occasionalWeakerMoves) {
+            weakerLoss.isEnabled = it
+            settings.copy(occasionalWeakerMoves = it)
+        }
+        weakerLoss = slider(weaker, { "How much weaker: up to %.1f pawns".format(it / 100.0) }, 10, 300, 10, settings.weakerMoveMaxLossCp) {
+            settings.copy(weakerMoveMaxLossCp = it)
+        }
+        weakerLoss.isEnabled = settings.occasionalWeakerMoves
+
+        val strength = card(layout, "Engine")
+        slider(strength, { "Search depth: $it (deeper is stronger but slower)" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
             settings.copy(depth = it)
         }
-        toggle("Light mode: one engine (smoother, hints a bit slower)", settings.lightMode) { settings.copy(lightMode = it) }
+        toggle(strength, "Light mode: one engine (smoother, hints a bit slower)", settings.lightMode) { settings.copy(lightMode = it) }
         lateinit var elo: SeekBar
-        toggle("Play at an approximate Elo", settings.limitStrength) {
+        toggle(strength, "Play at an approximate Elo", settings.limitStrength) {
             elo.isEnabled = it
             settings.copy(limitStrength = it)
         }
-        elo = slider({ "Approximate Elo: $it" }, HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo) {
+        elo = slider(strength, { "Approximate Elo: $it" }, HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo) {
             settings.copy(elo = it)
         }
         elo.isEnabled = settings.limitStrength
+
+        val review = card(layout, "Game review")
+        slider(
+            review, { "Analysis depth: $it (12 is quick; deeper rates more exactly but takes longer)" },
+            HintSettings.ANALYSIS_DEPTH_MIN, HintSettings.ANALYSIS_DEPTH_MAX, 1, settings.analysisDepth,
+        ) { settings.copy(analysisDepth = it) }
     }
 
     override fun onResume() {
@@ -170,6 +248,14 @@ class MainActivity : Activity() {
             appendLine("Moves on screen: ${reading.moves.tokens.joinToString(" ").ifEmpty { "none" }}")
             append("FEN start: ${reading.fenStart}")
         }
+    }
+
+    private companion object {
+        // The extension's palette (extension/src/ui/theme.ts), as in themes.xml.
+        val CARD = Color.parseColor("#2f2c29")
+        val LINE = Color.parseColor("#45403b")
+        val MUTED = Color.parseColor("#aaa39b")
+        val ACCENT = Color.parseColor("#2f6fe4")
     }
 
     private fun serviceEnabled(): Boolean {

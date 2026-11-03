@@ -198,15 +198,19 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    *Done:* "Review finished games" on the main screen opens `ReviewActivity`, a
    WebView with `android/web/review.ts`: a Chess.com username (remembered),
    the newest 50 standard games of the last two months, and the extension's
-   `AnalysisPanel` full-screen over two lite engines at the analysis depth
-   (12). A board on top (`#board` in `review.html`: a CSS grid with the
-   phone font's chess symbols, from the user's side) shows the position during
-   and after the analysis; ◀ ▶ step through the moves and a tap on the graph
-   jumps there. Once analysed, the extension's `BoardOverlay` draws the
-   engine's line (three numbered arrows) and the move's rating badge on it.
-   Back returns to the list. No exports (the panel hides them without
-   callbacks), no cache, portrait only. Checked in a browser at phone size;
-   on the phone, untested.
+   `AnalysisPanel` full-screen over two lite engines at the analysis depth set on the main screen
+   (12 by default). A bar on top has a back arrow and the game's players. The
+   board (`#board` in `review.html`, Vektra's own flat pieces in `pieces.ts`,
+   from the user's side, with coordinates) shows the position during and
+   after the analysis, the move just played in yellow like Chess.com; ◀ ▶ step
+   through the moves and a tap on the graph jumps there. Once analysed, the
+   extension's `BoardOverlay` draws the move's rating badge and, unless it was
+   the best or a book move, an arrow for the better move; **Line** adds the
+   engine's line from there (three numbered arrows). No exports (the panel
+   hides them without callbacks), no cache, portrait only. The main screen uses
+   the extension's palette (`themes.xml`) with the settings in cards, including
+   the extension's avoid-draws, hide-alternatives, threat, weaker-move and
+   analysis-depth settings (not autoplay's).
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 
 ## Risks and open questions

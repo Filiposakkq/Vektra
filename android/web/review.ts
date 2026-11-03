@@ -2,9 +2,11 @@ import { Chess } from 'chess.js';
 import { analyzeGame, describeMoveAnalysis, type GameAnalysis } from '@core/analysis/gameAnalysis';
 import { UciEngine } from '@core/engine/uciEngine';
 import { arrowScoreLabel } from '@core/hints/hintArrows';
-import { DEFAULT_SETTINGS } from '@core/settings';
+import type { Arrow } from '@core/hints/types';
+import { DEFAULT_SETTINGS, sanitizeSettings } from '@core/settings';
 import { AnalysisPanel } from '@ext/ui/analysisPanel';
 import { BoardOverlay } from '@ext/ui/overlay';
+import { pieceSvg } from './pieces';
 
 /**
  * The Android app's review screen (ReviewActivity): finished games from
@@ -18,15 +20,21 @@ interface ArchiveGame {
   rules: string;
   time_class: string;
   end_time: number;
-  white: { username: string; result: string };
-  black: { username: string; result: string };
+  white: { username: string; rating: number; result: string };
+  black: { username: string; rating: number; result: string };
 }
 
+/** The app's side of the page (ReviewActivity.kt); missing in a browser. */
+const app = (window as unknown as { VektraReview?: { settings(): string; close(): void } }).VektraReview;
+const settings = sanitizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(app?.settings() ?? '{}') });
+
 const USERNAME_KEY = 'reviewUsername';
+const LINE_KEY = 'reviewLine';
 /** Games listed: the newest from the last two months. */
 const LISTED = 50;
 /** Two engines side by side: the phone's two fast cores. */
 const ENGINES = 2;
+const FILES = 'abcdefgh';
 
 // shortcut: the panel keeps folded/dragged state in chrome.storage; nothing is kept here, upgrade if it matters full-screen.
 Object.assign(globalThis, { chrome: { storage: { local: { get: async () => ({}), set: async () => {} } } } });
@@ -35,10 +43,30 @@ const form = document.getElementById('search') as HTMLFormElement;
 const input = document.getElementById('username') as HTMLInputElement;
 const status = document.getElementById('status')!;
 const list = document.getElementById('games')!;
+const title = document.querySelector('#title b')!;
+const subtitle = document.querySelector('#title small')!;
+const viewer = document.getElementById('viewer')!;
+const board = document.getElementById('board')!;
+const moveText = document.getElementById('move')!;
+const lineButton = document.getElementById('line')!;
+const overlay = new BoardOverlay(board);
 
-try {
-  input.value = localStorage.getItem(USERNAME_KEY) ?? '';
-} catch {}
+function stored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function store(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+input.value = stored(USERNAME_KEY) ?? '';
+let showLine = stored(LINE_KEY) === 'true';
+lineButton.setAttribute('aria-pressed', String(showLine));
 
 async function getJson(url: string): Promise<unknown> {
   const response = await fetch(url);
@@ -65,13 +93,44 @@ function result(g: ArchiveGame): string {
   return '½-½';
 }
 
+/** One row of the game list: your colour, the opponent, how it ended for you. */
+function gameCard(g: ArchiveGame, username: string): HTMLButtonElement {
+  const black = g.black.username.toLowerCase() === username.toLowerCase();
+  const [me, them] = black ? [g.black, g.white] : [g.white, g.black];
+  const outcome = me.result === 'win' ? 'won' : them.result === 'win' ? 'lost' : 'drawn';
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'game';
+  const side = document.createElement('span');
+  side.className = 'side';
+  side.style.background = black ? '#1b1b1b' : '#f4f1ea';
+  side.title = black ? 'You played Black' : 'You played White';
+  const who = document.createElement('span');
+  who.className = 'who';
+  const name = document.createElement('b');
+  name.textContent = `vs ${them.username} (${them.rating})`;
+  const details = document.createElement('small');
+  details.textContent = `${g.time_class}, ${new Date(g.end_time * 1000).toLocaleDateString()}`;
+  who.append(name, details);
+  const badge = document.createElement('span');
+  badge.className = `result ${outcome}`;
+  badge.textContent = { won: 'Won', lost: 'Lost', drawn: 'Draw' }[outcome];
+  card.append(side, who, badge);
+  card.addEventListener('click', () => {
+    // Back (the bar's arrow or the phone's) comes back to the list.
+    history.pushState({ review: true }, '');
+    title.textContent = `${g.white.username} – ${g.black.username}`;
+    subtitle.textContent = `${result(g)}, ${g.time_class}`;
+    review(g.pgn!, black);
+  });
+  return card;
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const username = input.value.trim();
   if (!username) return;
-  try {
-    localStorage.setItem(USERNAME_KEY, username);
-  } catch {}
+  store(USERNAME_KEY, username);
   status.textContent = 'Loading games…';
   list.replaceChildren();
   let games: ArchiveGame[];
@@ -85,19 +144,8 @@ form.addEventListener('submit', async (event) => {
   }
   status.textContent = games.length ? 'Pick a game to review.' : 'No finished games in the last two months.';
   for (const g of games) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.textContent = `${g.white.username} – ${g.black.username}  ${result(g)}`;
-    const details = document.createElement('small');
-    details.textContent = `${g.time_class}, ${new Date(g.end_time * 1000).toLocaleDateString()}`;
-    item.append(details);
-    item.addEventListener('click', () => {
-      // The phone's back button comes back to the list (ReviewActivity goes back in the page's history).
-      history.pushState({ review: true }, '');
-      review(g.pgn!, g.black.username.toLowerCase() === username.toLowerCase());
-    });
     const li = document.createElement('li');
-    li.append(item);
+    li.append(gameCard(g, username));
     list.append(li);
   }
 });
@@ -105,6 +153,23 @@ form.addEventListener('submit', async (event) => {
 let panel: AnalysisPanel | null = null;
 let workers: Worker[] = [];
 let abort: AbortController | null = null;
+/** Moves to the position `step` plies away; set by review() for the game shown. */
+let go: (step: number) => void = () => {};
+/** Draws the board again (the line was switched on or off). */
+let redraw = () => {};
+
+document.getElementById('back')!.addEventListener('click', () => go(-1));
+document.getElementById('forward')!.addEventListener('click', () => go(1));
+lineButton.addEventListener('click', () => {
+  showLine = !showLine;
+  store(LINE_KEY, String(showLine));
+  lineButton.setAttribute('aria-pressed', String(showLine));
+  redraw();
+});
+document.getElementById('close')!.addEventListener('click', () => {
+  if (!viewer.hidden) history.back();
+  else app?.close();
+});
 
 function stopEngines(): void {
   abort?.abort();
@@ -113,36 +178,27 @@ function stopEngines(): void {
   workers = [];
 }
 
-const viewer = document.getElementById('viewer')!;
-const board = document.getElementById('board')!;
-const moveText = document.getElementById('move')!;
-const overlay = new BoardOverlay(board);
-/** Filled glyphs for both sides (coloured by CSS); U+FE0E asks for text, not emoji. */
-const GLYPHS: Record<string, string> = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
-/** Moves to the position after `ply`; set by review() for the game shown. */
-let go: (ply: number) => void = () => {};
-
-document.getElementById('back')!.addEventListener('click', () => go(-1));
-document.getElementById('forward')!.addEventListener('click', () => go(1));
-
-/** The pieces of a FEN on the board, rank 8 first (h1 first when flipped). */
-function drawPieces(fen: string, flipped: boolean): void {
+/** The position of a FEN, from the user's side, with the move just played (`moved` squares) marked. */
+function drawBoard(fen: string, flipped: boolean, moved: string[]): void {
+  const rows = fen.split(' ')[0].split('/').map((row) => row.replace(/\d/g, (n) => '.'.repeat(Number(n))));
   const squares: HTMLDivElement[] = [];
-  for (const row of fen.split(' ')[0].split('/')) {
-    for (const c of row) {
-      if (/\d/.test(c)) {
-        for (let i = 0; i < Number(c); i++) squares.push(document.createElement('div'));
-        continue;
-      }
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const file = flipped ? 7 - c : c;
+      const rank = flipped ? r + 1 : 8 - r;
       const square = document.createElement('div');
-      square.className = c === c.toUpperCase() ? 'w' : 'b';
-      square.textContent = `${GLYPHS[c.toLowerCase()]}︎`;
+      square.className = (file + rank) % 2 === 0 ? 'light' : 'dark';
+      if (moved.includes(FILES[file] + rank)) square.classList.add('moved');
+      if (c === 0) square.dataset.rank = String(rank);
+      if (r === 7) square.dataset.file = FILES[file];
+      const piece = rows[8 - rank][file];
+      if (piece !== '.') square.innerHTML = pieceSvg(piece);
       squares.push(square);
     }
   }
   // The overlay's layers stay; only the squares are replaced.
   board.querySelectorAll(':scope > div').forEach((d) => d.remove());
-  board.append(...(flipped ? squares.reverse() : squares));
+  board.append(...squares);
 }
 
 function review(pgn: string, flipped: boolean): void {
@@ -154,17 +210,30 @@ function review(pgn: string, flipped: boolean): void {
   let ply = 0;
   let analysis: GameAnalysis | null = null;
 
-  /** The board at `ply`: with the analysis, the engine's best line from there and the rating of the move played. */
+  /**
+   * The board at `ply`, the move that led there marked. Once analysed: its
+   * rating, the better move when there was one, and, if switched on, the
+   * engine's line from here.
+   */
   const show = () => {
-    drawPieces(fens[ply], flipped);
-    const move = ply ? `${Math.ceil(ply / 2)}${ply % 2 ? '.' : '...'} ${sans[ply - 1]}` : 'Start';
+    const last = moves[ply - 1];
+    drawBoard(fens[ply], flipped, last ? [last.from, last.to] : []);
+    const move = last ? `${Math.ceil(ply / 2)}${ply % 2 ? '.' : '...'} ${last.san}` : 'Start';
     moveText.textContent = `${move}  (${ply}/${sans.length})`;
     const position = analysis?.positions[ply];
     if (!analysis || !position) return overlay.clear();
-    const line = position.lines[0]?.pv.slice(0, 3) ?? [];
-    const label = arrowScoreLabel(position.score);
-    overlay.draw(board, line.map((m, i) => ({ move: m, rank: i, step: i + 1, ...(i === 0 ? { label } : {}) })), flipped);
     const played = analysis.moves[ply - 1];
+    const arrows: Arrow[] = [];
+    // As the panel says it: "Best was ..." for anything but the best or a book move.
+    if (played?.bestMove && played.bestMove !== played.uci && played.category !== 'best' && played.category !== 'book') {
+      arrows.push({ move: played.bestMove, rank: 0 });
+    }
+    if (showLine) {
+      const label = arrowScoreLabel(position.score);
+      const line = position.lines[0]?.pv.slice(0, 3) ?? [];
+      arrows.push(...line.map((m, i) => ({ move: m, rank: i, step: i + 1, ...(i === 0 ? { label } : {}) })));
+    }
+    overlay.draw(board, arrows, flipped);
     if (played) {
       overlay.drawBadge(board, { square: played.uci.slice(2, 4), category: played.category, title: describeMoveAnalysis(played) }, flipped);
     }
@@ -175,6 +244,7 @@ function review(pgn: string, flipped: boolean): void {
     p.setCurrentPly(ply || null);
   };
   go = (step) => select(ply + step);
+  redraw = show;
 
   const p = new AnalysisPanel({
     onAnalyze: () => void run(),
@@ -209,7 +279,7 @@ function review(pgn: string, flipped: boolean): void {
     analysis = null;
     show();
     const result = await analyzeGame(sans, engines, {
-      depth: DEFAULT_SETTINGS.analysisDepth,
+      depth: settings.analysisDepth,
       onProgress: (done, total) => !signal.aborted && p.showProgress(done, total),
       signal,
     });
@@ -229,4 +299,6 @@ window.addEventListener('popstate', () => {
   panel = null;
   viewer.hidden = true;
   overlay.clear();
+  title.textContent = 'Review games';
+  subtitle.textContent = 'Finished games from Chess.com';
 });

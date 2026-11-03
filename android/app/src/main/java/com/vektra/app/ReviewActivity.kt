@@ -5,6 +5,7 @@ import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -16,7 +17,7 @@ import androidx.webkit.WebViewAssetLoader
 class ReviewActivity : Activity() {
     private lateinit var webView: WebView
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Served over https like the overlay, so the engine's worker and wasm load.
@@ -33,6 +34,7 @@ class ReviewActivity : Activity() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     assets.shouldInterceptRequest(request.url)
             }
+            addJavascriptInterface(Bridge(), "VektraReview")
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                     Log.i(TAG, "review: ${message.message()}")
@@ -42,6 +44,15 @@ class ReviewActivity : Activity() {
         }
         setContentView(webView)
         webView.loadUrl("https://appassets.androidplatform.net/assets/web/review.html")
+    }
+
+    /** What the page asks of the app: the settings (analysis depth), and closing from the bar's back arrow. */
+    private inner class Bridge {
+        @JavascriptInterface
+        fun settings(): String = SettingsStore.load(this@ReviewActivity).toJson()
+
+        @JavascriptInterface
+        fun close() = runOnUiThread { finish() }
     }
 
     @Deprecated("Still called on the Android versions Vektra supports")
