@@ -225,7 +225,16 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    `PackageInstaller`, which asks the user to confirm (the first time Android
    asks to allow Vektra to install apps). Debug builds are signed with another
    key, so the first release needs one uninstall. Also: a quick settings tile
-   (`HintsTileService`) turns hints in bot games on and off.
+   (`HintsTileService`) turns hints in bot games on and off; on Android 13+
+   the main screen offers to add it (`requestAddTileService`), since Android
+   never adds a new app's tile itself. The Status card shows help only while a
+   problem is detected: the service off, on but stopped (Xiaomi's
+   "SwipeUpClean" kill marks it crashed until it is switched off and on), or
+   battery optimisation on (`isIgnoringBatteryOptimizations`; Xiaomi's "No
+   restrictions" counts), with Xiaomi-specific steps and an Autostart button
+   on Xiaomi, Redmi and POCO phones. Released as v0.3.0. Test builds go on the
+   phone signed with the release key (`VEKTRA_KEYSTORE`), since a debug build
+   can't replace the release-signed app.
 
 ## Risks and open questions
 

@@ -65,8 +65,10 @@ class VektraAccessibilityService : AccessibilityService() {
                 Log.i(TAG, "announced: ${move.color ?: '?'} ${move.piece} ${move.squares.joinToString(" ")}")
                 announcementsSeen = true
                 overlay?.played(move)
-            } else if (Regex("""\b[a-h][1-8]\b""").containsMatchIn(text)) {
-                // A text with a square that isn't understood: perhaps a new wording.
+            } else if (Regex("""\b[a-h][1-8]\b""").containsMatchIn(text) ||
+                text.lowercase().split(' ', ',', '.', ':').any { it in PieceNames.PIECES || it in PieceNames.COLORS }
+            ) {
+                // A square, piece or colour that isn't understood: perhaps a new wording.
                 Log.i(TAG, "not understood as a move: ${text.take(80)}")
             }
         }

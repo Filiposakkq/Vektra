@@ -1,21 +1,27 @@
 package com.vektra.app
 
 import android.app.Activity
+import android.app.StatusBarManager
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Icon
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 
 /** Vektra's settings, whether its accessibility service is on, and what it last read. */
 class MainActivity : Activity() {
@@ -25,6 +31,8 @@ class MainActivity : Activity() {
     private lateinit var boardText: TextView
     private val listener: (PositionStore.State) -> Unit = { runOnUiThread { render() } }
     private lateinit var enabledSwitch: Switch
+    /** Help shown under the status when a problem is detected (showNotes). */
+    private val notes by lazy { LinearLayout(this).apply { orientation = LinearLayout.VERTICAL } }
     // The quick settings tile can switch hints while this screen is open: keep in step, or the next change here would undo it.
     private val settingsListener: (HintSettings) -> Unit = { next ->
         runOnUiThread {
@@ -63,9 +71,7 @@ class MainActivity : Activity() {
         val status = card(layout, "Status")
         serviceText = TextView(this)
         status.addView(serviceText)
-        status.addView(button("Open accessibility settings", primary = false) {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        })
+        status.addView(notes)
         statusText = TextView(this).apply { setPadding(0, pad / 2, 0, 0) }
         status.addView(statusText)
         boardText = TextView(this).apply {
@@ -195,6 +201,7 @@ class MainActivity : Activity() {
 
         val hints = card(layout, "Hints")
         enabledSwitch = toggle(hints, "Hints in bot games", settings.enabled) { settings.copy(enabled = it) }
+        addTileButton(hints)
         slider(hints, { "Arrows: $it" }, 1, 3, 1, settings.arrows) { settings.copy(arrows = it) }
         toggle(hints, "Scores on arrows", settings.arrowScores) { settings.copy(arrowScores = it) }
         toggle(hints, "Avoid draws (skip a move that draws at once when another keeps you level)", settings.avoidDraws) {
@@ -267,20 +274,15 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        serviceText.text = if (serviceEnabled() && !PositionStore.serviceRunning) {
-            // Switched on, but its process was killed (recent apps cleared, battery
-            // saver): Android won't restart an accessibility service by itself.
-            "Accessibility service: stopped. Android stopped Vektra (clearing recent apps or the battery " +
-                "saver can do this) and won't restart it by itself: turn Vektra off and on again in the " +
-                "accessibility settings. To keep it running on Xiaomi, open Vektra's app info and allow " +
-                "Autostart, and set Battery saver to No restrictions."
-        } else if (serviceEnabled()) {
-            "Accessibility service: on."
-        } else {
-            "Accessibility service: off. Turn on Vektra in the accessibility settings (on Xiaomi: " +
-                "Additional settings → Accessibility → Downloaded apps). If it is greyed out, open " +
-                "Vektra's app info, tap ⋮ and choose Allow restricted settings, then try again."
+        val enabled = serviceEnabled()
+        val stopped = enabled && !PositionStore.serviceRunning
+        val batterySaving = enabled && !getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+        serviceText.text = when {
+            stopped -> "Accessibility service: stopped."
+            enabled -> "Accessibility service: on."
+            else -> "Accessibility service: off."
         }
+        showNotes(stopped, batterySaving, enabled)
         val state = PositionStore.state
         statusText.text = when (state) {
             is PositionStore.State.On -> "In a bot game."
@@ -288,6 +290,111 @@ class MainActivity : Activity() {
         }
         val reading = (state as? PositionStore.State.On)?.reading ?: PositionStore.lastReading
         boardText.text = reading?.let { describe(it, current = state is PositionStore.State.On) } ?: ""
+    }
+
+    /** What the notes show now; they are only rebuilt when it changes. */
+    private var shownNotes = ""
+
+    /**
+     * Help for a problem, shown only while it is detected: the service off,
+     * stopped by the phone, or exposed to battery saving (which is what lets
+     * Xiaomi and other phones stop it).
+     */
+    private fun showNotes(stopped: Boolean, batterySaving: Boolean, enabled: Boolean) {
+        val key = "$stopped $batterySaving $enabled"
+        if (key == shownNotes) return
+        shownNotes = key
+        notes.removeAllViews()
+        fun note(text: String) = notes.addView(TextView(this).apply {
+            this.text = text
+            setPadding(0, pad / 2, 0, 0)
+        })
+        val accessibility = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+        if (!enabled) {
+            note(
+                "Turn on Vektra in the accessibility settings" +
+                    (if (XIAOMI) " (Additional settings → Accessibility → Downloaded apps)" else "") +
+                    ". If it is greyed out or says restricted, open Vektra's app info, tap ⋮ and choose " +
+                    "Allow restricted settings (Android 13 and later asks this of apps not from Google Play), then try again.",
+            )
+            notes.addView(button("Open accessibility settings", primary = true, onClick = accessibility))
+            notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
+            return
+        }
+        if (stopped) {
+            // Switched on, but its process was killed: Android won't restart an accessibility service by itself.
+            note(
+                "Your phone stopped Vektra, and Android won't start it again by itself (it may say \"this service " +
+                    "doesn't work\"). Turn Vektra off and on in the accessibility settings.\n\n" +
+                    if (XIAOMI) {
+                        "On Xiaomi, Redmi and POCO phones clearing recent apps does this. To prevent it: allow " +
+                            "Autostart, set Battery saver to No restrictions in Vektra's app info, and lock Vektra " +
+                            "in recent apps (long-press its card, then the lock)."
+                    } else {
+                        "On some phones (Samsung, Huawei, Honor, OnePlus, Oppo, Vivo and others) battery saving " +
+                            "or clearing recent apps does this. To prevent it, allow Vektra to run in the background " +
+                            "and turn off battery optimisation for it in its app info."
+                    },
+            )
+            notes.addView(button("Open accessibility settings", primary = true, onClick = accessibility))
+            if (XIAOMI) notes.addView(button("Open Autostart", primary = false, onClick = ::openAutostart))
+            notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
+        } else if (batterySaving) {
+            note(
+                "Battery saving is on for Vektra. Some phones (Xiaomi, Samsung, Huawei and others) then stop it in " +
+                    "the background, and hints stop until you turn it off and on again. " +
+                    if (XIAOMI) "In Vektra's app info, set Battery saver to No restrictions, and allow Autostart."
+                    else "In Vektra's app info, turn battery optimisation off.",
+            )
+            notes.addView(button("Open Vektra's app info", primary = false, onClick = ::openAppInfo))
+            if (XIAOMI) notes.addView(button("Open Autostart", primary = false, onClick = ::openAutostart))
+        }
+    }
+
+    /**
+     * The quick settings tile turns hints on and off during a game, but Android
+     * doesn't add a new app's tile by itself. From Android 13 the app can ask;
+     * before that, the user drags it in. Hidden once it is there.
+     */
+    private fun addTileButton(parent: LinearLayout) {
+        val prefs = getSharedPreferences("ui", MODE_PRIVATE)
+        if (prefs.getBoolean("tileAdded", false)) return
+        if (Build.VERSION.SDK_INT < 33) {
+            parent.addView(TextView(this).apply {
+                text = "To turn hints on and off during a game: pull down quick settings, tap edit (✏️) and drag in the Vektra hints tile."
+                setTextColor(MUTED)
+                setPadding(0, pad / 3, 0, 0)
+            })
+            return
+        }
+        lateinit var add: Button
+        add = button("Add an on/off tile to quick settings", primary = false) {
+            getSystemService(StatusBarManager::class.java).requestAddTileService(
+                ComponentName(this, HintsTileService::class.java), "Vektra hints",
+                Icon.createWithResource(this, R.drawable.ic_tile), mainExecutor,
+            ) { result ->
+                if (result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
+                    result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
+                ) {
+                    prefs.edit().putBoolean("tileAdded", true).apply()
+                    add.visibility = View.GONE
+                    Toast.makeText(this, "Vektra hints is in quick settings: pull down from the top during a game.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        parent.addView(add)
+    }
+
+    private fun openAppInfo() =
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+
+    /** Xiaomi's Autostart list (in its Security app); app info if this phone doesn't have it. */
+    private fun openAutostart() {
+        try {
+            startActivity(Intent().setComponent(ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")))
+        } catch (e: Exception) {
+            openAppInfo()
+        }
     }
 
     private fun describe(reading: GameReading, current: Boolean): String {
@@ -317,6 +424,8 @@ class MainActivity : Activity() {
         val LINE = Color.parseColor("#45403b")
         val MUTED = Color.parseColor("#aaa39b")
         val ACCENT = Color.parseColor("#2f6fe4")
+        /** Xiaomi's own system (MIUI, HyperOS) has its own Autostart and battery rules. */
+        val XIAOMI = Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")
     }
 
     private fun serviceEnabled(): Boolean {

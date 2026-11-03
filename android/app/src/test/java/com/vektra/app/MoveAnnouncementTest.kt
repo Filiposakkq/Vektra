@@ -25,6 +25,17 @@ class MoveAnnouncementTest {
     }
 
     @Test
+    fun `castling names no square, so the king's squares for both sides are given`() {
+        val short = listOf("e1", "g1", "e8", "g8")
+        val long = listOf("e1", "c1", "e8", "c8")
+        assertEquals(MoveAnnouncement(short, 'w', 'k'), MoveAnnouncement.parse("Bílý malá rošáda"))
+        assertEquals(MoveAnnouncement(long, null, 'k'), MoveAnnouncement.parse("Velká rošáda"))
+        assertEquals(MoveAnnouncement(long, 'b', 'k'), MoveAnnouncement.parse("Black castles queenside"))
+        // The move list's notation is not an announcement.
+        assertNull(MoveAnnouncement.parse("10. O-O-O"))
+    }
+
+    @Test
     fun `other texts are not moves`() {
         assertNull(MoveAnnouncement.parse("22."))
         assertNull(MoveAnnouncement.parse("Take e4 and d5 now"))
