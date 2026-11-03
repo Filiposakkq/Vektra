@@ -78,6 +78,38 @@ only, and reviews finished games from Chess.com's public archive. It reads the
 screen through Android's accessibility service; it never taps or types.
 Building it, and how it works: [docs/ANDROID.md](docs/ANDROID.md).
 
+**What it does**
+
+- **In bot games:** the engine's best moves as arrows over the board on your
+  turn, with scores; the bot's threat; an optional weaker move (violet); a
+  rating of each of your moves (Best, Mistake...) and an eval strip above the
+  board. Rules and drawings are shared with the extension.
+- **Coach games:** Vektra stays off. Chess.com shows its own arrows, move
+  feedback and eval bar there.
+- **Review finished games:** enter a Chess.com username, pick a game (Load
+  older games goes back a month at a time) and get accuracy, game rating,
+  phases, an eval graph and every move rated. The board marks the move played,
+  shows the better move when there was one, and **Line** adds the engine's line.
+- **Settings:** arrows, scores, threats, weaker moves, avoid draws, depth,
+  strength (Elo), light mode, analysis depth, update checks.
+- **Help when something is wrong:** the Status card explains a stopped or
+  switched-off service, or battery saving that can stop it, only when it
+  happens, with steps for Xiaomi and other phones.
+- **Updates** from GitHub releases, installed with your confirmation.
+
+**Languages.** Vektra reads the board from the Chess.com app's labels, in
+**Czech and English** (English not yet tried on a device). With the Chess.com
+app in another language the board can't be read, and Vektra stays off.
+
+**Changes**
+
+- **0.3.1:** stays off in coach games; castling is read from Chess.com's
+  announcement instead of waiting for the board; help notes only when a
+  problem is detected; the quick settings tile is gone; install guide in this
+  README.
+- **0.3.0:** first release of the app: hints, move ratings, game review, settings,
+  signed APK and in-app updates.
+
 **Install** (Android 8 or later). It isn't on Google Play, which doesn't allow
 apps that read other apps' screens like this.
 
