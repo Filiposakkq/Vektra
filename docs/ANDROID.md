@@ -190,8 +190,8 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    the extension's overlay draws it as SVG and the app's `OverlayView.kt`
    paints it with Android graphics, so look changes stay in one place. The
    WebView is hidden and only works out frames (`android/web/nativeLayer.ts`).
-   Rating icons on the phone are round badges with the category's symbol;
-   the extension's detailed icons are SVG drawings. A frame that can't be
+   Rating icons are the extension's SVG icons, turned into PNGs by the page
+   once and painted as bitmaps (a round symbol badge until they are ready). A frame that can't be
    painted is skipped, never crashing the service. Drawing into Chess.com's
    own app would need root or a modified copy of it: not an option.
 4. **Review.** Finished games from the public archive, with the analysis panel.
@@ -199,10 +199,14 @@ A Kotlin app with a small native shell around the shared TypeScript core.
    WebView with `android/web/review.ts`: a Chess.com username (remembered),
    the newest 50 standard games of the last two months, and the extension's
    `AnalysisPanel` full-screen over two lite engines at the analysis depth
-   (12). Tapping the graph explains a move; Back returns to the list. No
-   board, no exports (the panel hides them without callbacks), no cache. The
-   legend still describes the extension's board marks. Checked in a browser at
-   phone size; on the phone, untested.
+   (12). A board on top (`#board` in `review.html`: a CSS grid with the
+   phone font's chess symbols, from the user's side) shows the position during
+   and after the analysis; ◀ ▶ step through the moves and a tap on the graph
+   jumps there. Once analysed, the extension's `BoardOverlay` draws the
+   engine's line (three numbered arrows) and the move's rating badge on it.
+   Back returns to the list. No exports (the panel hides them without
+   callbacks), no cache, portrait only. Checked in a browser at phone size;
+   on the phone, untested.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
 
 ## Risks and open questions

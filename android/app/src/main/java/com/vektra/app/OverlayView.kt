@@ -1,6 +1,8 @@
 package com.vektra.app
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
@@ -8,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.util.Base64
 import android.util.Log
 import android.view.View
 import org.json.JSONArray
@@ -33,6 +36,9 @@ class OverlayView(context: Context, private val stripPx: Int) : View(context) {
         textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD
     }
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    /** Rating icons by category, decoded once. */
+    private val icons = HashMap<String, Bitmap>()
     private val path = Path()
     /** Pixels per board unit (one square), set on each draw. */
     private var unit = 1f
@@ -161,11 +167,20 @@ class OverlayView(context: Context, private val stripPx: Int) : View(context) {
         drawText(canvas, box.getString("text"), x + w / 2, y + h / 2, color(box.getString("textColor")))
     }
 
-    /** A move rating: a round icon in the category's colour with its symbol. */
+    /** A move rating: the analysis panel's icon, or a round badge with its symbol until the page has drawn it. */
     private fun drawBadge(canvas: Canvas, badge: JSONObject) {
         val cx = badge.getDouble("cx").toFloat()
         val cy = badge.getDouble("cy").toFloat()
         val r = badge.getDouble("radius").toFloat()
+        val png = badge.optString("icon")
+        if (png.isNotEmpty()) {
+            val icon = icons.getOrPut(badge.getString("category")) {
+                Base64.decode(png, Base64.DEFAULT).let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+            }
+            rect.set(cx - r, cy - r, cx + r, cy + r)
+            canvas.drawBitmap(icon, null, rect, bitmapPaint)
+            return
+        }
         fill.color = color(badge.getString("color"))
         canvas.drawCircle(cx, cy, r, fill)
         stroke.color = Color.WHITE

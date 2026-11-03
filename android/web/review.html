@@ -15,9 +15,28 @@
       ul { list-style: none; margin: 0; padding: 0; }
       li button { width: 100%; text-align: left; margin-top: 6px; background: #2f2c29; color: inherit; font-weight: 400; }
       li small { display: block; color: #aaa39b; }
-      /* The extension's panel floats beside the board; here it fills the screen. */
+      /* The game's board on top, the move buttons under it, the analysis panel below. */
+      #viewer { position: fixed; inset: 0 0 auto 0; z-index: 2147483647; background: #262421; }
+      #viewer[hidden] { display: none; }
+      #board {
+        --size: min(100vw, 55vh);
+        position: relative; width: var(--size); height: var(--size); margin: 0 auto;
+        display: grid; grid-template: repeat(8, 1fr) / repeat(8, 1fr);
+        /* The squares are painted here, so the highlights drawn under the pieces show through them. */
+        background: repeating-conic-gradient(#b58863 0 25%, #f0d9b5 0 50%) 0 0 / 25% 25%;
+      }
+      #board div {
+        position: relative; display: flex; align-items: center; justify-content: center;
+        font: calc(var(--size) / 9.5) / 1 "Noto Sans Symbols 2", "Segoe UI Symbol", sans-serif;
+      }
+      #board .w { color: #fff; -webkit-text-stroke: 1.2px #1b1b1b; }
+      #board .b { color: #1b1b1b; }
+      #moves { display: flex; align-items: center; gap: 8px; padding: 6px 12px; height: 36px; }
+      #moves span { flex: 1; text-align: center; }
+      #moves button { padding: 6px 18px; background: #2f2c29; }
+      /* The extension's panel floats beside the board; here it fills the screen under it. */
       #vektra-analysis-panel {
-        inset: 0 !important; width: auto !important; max-width: none !important;
+        inset: calc(min(100vw, 55vh) + 48px) 0 0 0 !important; width: auto !important; max-width: none !important;
         max-height: none !important; border-radius: 0 !important; border: 0 !important;
       }
     </style>
@@ -32,6 +51,14 @@
       <p id="status"></p>
       <ul id="games"></ul>
     </main>
+    <div id="viewer" hidden>
+      <div id="board"></div>
+      <div id="moves">
+        <button id="back" aria-label="Previous move">◀</button>
+        <span id="move"></span>
+        <button id="forward" aria-label="Next move">▶</button>
+      </div>
+    </div>
     <script type="module" src="./review.ts"></script>
   </body>
 </html>

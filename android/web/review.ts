@@ -1,8 +1,10 @@
 import { Chess } from 'chess.js';
-import { analyzeGame } from '@core/analysis/gameAnalysis';
+import { analyzeGame, describeMoveAnalysis, type GameAnalysis } from '@core/analysis/gameAnalysis';
 import { UciEngine } from '@core/engine/uciEngine';
+import { arrowScoreLabel } from '@core/hints/hintArrows';
 import { DEFAULT_SETTINGS } from '@core/settings';
 import { AnalysisPanel } from '@ext/ui/analysisPanel';
+import { BoardOverlay } from '@ext/ui/overlay';
 
 /**
  * The Android app's review screen (ReviewActivity): finished games from
@@ -92,7 +94,7 @@ form.addEventListener('submit', async (event) => {
     item.addEventListener('click', () => {
       // The phone's back button comes back to the list (ReviewActivity goes back in the page's history).
       history.pushState({ review: true }, '');
-      review(g.pgn!);
+      review(g.pgn!, g.black.username.toLowerCase() === username.toLowerCase());
     });
     const li = document.createElement('li');
     li.append(item);
@@ -111,19 +113,80 @@ function stopEngines(): void {
   workers = [];
 }
 
-function review(pgn: string): void {
+const viewer = document.getElementById('viewer')!;
+const board = document.getElementById('board')!;
+const moveText = document.getElementById('move')!;
+const overlay = new BoardOverlay(board);
+/** Filled glyphs for both sides (coloured by CSS); U+FE0E asks for text, not emoji. */
+const GLYPHS: Record<string, string> = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+/** Moves to the position after `ply`; set by review() for the game shown. */
+let go: (ply: number) => void = () => {};
+
+document.getElementById('back')!.addEventListener('click', () => go(-1));
+document.getElementById('forward')!.addEventListener('click', () => go(1));
+
+/** The pieces of a FEN on the board, rank 8 first (h1 first when flipped). */
+function drawPieces(fen: string, flipped: boolean): void {
+  const squares: HTMLDivElement[] = [];
+  for (const row of fen.split(' ')[0].split('/')) {
+    for (const c of row) {
+      if (/\d/.test(c)) {
+        for (let i = 0; i < Number(c); i++) squares.push(document.createElement('div'));
+        continue;
+      }
+      const square = document.createElement('div');
+      square.className = c === c.toUpperCase() ? 'w' : 'b';
+      square.textContent = `${GLYPHS[c.toLowerCase()]}︎`;
+      squares.push(square);
+    }
+  }
+  // The overlay's layers stay; only the squares are replaced.
+  board.querySelectorAll(':scope > div').forEach((d) => d.remove());
+  board.append(...(flipped ? squares.reverse() : squares));
+}
+
+function review(pgn: string, flipped: boolean): void {
   const chess = new Chess();
   chess.loadPgn(pgn);
-  const sans = chess.history();
+  const moves = chess.history({ verbose: true });
+  const sans = moves.map((m) => m.san);
+  const fens = [moves[0]?.before ?? chess.fen(), ...moves.map((m) => m.after)];
+  let ply = 0;
+  let analysis: GameAnalysis | null = null;
+
+  /** The board at `ply`: with the analysis, the engine's best line from there and the rating of the move played. */
+  const show = () => {
+    drawPieces(fens[ply], flipped);
+    const move = ply ? `${Math.ceil(ply / 2)}${ply % 2 ? '.' : '...'} ${sans[ply - 1]}` : 'Start';
+    moveText.textContent = `${move}  (${ply}/${sans.length})`;
+    const position = analysis?.positions[ply];
+    if (!analysis || !position) return overlay.clear();
+    const line = position.lines[0]?.pv.slice(0, 3) ?? [];
+    const label = arrowScoreLabel(position.score);
+    overlay.draw(board, line.map((m, i) => ({ move: m, rank: i, step: i + 1, ...(i === 0 ? { label } : {}) })), flipped);
+    const played = analysis.moves[ply - 1];
+    if (played) {
+      overlay.drawBadge(board, { square: played.uci.slice(2, 4), category: played.category, title: describeMoveAnalysis(played) }, flipped);
+    }
+  };
+  const select = (next: number) => {
+    ply = Math.max(0, Math.min(sans.length, next));
+    show();
+    p.setCurrentPly(ply || null);
+  };
+  go = (step) => select(ply + step);
+
   const p = new AnalysisPanel({
     onAnalyze: () => void run(),
     onCancel: () => {
       stopEngines();
       p.showIdle(sans.length);
     },
-    onSelectPly: (ply) => p.setCurrentPly(ply),
+    onSelectPly: select,
   });
   panel = p;
+  viewer.hidden = false;
+  show();
 
   const run = async () => {
     stopEngines();
@@ -143,14 +206,18 @@ function review(pgn: string): void {
       return engine;
     });
     p.showProgress(0, sans.length + 1);
-    const analysis = await analyzeGame(sans, engines, {
+    analysis = null;
+    show();
+    const result = await analyzeGame(sans, engines, {
       depth: DEFAULT_SETTINGS.analysisDepth,
       onProgress: (done, total) => !signal.aborted && p.showProgress(done, total),
       signal,
     });
     if (signal.aborted || crashed) return;
     stopEngines();
-    if (analysis) p.showResult(analysis, null);
+    analysis = result;
+    show();
+    if (result) p.showResult(result, ply || null);
     else p.showIdle(sans.length, false, 'The analysis failed. Try again.');
   };
   void run();
@@ -160,4 +227,6 @@ window.addEventListener('popstate', () => {
   stopEngines();
   panel?.destroy();
   panel = null;
+  viewer.hidden = true;
+  overlay.clear();
 });

@@ -1,7 +1,8 @@
 import { CATEGORY_STYLE } from '@core/analysis/categoryStyle';
-import type { Category } from '@core/analysis/classify';
+import { CATEGORIES, type Category } from '@core/analysis/classify';
 import { winPercent } from '@core/analysis/winProbability';
 import { drawArrows } from '@core/draw/arrowDrawing';
+import { categoryIconGroup } from '@core/draw/categoryIcons';
 import type { Score } from '@core/engine/uci';
 import { squareCenter } from '@core/hints/arrowShapes';
 import type { Arrow } from '@core/hints/types';
@@ -18,6 +19,29 @@ declare global {
   interface Window {
     VektraNative?: { render(frame: string): void };
   }
+}
+
+/**
+ * The rating icons as PNGs (base64), drawn once from the extension's SVG
+ * icons, since Android can't paint SVG. Until one is ready the app paints a
+ * plain round badge.
+ */
+const ICON_PX = 96;
+const iconPngs: Partial<Record<Category, string>> = {};
+for (const category of CATEGORIES) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 20 20');
+  svg.setAttribute('width', String(ICON_PX));
+  svg.setAttribute('height', String(ICON_PX));
+  svg.append(categoryIconGroup(category, true));
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = ICON_PX;
+    canvas.getContext('2d')!.drawImage(image, 0, 0);
+    iconPngs[category] = canvas.toDataURL('image/png').split(',')[1];
+  };
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
 }
 
 /**
@@ -62,7 +86,15 @@ export class NativeLayer {
       // In the square's top-right corner, overlapping the edge like Chess.com's.
       const [cx, cy] = squareCenter(badge.square, flipped);
       const style = CATEGORY_STYLE[badge.category];
-      this.badge = { cx: cx + 0.39, cy: cy - 0.39, radius: 0.22, color: style.color, symbol: style.symbol };
+      this.badge = {
+        cx: cx + 0.39,
+        cy: cy - 0.39,
+        radius: 0.22,
+        color: style.color,
+        symbol: style.symbol,
+        category: badge.category,
+        icon: iconPngs[badge.category],
+      };
     } else {
       this.badge = null;
     }
