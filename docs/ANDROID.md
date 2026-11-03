@@ -310,3 +310,33 @@ hidden pages, for the chess logic and Stockfish.
   these in, as in the extension.
 - Same rules as the extension: no autoplay, no data collection, no
   detection evasion, no live-game hints.
+
+## Still to check, and ideas
+
+As of v0.4.0 (2026-11-03). Checking needs the phone; screens can be opened
+over USB (see [Screens](#screens)), but taps can't be sent.
+
+**Not yet seen on the phone**
+
+- Stepping through a game (swipes, tapping moves) and the lower part of the
+  game screen: the move's verdict, the phases and the ratings.
+- Loading a Chess.com username's games in Review.
+- The update card's retry flow when Android's install window is interrupted
+  (an app lock or Play Protect); its first real test is the next release.
+- Castling: the announcement's wording is assumed ("rošáda"). After castling,
+  `adb logcat -s Vektra:I` should show `announced: ... k e1 c1 e8 c8`, not
+  `not understood`.
+- A king capture ("Král bere dámu na e2"), fixed but not seen since.
+- The Chess.com app in English: labels are tested in unit tests only.
+- A promotion to anything but a queen shows a queen for a moment, until the
+  board is read.
+
+**Ideas, not built**
+
+- Practise your mistakes: puzzles from the positions where you went wrong in
+  analysed games.
+- Your progress over time: accuracy and game rating per game, by phase (needs
+  analyses to be kept).
+- Keep finished analyses, so opening one again is instant.
+- Auto-play through an analysed game, pausing on your mistakes.
+- Smoother hints: redraw arrows less often while the engine is still thinking.
