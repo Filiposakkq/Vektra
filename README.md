@@ -86,6 +86,8 @@ Building it, and how it works: [docs/ANDROID.md](docs/ANDROID.md).
   board. Rules and drawings are shared with the extension.
 - **Coach games:** Vektra stays off. Chess.com shows its own arrows, move
   feedback and eval bar there.
+- **Everywhere else** (games against people, lessons, puzzles and any other
+  screen) Vektra stays off: it works only in games against Chess.com's bots.
 - **Review finished games:** enter a Chess.com username, pick a game (Load
   older games goes back a month at a time) and get accuracy, game rating,
   phases, an eval graph and every move rated. The board marks the move played,
@@ -97,9 +99,10 @@ Building it, and how it works: [docs/ANDROID.md](docs/ANDROID.md).
   happens, with steps for Xiaomi and other phones.
 - **Updates** from GitHub releases, installed with your confirmation.
 
-**Languages.** Vektra reads the board from the Chess.com app's labels, in
-**Czech and English** (English not yet tried on a device). With the Chess.com
-app in another language the board can't be read, and Vektra stays off.
+**Languages.** Only the Chess.com app in **Czech or English** is supported
+(English not yet tried on a device). Vektra reads the board from the app's
+labels, which follow its language; in any other language it can't read the
+board and doesn't work.
 
 **Changes**
 

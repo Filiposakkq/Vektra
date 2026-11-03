@@ -71,8 +71,9 @@ and anything that can't be confirmed as one stays off.
 Checked: coach games (a bot with a coach) use `BotGameActivityV2` too, with
 Chess.com's own arrows, eval bar and move feedback, so Vektra stays off there
 (`BotGameGuard.isCoachGame`: the coach's picture, labelled "Trenér") and stops
-reading the screen until another screen opens. Still to check: lessons and
-custom positions, and whether the screen name changes between app versions.
+reading the screen until another screen opens. Lessons (Výuka) and puzzles
+(Úlohy) were tried: Vektra stays off there. Still to check: custom positions,
+and whether the screen name changes between app versions.
 
 ## What the app exposes
 
