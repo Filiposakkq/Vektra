@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.text.format.DateUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -115,7 +114,7 @@ class MainActivity : Activity() {
         val game = runCatching { JSONObject(json) }.getOrNull() ?: return
         val moves = (game.getJSONArray("sans").length() + 1) / 2
         val side = if (game.optBoolean("flipped")) "Black" else "White"
-        lastGameSubtitle.text = "$moves moves as $side, ${DateUtils.getRelativeTimeSpanString(LastGame.playedAt(this))}"
+        lastGameSubtitle.text = "$moves moves as $side, ${ago(System.currentTimeMillis() - LastGame.playedAt(this))}"
     }
 
     /** One status: green when hints will show, amber with the fix when they won't. */
@@ -295,3 +294,14 @@ class MainActivity : Activity() {
 /** Vektra's app info, where Android and phone makers keep its battery and background settings. */
 fun openAppDetails(context: Context) =
     context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+
+/** How long ago, in English like the rest of the app (Android's own wording follows the phone's language). */
+fun ago(ms: Long): String {
+    val minutes = ms / 60_000
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> if (minutes == 1L) "a minute ago" else "$minutes minutes ago"
+        minutes < 24 * 60 -> (minutes / 60).let { if (it == 1L) "an hour ago" else "$it hours ago" }
+        else -> (minutes / (24 * 60)).let { if (it == 1L) "yesterday" else "$it days ago" }
+    }
+}
