@@ -123,9 +123,10 @@ class Ui(private val context: Context) {
 
     /**
      * A choice of a few options, the selected one on a pill that slides to the
-     * next choice. `selected` -1: none (the value is a custom one).
+     * next choice. `selected` -1: none (the value is a custom one). Returns a
+     * setter, for when the value changes elsewhere (it doesn't call onSelect).
      */
-    fun segmented(parent: ViewGroup, labels: List<String>, selected: Int, onSelect: (Int) -> Unit): View {
+    fun segmented(parent: ViewGroup, labels: List<String>, selected: Int, onSelect: (Int) -> Unit): (Int) -> Unit {
         val frame = FrameLayout(context).apply {
             background = rounded(INK, 12)
             setPadding(dp(3), dp(3), dp(3), dp(3))
@@ -167,11 +168,26 @@ class Ui(private val context: Context) {
         }
         row.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place(animate = false) }
         parent.addView(frame, fullWidth(dp(6)))
-        return frame
+        return { i ->
+            if (i != current) {
+                current = i
+                place(animate = true)
+            }
+        }
     }
 
-    /** A number set on a slider, its value shown in the caption. */
-    fun slider(parent: ViewGroup, caption: (Int) -> String, min: Int, max: Int, step: Int, value: Int, onChange: (Int) -> Unit): SeekBar {
+    /** Rows shown only while a switch above them is on; they slide in and out with the card. */
+    fun dependent(parent: ViewGroup, shown: Boolean): LinearLayout =
+        column().apply {
+            visibility = if (shown) View.VISIBLE else View.GONE
+            parent.addView(this, fullWidth())
+        }
+
+    /** A number set on a slider, its value shown in the caption (and passed to onMove while it moves). */
+    fun slider(
+        parent: ViewGroup, caption: (Int) -> String, min: Int, max: Int, step: Int, value: Int,
+        onMove: (Int) -> Unit = {}, onChange: (Int) -> Unit,
+    ): SeekBar {
         val label = text(caption(value), 14f).apply { setPadding(0, dp(12), 0, 0) }
         parent.addView(label)
         return SeekBar(context).apply {
@@ -180,6 +196,7 @@ class Ui(private val context: Context) {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
                     label.text = caption(min + progress * step)
+                    if (fromUser) onMove(min + progress * step)
                 }
                 override fun onStartTrackingTouch(bar: SeekBar) {}
                 override fun onStopTrackingTouch(bar: SeekBar) = onChange(min + bar.progress * step)

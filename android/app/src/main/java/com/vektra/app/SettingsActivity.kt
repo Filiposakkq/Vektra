@@ -10,8 +10,8 @@ import android.widget.ScrollView
 
 /**
  * Vektra's settings, saved as soon as one changes; the overlay picks them up
- * at once. The everyday ones as plain choices, the fine-tuning folded away
- * under Advanced.
+ * at once. Each group holds what belongs together, and a setting that only
+ * matters while a switch is on sits under that switch, shown only then.
  */
 class SettingsActivity : Activity() {
     private val ui by lazy { Ui(this) }
@@ -36,33 +36,55 @@ class SettingsActivity : Activity() {
         header.addView(ui.text("Settings", 22f, bold = true))
         layout.addView(header)
 
-        ui.section(layout, "Hints")
-        val hints = ui.card(layout)
-        hints.addView(ui.text("Arrows", 14f, Ui.MUTED))
-        ui.segmented(hints, listOf("1", "2", "3"), settings.arrows - 1) { save(settings.copy(arrows = it + 1)) }
-        ui.switchRow(hints, "Scores on arrows", null, settings.arrowScores) { save(settings.copy(arrowScores = it)) }
-        ui.switchRow(hints, "Rate my moves", "Best, Mistake… on the board", settings.liveRatings) { save(settings.copy(liveRatings = it)) }
-        ui.switchRow(hints, "The bot's threats", "What it would play if it were its move", settings.showThreats) {
-            save(settings.copy(showThreats = it))
+        ui.section(layout, "Arrows")
+        val arrows = ui.card(layout)
+        arrows.addView(ui.text("How many best moves", 14f, Ui.MUTED))
+        ui.segmented(arrows, listOf("1", "2", "3"), settings.arrows - 1) { save(settings.copy(arrows = it + 1)) }
+        ui.switchRow(arrows, "Scores on arrows", "+1.5 means you're 1.5 pawns better", settings.arrowScores) {
+            save(settings.copy(arrowScores = it))
         }
-        ui.switchRow(hints, "Weaker move", "A second, violet arrow", settings.occasionalWeakerMoves) {
-            save(settings.copy(occasionalWeakerMoves = it))
+        ui.slider(arrows, { "Hide moves that cost more than $it% win chance" }, 2, 40, 1, settings.hideWorseWinLoss) {
+            save(settings.copy(hideWorseWinLoss = it))
+        }
+        ui.switchRow(arrows, "Avoid draws", "Skip a move that draws at once when another keeps you level", settings.avoidDraws) {
+            save(settings.copy(avoidDraws = it))
         }
 
-        ui.section(layout, "Strength")
-        val strength = ui.card(layout)
-        // The extension's presets (core/settings.ts ELO_PRESETS); Maximum is full strength.
-        val presets = listOf(1400, 1800, 2400)
-        val preset = if (!settings.limitStrength) 3 else presets.indexOf(settings.elo)
-        ui.segmented(strength, listOf("Beginner", "Club", "Strong", "Max"), preset) { i ->
-            save(if (i == 3) settings.copy(limitStrength = false) else settings.copy(limitStrength = true, elo = presets[i]))
+        ui.section(layout, "Threats")
+        val threats = ui.card(layout)
+        lateinit var threatMore: LinearLayout
+        ui.switchRow(threats, "Show the bot's threats", "What it would play if it were its move", settings.showThreats) {
+            threatMore.visibility = if (it) View.VISIBLE else View.GONE
+            save(settings.copy(showThreats = it))
         }
-        strength.addView(ui.text("How strong the suggested moves are; Advanced sets an exact Elo", 13f, Ui.MUTED).apply {
-            setPadding(0, ui.dp(8), 0, 0)
-        })
+        threatMore = ui.dependent(threats, settings.showThreats)
+        ui.slider(threatMore, { "Only when they would cost at least $it% win chance" }, 4, 40, 1, settings.threatWinLoss) {
+            save(settings.copy(threatWinLoss = it))
+        }
+
+        ui.section(layout, "Weaker move")
+        val weaker = ui.card(layout)
+        lateinit var weakerMore: LinearLayout
+        ui.switchRow(weaker, "Show a weaker move", "A second, violet arrow: good, but not the best", settings.occasionalWeakerMoves) {
+            weakerMore.visibility = if (it) View.VISIBLE else View.GONE
+            save(settings.copy(occasionalWeakerMoves = it))
+        }
+        weakerMore = ui.dependent(weaker, settings.occasionalWeakerMoves)
+        ui.slider(weakerMore, { "Up to %.1f pawns worse than the best".format(it / 100.0) }, 10, 300, 10, settings.weakerMoveMaxLossCp) {
+            save(settings.copy(weakerMoveMaxLossCp = it))
+        }
+
+        ui.section(layout, "Your moves")
+        val yours = ui.card(layout)
+        ui.switchRow(yours, "Rate my moves", "Best, Mistake… on the board after you move", settings.liveRatings) {
+            save(settings.copy(liveRatings = it))
+        }
+
+        addStrength(layout)
 
         ui.section(layout, "Game review")
         val review = ui.card(layout)
+        review.addView(ui.text("How deep each move is analysed", 14f, Ui.MUTED))
         val depths = listOf(12, 16, 20)
         ui.segmented(review, listOf("Quick", "Normal", "Deep"), depths.indexOf(settings.analysisDepth)) {
             save(settings.copy(analysisDepth = depths[it]))
@@ -71,59 +93,74 @@ class SettingsActivity : Activity() {
             setPadding(0, ui.dp(8), 0, 0)
         })
 
-        addAdvanced(layout)
+        ui.section(layout, "App")
+        val app = ui.card(layout)
+        ui.switchRow(app, "Check for updates", "When Vektra opens", settings.updateCheck) { save(settings.copy(updateCheck = it)) }
+        addDiagnostics(app)
+
         setContentView(ScrollView(this).apply { addView(layout) })
         ui.enter((0 until layout.childCount).map { layout.getChildAt(it) })
     }
 
-    /** The fine-tuning, folded until opened. */
-    private fun addAdvanced(layout: LinearLayout) {
+    /**
+     * How strong the suggested moves are: one choice, from the presets to an
+     * exact Elo. Max is full strength, without an Elo limit; the extension's
+     * presets are core/settings.ts ELO_PRESETS. The engine's speed sits here too.
+     */
+    private fun addStrength(layout: LinearLayout) {
+        ui.section(layout, "Strength")
         val card = ui.card(layout)
-        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val words = ui.column()
-        words.addView(ui.text("Advanced", 15f))
-        words.addView(ui.text("Depth, light mode, thresholds, updates", 13f, Ui.MUTED))
-        head.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-        val chevron = ui.text("⌄", 22f, Ui.MUTED)
-        head.addView(chevron)
-        card.addView(head)
-        val body = ui.column().apply { visibility = View.GONE }
-        card.addView(body)
-        head.setOnClickListener {
-            val open = body.visibility != View.VISIBLE
-            body.visibility = if (open) View.VISIBLE else View.GONE
-            chevron.animate().rotation(if (open) 180f else 0f).setDuration(220)
+        card.addView(ui.text("How strong the suggested moves are", 14f, Ui.MUTED))
+        val presets = listOf(1400, 1800, 2400)
+        val names = listOf("Beginner", "Club", "Strong")
+        fun presetOf(s: HintSettings) = if (!s.limitStrength) 3 else presets.indexOf(s.elo)
+        lateinit var eloRow: LinearLayout
+        lateinit var elo: android.widget.SeekBar
+        val select = ui.segmented(card, names + "Max", presetOf(settings)) { i ->
+            eloRow.visibility = if (i == 3) View.GONE else View.VISIBLE
+            if (i == 3) {
+                save(settings.copy(limitStrength = false))
+            } else {
+                save(settings.copy(limitStrength = true, elo = presets[i]))
+                elo.progress = (presets[i] - HintSettings.ELO_MIN) / 10
+            }
         }
+        // The exact Elo, under the presets; a preset's value lights its choice.
+        eloRow = ui.dependent(card, settings.limitStrength)
+        elo = ui.slider(
+            eloRow, { e -> "About $e Elo" + (presets.indexOf(e).takeIf { it >= 0 }?.let { " (${names[it]})" } ?: "") },
+            HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo,
+            onMove = { e -> select(presets.indexOf(e)) },
+        ) { e -> save(settings.copy(limitStrength = true, elo = e)) }
 
-        ui.slider(body, { "Search depth: $it (deeper is stronger but slower)" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
+        card.addView(ui.text("Speed", 14f, Ui.MUTED, bold = true).apply { setPadding(0, ui.dp(18), 0, 0) })
+        ui.slider(card, { "Search depth $it: deeper is stronger but slower" }, HintSettings.DEPTH_MIN, HintSettings.DEPTH_MAX, 1, settings.depth) {
             save(settings.copy(depth = it))
         }
-        ui.switchRow(body, "Light mode", "One engine: smoother, hints a bit slower", settings.lightMode) { save(settings.copy(lightMode = it)) }
-        ui.switchRow(body, "Avoid draws", "Skip a move that draws at once when another keeps you level", settings.avoidDraws) {
-            save(settings.copy(avoidDraws = it))
+        ui.switchRow(card, "Light mode", "One engine: smoother arrows, hints a bit later", settings.lightMode) {
+            save(settings.copy(lightMode = it))
         }
-        ui.slider(body, { "Hide alternatives that cost more than $it% win chance" }, 2, 40, 1, settings.hideWorseWinLoss) {
-            save(settings.copy(hideWorseWinLoss = it))
-        }
-        ui.slider(body, { "Show threats that would cost at least $it% win chance" }, 4, 40, 1, settings.threatWinLoss) {
-            save(settings.copy(threatWinLoss = it))
-        }
-        ui.slider(body, { "Weaker move: up to %.1f pawns worse".format(it / 100.0) }, 10, 300, 10, settings.weakerMoveMaxLossCp) {
-            save(settings.copy(weakerMoveMaxLossCp = it))
-        }
-        ui.slider(body, { "Exact Elo when not at Max: $it" }, HintSettings.ELO_MIN, HintSettings.ELO_MAX, 10, settings.elo) {
-            save(settings.copy(elo = it))
-        }
-        ui.switchRow(body, "Check for updates", "When Vektra opens", settings.updateCheck) { save(settings.copy(updateCheck = it)) }
+    }
 
-        // What Vektra last read, for finding out why hints don't show.
-        body.addView(ui.text("Last board read", 13f, Ui.MUTED, bold = true).apply { setPadding(0, ui.dp(16), 0, ui.dp(4)) })
+    /** What Vektra last read, for finding out why hints don't show; folded until opened. */
+    private fun addDiagnostics(card: LinearLayout) {
+        val toggle = ui.text("Show what Vektra last read", 13f, Ui.LINK).apply { setPadding(0, ui.dp(12), 0, 0) }
+        card.addView(toggle)
+        val body = ui.dependent(card, false)
         val state = PositionStore.state
         val reading = (state as? PositionStore.State.On)?.reading ?: PositionStore.lastReading
         body.addView(ui.text(
             (if (state is PositionStore.State.Off) state.reason + "\n\n" else "") + (reading?.let(::describe) ?: "Nothing read yet."),
             12f, Ui.MUTED,
-        ).apply { typeface = Typeface.MONOSPACE })
+        ).apply {
+            typeface = Typeface.MONOSPACE
+            setPadding(0, ui.dp(8), 0, 0)
+        })
+        toggle.setOnClickListener {
+            val open = body.visibility != View.VISIBLE
+            body.visibility = if (open) View.VISIBLE else View.GONE
+            toggle.text = if (open) "Hide what Vektra last read" else "Show what Vektra last read"
+        }
     }
 
     private fun describe(reading: GameReading): String {
