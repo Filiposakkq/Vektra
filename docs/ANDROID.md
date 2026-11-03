@@ -214,7 +214,7 @@ A Kotlin app with a small native shell around the shared TypeScript core.
 5. **Releases.** APK in the release workflow, signing, the in-app updater.
    *Built, not yet released:* the release workflow builds the app with
    `npm run build:android-web` and `assembleRelease`, signed with the release
-   key (kept in `E:Vektra-signing`, outside the repository, and in the
+   key (kept in `E:\Vektra-signing`, outside the repository, and in the
    `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets; the
    release fails without them), and attaches `vektra-<version>.apk` and its
    SHA-256 to the release. `app/build.gradle.kts` signs only when
