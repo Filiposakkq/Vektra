@@ -48,6 +48,11 @@ for (const category of CATEGORIES) {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
 }
 
+/** A rating icon as a PNG (base64), once drawn. */
+export function categoryPng(category: Category): string | undefined {
+  return iconPngs[category];
+}
+
 /**
  * What to draw, worked out here with the shared code (core/draw/arrowDrawing)
  * and painted by the app with Android's own graphics: a web page in its own

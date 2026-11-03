@@ -520,7 +520,7 @@ function legend(items: readonly [string, string][]): HTMLDivElement {
 }
 
 /** "a mistake", "an inaccuracy", "the best move" style wording for a category label. */
-function articleFor(label: string): string {
+export function articleFor(label: string): string {
   const lower = label.toLowerCase();
   if (lower === 'best') return 'the best move';
   if (lower === 'book') return 'a book move';

@@ -21,7 +21,7 @@ export default defineConfig({
     outDir,
     emptyOutDir: true,
     target: 'es2022',
-    rollupOptions: { input: [resolve(repo, 'android/web/index.html'), resolve(repo, 'android/web/review.html')] },
+    rollupOptions: { input: [resolve(repo, 'android/web/index.html'), resolve(repo, 'android/web/review.html'), resolve(repo, 'android/web/engine.html')] },
   },
   plugins: [
     {
